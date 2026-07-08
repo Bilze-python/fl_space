@@ -39,6 +39,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fl_space.environment import CelestialBody, GroundStation, GroundStationNetwork
+from fl_space.viz.i18n import setup_cjk_font, t, tf
 from fl_space.fl.fedavg import (
     CappedSelector,
     FixedEpochTrainer,
@@ -422,7 +423,7 @@ def _compute_contact_stats(sim: OrbitSimulator) -> dict:
 # ── 标准化输出生成 ─────────────────────────────────────────────
 
 
-def generate_standard_outputs(exp: SingleExperiment, output_dir: str, quiet: bool = False) -> str:
+def generate_standard_outputs(exp: SingleExperiment, output_dir: str, quiet: bool = False, lang: str = "en") -> str:
     """为一个实验生成全套标准化输出文件。"""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -468,23 +469,26 @@ def generate_standard_outputs(exp: SingleExperiment, output_dir: str, quiet: boo
             print("  [警告] matplotlib 未安装，跳过图表生成")
         return output_dir
 
+    if lang == "zh":
+        setup_cjk_font()
+
     # 4. accuracy_trend.png
-    _plot_accuracy_trend(exp, os.path.join(output_dir, "accuracy_trend.png"))
+    _plot_accuracy_trend(exp, os.path.join(output_dir, "accuracy_trend.png"), lang=lang)
 
     # 5. gs_positions.png
-    _plot_gs_positions(exp, os.path.join(output_dir, "gs_positions.png"))
+    _plot_gs_positions(exp, os.path.join(output_dir, "gs_positions.png"), lang=lang)
 
     # 6. contact_heatmap.png
-    _plot_contact_heatmap_std(exp, os.path.join(output_dir, "contact_heatmap.png"))
+    _plot_contact_heatmap_std(exp, os.path.join(output_dir, "contact_heatmap.png"), lang=lang)
 
     # 7. satellite_training_time.png
-    _plot_satellite_training_time(exp, os.path.join(output_dir, "satellite_training_time.png"))
+    _plot_satellite_training_time(exp, os.path.join(output_dir, "satellite_training_time.png"), lang=lang)
 
     # 8. orbit_cross_section.png
-    _plot_orbit_cross_section(exp, os.path.join(output_dir, "orbit_cross_section.png"))
+    _plot_orbit_cross_section(exp, os.path.join(output_dir, "orbit_cross_section.png"), lang=lang)
 
     # 9. gs_sat_contacts.png
-    _plot_gs_sat_contacts(exp, os.path.join(output_dir, "gs_sat_contacts.png"))
+    _plot_gs_sat_contacts(exp, os.path.join(output_dir, "gs_sat_contacts.png"), lang=lang)
 
     if not quiet:
         print(f"  [输出] {output_dir}/")
@@ -515,7 +519,7 @@ COLORS = [
 ]
 
 
-def _plot_accuracy_trend(exp: SingleExperiment, path: str) -> None:
+def _plot_accuracy_trend(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """准确率趋势图（按轮次 + 时间槽双面板）。"""
     history = exp.history
     if not history:
@@ -527,16 +531,17 @@ def _plot_accuracy_trend(exp: SingleExperiment, path: str) -> None:
     accs = [h["accuracy"] for h in history]
 
     ax1.plot(rounds, accs, "b-o", markersize=2, linewidth=0.8)
-    ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label="90%")
-    ax1.set_xlabel("Round")
-    ax1.set_ylabel("Accuracy")
-    ax1.set_title(f"Accuracy vs Rounds (GS={exp.gs_count}, SAT={exp.sat_count})")
+    ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label=t("90%", lang))
+    ax1.set_xlabel(t("Round", lang))
+    ax1.set_ylabel(t("Accuracy", lang))
+    ax1.set_title(tf("Accuracy vs Rounds (GS={gs}, SAT={sat})", lang,
+                     gs=exp.gs_count, sat=exp.sat_count))
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim(0, 1.05)
     max_acc = max(accs)
     max_r = rounds[accs.index(max_acc)]
     ax1.annotate(
-        f"max={max_acc:.3f} @ R{max_r}",
+        f"{t('max=', lang)}{max_acc:.3f} @ R{max_r}",
         xy=(max_r, max_acc),
         fontsize=8,
         color="red",
@@ -546,14 +551,15 @@ def _plot_accuracy_trend(exp: SingleExperiment, path: str) -> None:
     ts = [h.get("timeslot_start", h.get("round", i) * 10) for i, h in enumerate(history)]
     ax2.plot(ts, accs, "g-o", markersize=2, linewidth=0.8)
     ax2.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5)
-    ax2.set_xlabel("Timeslot")
-    ax2.set_ylabel("Accuracy")
-    ax2.set_title("Accuracy vs Virtual Time")
+    ax2.set_xlabel(t("Timeslot", lang))
+    ax2.set_ylabel(t("Accuracy", lang))
+    ax2.set_title(t("Accuracy vs Virtual Time", lang))
     ax2.grid(True, alpha=0.3)
     ax2.set_ylim(0, 1.05)
 
     fig.suptitle(
-        f"SpaceFL FedAvg — GS={exp.gs_count}, SAT={exp.sat_count}, Final Acc={accs[-1]:.3f}",
+        tf("SpaceFL FedAvg — GS={gs}, SAT={sat}, Final Acc={acc:.3f}", lang,
+           gs=exp.gs_count, sat=exp.sat_count, acc=accs[-1]),
         fontsize=13,
         fontweight="bold",
     )
@@ -562,7 +568,7 @@ def _plot_accuracy_trend(exp: SingleExperiment, path: str) -> None:
     plt.close(fig)
 
 
-def _plot_gs_positions(exp: SingleExperiment, path: str) -> None:
+def _plot_gs_positions(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """地面站位置图（全球地图 + 经纬度标注）。"""
     fig, ax = plt.subplots(figsize=(14, 7))
 
@@ -585,9 +591,10 @@ def _plot_gs_positions(exp: SingleExperiment, path: str) -> None:
 
     ax.set_xlim(-180, 180)
     ax.set_ylim(-90, 90)
-    ax.set_xlabel("Longitude (°)")
-    ax.set_ylabel("Latitude (°)")
-    ax.set_title(f"Ground Station Positions (GS={exp.gs_count}) — Paper Table 3")
+    ax.set_xlabel(t("Longitude (°)", lang))
+    ax.set_ylabel(t("Latitude (°)", lang))
+    ax.set_title(tf("Ground Station Positions (GS={gs}) — Paper Table 3", lang,
+                    gs=exp.gs_count))
     ax.xaxis.set_major_locator(mticker.MultipleLocator(30))
     ax.yaxis.set_major_locator(mticker.MultipleLocator(30))
     ax.grid(True, alpha=0.3)
@@ -600,7 +607,7 @@ def _plot_gs_positions(exp: SingleExperiment, path: str) -> None:
     ax.text(
         0.02,
         0.02,
-        f"Ground Stations:\n{legend_text}",
+        tf("Ground Stations:\n{gs_text}", lang, gs_text=legend_text),
         transform=ax.transAxes,
         fontsize=7,
         family="monospace",
@@ -613,7 +620,7 @@ def _plot_gs_positions(exp: SingleExperiment, path: str) -> None:
     plt.close(fig)
 
 
-def _plot_contact_heatmap_std(exp: SingleExperiment, path: str) -> None:
+def _plot_contact_heatmap_std(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """接触矩阵热力图。"""
     sim = exp.sim
     n_sats = sim.num_satellites
@@ -639,13 +646,15 @@ def _plot_contact_heatmap_std(exp: SingleExperiment, path: str) -> None:
     ax.set_yticklabels([f"SAT-{i}" for i in range(n_sats)], fontsize=8)
 
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label("Connected GS", fontsize=9)
+    cbar.set_label(t("Connected GS", lang), fontsize=9)
 
-    ax.set_xlabel(f"Time ({hours:.0f}h, {sim.timeslot_duration_min}min/slot)")
-    ax.set_ylabel("Satellite ID")
+    ax.set_xlabel(tf("Time ({hours:.0f}h, {slot_min}min/slot)", lang,
+                     hours=hours, slot_min=sim.timeslot_duration_min))
+    ax.set_ylabel(t("Satellite ID", lang))
     ax.set_title(
-        f"Contact Matrix — GS={exp.gs_count}, SAT={exp.sat_count}, "
-        f"Rate={sim.stats.get('contact_rate', 0):.1%}"
+        tf("Contact Matrix — GS={gs}, SAT={sat}, Rate={rate:.1%}", lang,
+           gs=exp.gs_count, sat=exp.sat_count,
+           rate=sim.stats.get('contact_rate', 0))
     )
 
     # 右侧标注 GS 名称
@@ -666,7 +675,7 @@ def _plot_contact_heatmap_std(exp: SingleExperiment, path: str) -> None:
     plt.close(fig)
 
 
-def _plot_satellite_training_time(exp: SingleExperiment, path: str) -> None:
+def _plot_satellite_training_time(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """每卫星训练时长统计条形图。"""
     contact_stats = exp.contact_stats
     per_sat = contact_stats.get("per_satellite", {})
@@ -692,8 +701,8 @@ def _plot_satellite_training_time(exp: SingleExperiment, path: str) -> None:
             ha="center",
             fontsize=7,
         )
-    ax1.set_ylabel("Total Contact Time (minutes)")
-    ax1.set_title(f"Per-Satellite Contact Duration ({slot_min}min/slot)")
+    ax1.set_ylabel(t("Total Contact Time (minutes)", lang))
+    ax1.set_title(t("Per-Satellite Contact Duration", lang) + f" ({slot_min}min/slot)")
     ax1.grid(axis="y", alpha=0.3)
 
     # 右：接触率
@@ -707,13 +716,14 @@ def _plot_satellite_training_time(exp: SingleExperiment, path: str) -> None:
             ha="center",
             fontsize=7,
         )
-    ax2.set_ylabel("Contact Rate (%)")
-    ax2.set_title(f"Per-Satellite Contact Rate (GS={exp.gs_count})")
+    ax2.set_ylabel(t("Contact Rate (%)", lang))
+    ax2.set_title(t("Per-Satellite Contact Rate", lang) + f" (GS={exp.gs_count})")
     ax2.grid(axis="y", alpha=0.3)
 
     fig.suptitle(
-        f"Satellite Connectivity — GS={exp.gs_count}, "
-        f"{exp.sat_count} Sats @ {exp.config.get('altitude_km', 500)}km",
+        tf("Satellite Connectivity — GS={gs}, {sats} Sats @ {alt}km", lang,
+           gs=exp.gs_count, sats=exp.sat_count,
+           alt=exp.config.get('altitude_km', 500)),
         fontsize=13,
         fontweight="bold",
     )
@@ -722,7 +732,7 @@ def _plot_satellite_training_time(exp: SingleExperiment, path: str) -> None:
     plt.close(fig)
 
 
-def _plot_orbit_cross_section(exp: SingleExperiment, path: str) -> None:
+def _plot_orbit_cross_section(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """轨道剖面图：卫星相对位置 + 地球距离。"""
     sat_count = exp.sat_count
     altitude_km = exp.config.get("altitude_km", 500.0)
@@ -786,7 +796,7 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str) -> None:
     ax.text(
         0.02,
         0.02,
-        f"Ground Stations:\n{gs_text}",
+        tf("Ground Stations:\n{gs_text}", lang, gs_text=gs_text),
         transform=ax.transAxes,
         fontsize=7,
         family="monospace",
@@ -798,7 +808,8 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str) -> None:
     ax.text(
         0.98,
         0.98,
-        f"Orbit: {altitude_km}km alt, {inclination}° incl\n{sat_count} satellites evenly spaced",
+        tf("Orbit: {alt}km alt, {incl}° incl\n{sats} satellites evenly spaced", lang,
+           alt=altitude_km, incl=inclination, sats=sat_count),
         transform=ax.transAxes,
         fontsize=9,
         ha="right",
@@ -809,10 +820,11 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str) -> None:
     limit = orbit_radius * 1.3
     ax.set_xlim(-limit, limit)
     ax.set_ylim(-limit, limit)
-    ax.set_xlabel("X (km)")
-    ax.set_ylabel("Y (km)")
+    ax.set_xlabel(t("X (km)", lang))
+    ax.set_ylabel(t("Y (km)", lang))
     ax.set_title(
-        f"Orbit Cross-Section — GS={exp.gs_count}, SAT={sat_count} @ {altitude_km}km",
+        tf("Orbit Cross-Section — GS={gs}, SAT={sat} @ {alt}km", lang,
+           gs=exp.gs_count, sat=sat_count, alt=altitude_km),
         fontsize=13,
         fontweight="bold",
     )
@@ -824,7 +836,7 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str) -> None:
     plt.close(fig)
 
 
-def _plot_gs_sat_contacts(exp: SingleExperiment, path: str) -> None:
+def _plot_gs_sat_contacts(exp: SingleExperiment, path: str, lang: str = "en") -> None:
     """地面站-卫星接触次数条形图（分组柱状图）。"""
     contact_stats = exp.contact_stats
     per_gs = contact_stats.get("per_gs", {})
@@ -862,9 +874,10 @@ def _plot_gs_sat_contacts(exp: SingleExperiment, path: str) -> None:
                     rotation=90,
                 )
 
-    ax1.set_xlabel("Satellite ID")
-    ax1.set_ylabel("Contact Window Count")
-    ax1.set_title(f"GS-Satellite Contact Counts (GS={n_gs}, SAT={n_sats})")
+    ax1.set_xlabel(t("Satellite ID", lang))
+    ax1.set_ylabel(t("Contact Window Count", lang))
+    ax1.set_title(tf("GS-Satellite Contact Counts (GS={gs}, SAT={sat})", lang,
+                     gs=n_gs, sat=n_sats))
     ax1.set_xticks(x)
     ax1.set_xticklabels([f"SAT-{i}" for i in range(n_sats)])
     ax1.legend(fontsize=7, ncol=min(n_gs, 5))
@@ -883,13 +896,15 @@ def _plot_gs_sat_contacts(exp: SingleExperiment, path: str) -> None:
             va="center",
             fontsize=8,
         )
-    ax2.set_xlabel("Total Contact Windows")
-    ax2.set_title("Total Contacts per Ground Station")
+    ax2.set_xlabel(t("Total Contact Windows", lang))
+    ax2.set_title(t("Total Contacts per Ground Station", lang))
     ax2.grid(axis="x", alpha=0.3)
     ax2.invert_yaxis()
 
     fig.suptitle(
-        f"GS-Satellite Contact Analysis — GS={n_gs}, SAT={n_sats}", fontsize=13, fontweight="bold"
+        tf("GS-Satellite Contact Analysis — GS={gs}, SAT={sat}", lang,
+           gs=n_gs, sat=n_sats),
+        fontsize=13, fontweight="bold",
     )
     plt.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -919,6 +934,7 @@ def run_experiment_grid(
     num_workers: int = 0,
     output_dir: str = "experiment_output",
     verbose: bool = True,
+    lang: str = "en",
     # ISL 星间链路
     isl_enabled: bool = False,
     isl_calculator: str = "wgs84",
@@ -999,7 +1015,7 @@ def run_experiment_grid(
             )
 
             exp_dir = os.path.join(output_dir, f"gs{gs}_sat{sat}")
-            generate_standard_outputs(exp, exp_dir, quiet=not verbose)
+            generate_standard_outputs(exp, exp_dir, quiet=not verbose, lang=lang)
             results.append(exp)
 
             if verbose and exp.history:
@@ -1007,7 +1023,7 @@ def run_experiment_grid(
                 print(f"  → 完成: {len(exp.history)}轮, Acc={acc:.4f}, 耗时={exp.elapsed_sec:.1f}s")
 
     # ── 生成网格汇总 ──
-    _generate_grid_summary(results, output_dir, verbose)
+    _generate_grid_summary(results, output_dir, verbose, lang=lang)
 
     return results
 
@@ -1016,6 +1032,7 @@ def _generate_grid_summary(
     results: list[SingleExperiment],
     output_dir: str,
     verbose: bool,
+    lang: str = "en",
 ) -> None:
     """生成网格搜索汇总图表。"""
     if not results or not HAS_MPL:
@@ -1040,7 +1057,7 @@ def _generate_grid_summary(
     _save_json(os.path.join(output_dir, "grid_summary.json"), grid_data)
 
     # 热力图：准确率矩阵
-    _plot_grid_heatmap(results, output_dir)
+    _plot_grid_heatmap(results, output_dir, lang=lang)
 
     if verbose:
         print(f"\n{'=' * 70}")
@@ -1049,7 +1066,7 @@ def _generate_grid_summary(
         print(f"{'=' * 70}")
 
 
-def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str) -> None:
+def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str, lang: str = "en") -> None:
     """绘制网格搜索准确率热力图。"""
     gs_values = sorted({r.gs_count for r in results})
     sat_values = sorted({r.sat_count for r in results})
@@ -1073,9 +1090,9 @@ def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str) -> None
     ax1.set_xticklabels(sat_values)
     ax1.set_yticks(range(len(gs_values)))
     ax1.set_yticklabels(gs_values)
-    ax1.set_xlabel("Satellites")
-    ax1.set_ylabel("Ground Stations")
-    ax1.set_title("Max Accuracy (FedAvg)")
+    ax1.set_xlabel(t("Satellites", lang))
+    ax1.set_ylabel(t("Ground Stations", lang))
+    ax1.set_title(t("Max Accuracy (FedAvg)", lang))
     for i in range(len(gs_values)):
         for j in range(len(sat_values)):
             ax1.text(
@@ -1096,9 +1113,9 @@ def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str) -> None
     ax2.set_xticklabels(sat_values)
     ax2.set_yticks(range(len(gs_values)))
     ax2.set_yticklabels(gs_values)
-    ax2.set_xlabel("Satellites")
-    ax2.set_ylabel("Ground Stations")
-    ax2.set_title("Completed Rounds")
+    ax2.set_xlabel(t("Satellites", lang))
+    ax2.set_ylabel(t("Ground Stations", lang))
+    ax2.set_title(t("Completed Rounds", lang))
     for i in range(len(gs_values)):
         for j in range(len(sat_values)):
             ax2.text(
@@ -1113,7 +1130,8 @@ def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str) -> None
             )
     plt.colorbar(im2, ax=ax2, shrink=0.8)
 
-    fig.suptitle("SpaceFL Grid Search Summary — FedAvg, GS×SAT", fontsize=14, fontweight="bold")
+    fig.suptitle(tf("SpaceFL Grid Search Summary — FedAvg, GS×SAT", lang),
+                 fontsize=14, fontweight="bold")
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, "grid_summary.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -1164,6 +1182,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--partition-strategy", choices=["iid", "dirichlet", "shard", "probability"], default="probability")
     p.add_argument("--class-probability", type=float, default=0.8)
     p.add_argument("--data-dir", type=str, default="./data")
+    p.add_argument("--lang", choices=["en", "zh"], default="en",
+                   help="输出图表语言 (默认: en)")
     p.add_argument("--quiet", "-q", action="store_true")
     return p
 
@@ -1193,6 +1213,7 @@ def main(argv: list[str] | None = None) -> int:
         num_workers=args.data_workers,
         output_dir=args.output,
         verbose=not args.quiet,
+        lang=args.lang,
         partition_strategy=args.partition_strategy,
         class_probability=args.class_probability,
         preference_mode=args.preference_mode,

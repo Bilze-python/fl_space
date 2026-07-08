@@ -63,6 +63,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--epochs", type=int, default=2, help="本地epoch (默认: 2)")
     p.add_argument("--early-stop", type=float, default=0.9, help="早停阈值 (默认: 0.9)")
     p.add_argument("--gs", type=int, default=5, help="地面站数 (默认: 5)")
+    p.add_argument("--lang", choices=["en", "zh"], default="en",
+                   help="输出图表语言 (默认: en)")
     p.add_argument("--quiet", "-q", action="store_true", help="安静模式")
     return p
 
@@ -137,7 +139,8 @@ def run_quick_test(args: argparse.Namespace) -> int:
     # ── 生成接触热力图和GS地图 ──
     try:
         plot_contact_heatmap(sim, os.path.join(output_dir, "contact_heatmap.png"),
-                             title=f"Contact Heatmap (GS={gs_count}, 10 Sats)")
+                             title=f"Contact Heatmap (GS={gs_count}, 10 Sats)",
+                             lang=getattr(args, 'lang', 'en'))
         if not args.quiet:
             print(f"[保存] 热力图 → {output_dir}/contact_heatmap.png")
     except Exception as e:
@@ -146,7 +149,8 @@ def run_quick_test(args: argparse.Namespace) -> int:
 
     try:
         plot_ground_station_map(sim, os.path.join(output_dir, "gs_map.png"),
-                                title=f"Ground Stations (GS={gs_count})")
+                                title=f"Ground Stations (GS={gs_count})",
+                                lang=getattr(args, 'lang', 'en'))
         if not args.quiet:
             print(f"[保存] GS地图 → {output_dir}/gs_map.png")
     except Exception as e:

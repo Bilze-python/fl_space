@@ -34,12 +34,13 @@ from fl_space.orbit import (
 )
 from fl_space.simulator import OrbitSimulator
 from fl_space.viz import OrbitVisualizer
+from fl_space.viz.i18n import tf
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def demo1_multi_cluster():
+def demo1_multi_cluster(lang: str = "en"):
     """演示1: 多星簇星座"""
     print("=" * 60)
     print("Demo 1: 多星簇星座 — 极轨(4) + LEO壳层(6)")
@@ -96,7 +97,7 @@ def demo1_multi_cluster():
         print(f"  SAT-{sat_id}: {contact_count} contact slots")
 
     # 可视化
-    viz = OrbitVisualizer(figsize=(16, 9))
+    viz = OrbitVisualizer(figsize=(16, 9), lang=lang)
     gs_labels = [gss[i].name for i in range(len(gss))]
 
     fig = viz.plot_dashboard(
@@ -107,8 +108,9 @@ def demo1_multi_cluster():
         snapshot_time_min=0.0,
         gs_labels=gs_labels,
         cluster_map=cluster_map,
-        title="Demo 1: Dual-Shell Constellation (Polar + LEO)",
+        title=tf("Demo 1: Dual-Shell Constellation (Polar + LEO)", lang),
         save_path=os.path.join(OUTPUT_DIR, "demo1_multi_cluster.png"),
+        lang=lang,
     )
     plt.close(fig)
     print("Saved: demo1_multi_cluster.png")
@@ -116,7 +118,7 @@ def demo1_multi_cluster():
     return sim
 
 
-def demo2_custom_registry():
+def demo2_custom_registry(lang: str = "en"):
     """演示2: 用户自定义卫星注册"""
     print("\n" + "=" * 60)
     print("Demo 2: 用户自定义卫星注册表")
@@ -168,7 +170,7 @@ def demo2_custom_registry():
     )
     print(f"Contact rate: {sim.stats['contact_rate']:.1%}")
 
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
     fig = viz.plot_dashboard(
         orbits=orbits,
         ground_stations=gss,
@@ -176,8 +178,9 @@ def demo2_custom_registry():
 
         snapshot_time_min=0.0,
         cluster_map=cluster_map,
-        title="Demo 2: Custom Research Constellation (via Registry)",
+        title=tf("Demo 2: Custom Research Constellation (via Registry)", lang),
         save_path=os.path.join(OUTPUT_DIR, "demo2_custom_registry.png"),
+        lang=lang,
     )
     plt.close(fig)
     print("Saved: demo2_custom_registry.png")
@@ -185,7 +188,7 @@ def demo2_custom_registry():
     return sim
 
 
-def demo3_custom_satellites():
+def demo3_custom_satellites(lang: str = "en"):
     """演示3: 用户自定义单星加入星座"""
     print("\n" + "=" * 60)
     print("Demo 3: 自定义单星 + 星簇混合")
@@ -235,7 +238,7 @@ def demo3_custom_satellites():
     sat_labels[5] = "Custom-A"
     sat_labels[6] = "Custom-B"
 
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
     fig = viz.plot_dashboard(
         orbits=orbits,
         ground_stations=gss,
@@ -244,8 +247,9 @@ def demo3_custom_satellites():
         snapshot_time_min=0.0,
         sat_labels=sat_labels,
         cluster_map=cluster_map,
-        title="Demo 3: Mixed — Walker Shell + Custom Satellites (SSO + Equatorial)",
+        title=tf("Demo 3: Mixed — Walker Shell + Custom Satellites (SSO + Equatorial)", lang),
         save_path=os.path.join(OUTPUT_DIR, "demo3_custom_sats.png"),
+        lang=lang,
     )
     plt.close(fig)
     print("Saved: demo3_custom_sats.png")
@@ -253,7 +257,7 @@ def demo3_custom_satellites():
     return sim
 
 
-def demo4_comparison():
+def demo4_comparison(lang: str = "en"):
     """演示4: 不同星座配置对比"""
     print("\n" + "=" * 60)
     print("Demo 4: 星座配置对比")
@@ -321,7 +325,7 @@ def demo4_comparison():
         ax.set_title(f"{name}\nContact: {sim.stats['contact_rate']:.1%}",
                     color="white", fontsize=10, fontweight="bold")
 
-    fig.suptitle("Demo 4: Constellation Comparison",
+    fig.suptitle(tf("Demo 4: Constellation Comparison", lang),
                 color="white", fontsize=13, fontweight="bold", y=0.99)
     fig.tight_layout()
     fig.savefig(os.path.join(OUTPUT_DIR, "demo4_comparison.png"),
@@ -330,7 +334,7 @@ def demo4_comparison():
     print("Saved: demo4_comparison.png")
 
 
-def demo5_ground_track():
+def demo5_ground_track(lang: str = "en"):
     """演示5: 不同的接触模式表现"""
     print("\n" + "=" * 60)
     print("Demo 5: 单星星下点轨迹 + 地面站覆盖")
@@ -404,7 +408,7 @@ def demo5_ground_track():
         ax.legend(fontsize=7, loc="lower left", facecolor="#0d1117",
                  labelcolor="white", framealpha=0.5)
 
-    fig.suptitle("Demo 5: Ground Tracks with Contact Highlights",
+    fig.suptitle(tf("Demo 5: Ground Tracks with Contact Highlights", lang),
                 color="white", fontsize=12, fontweight="bold")
     fig.tight_layout()
     fig.savefig(os.path.join(OUTPUT_DIR, "demo5_ground_tracks.png"),
@@ -413,16 +417,16 @@ def demo5_ground_track():
     print("Saved: demo5_ground_tracks.png")
 
 
-def main():
+def main(lang: str = "en"):
     print(" SpaceFL — Step 1+2 综合可视化演示")
     print("=" * 60)
 
     # 运行所有演示
-    demo1_multi_cluster()
-    demo2_custom_registry()
-    demo3_custom_satellites()
-    demo4_comparison()
-    demo5_ground_track()
+    demo1_multi_cluster(lang=lang)
+    demo2_custom_registry(lang=lang)
+    demo3_custom_satellites(lang=lang)
+    demo4_comparison(lang=lang)
+    demo5_ground_track(lang=lang)
 
     print("\n" + "=" * 60)
     print(f" All demos complete! Output dir: {OUTPUT_DIR}")
@@ -434,4 +438,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang", choices=["en", "zh"], default="en",
+                        help="语言 (默认: en)")
+    args = parser.parse_args()
+    main(lang=args.lang)

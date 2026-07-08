@@ -16,6 +16,8 @@ from typing import Any
 
 import numpy as np
 
+from fl_space.viz.i18n import setup_cjk_font, t, tf
+
 try:
     import matplotlib
     matplotlib.use("Agg")  # 无头服务器兼容
@@ -147,6 +149,7 @@ def plot_contact_heatmap(
     sim,
     output_path: str = "contact_heatmap.png",
     title: str = "Contact Matrix Heatmap",
+    lang: str = "en",
 ) -> str:
     """
     生成接触矩阵热力图。
@@ -161,6 +164,8 @@ def plot_contact_heatmap(
         输出 PNG 路径。
     title : str
         图表标题。
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
@@ -170,6 +175,9 @@ def plot_contact_heatmap(
     if not HAS_MPL:
         print("[警告] matplotlib 未安装，跳过热力图生成")
         return output_path
+
+    if lang == "zh":
+        setup_cjk_font()
 
     cm = sim.contact_matrix
     n_sats = sim.num_satellites
@@ -203,11 +211,13 @@ def plot_contact_heatmap(
     ax.set_yticklabels([f"SAT-{i}" for i in range(n_sats)], fontsize=8)
 
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label("Connected Ground Stations", fontsize=9)
+    cbar.set_label(t("Connected Ground Stations", lang), fontsize=9)
 
-    ax.set_xlabel(f"Time ({hours:.0f}h total, {sim.timeslot_duration_min}min/slot)")
-    ax.set_ylabel("Satellite ID")
-    ax.set_title(f"{title}\nContact Rate: {sim.stats.get('contact_rate', 0):.1%}")
+    ax.set_xlabel(tf("Time ({hours:.0f}h total, {slot_min}min/slot)", lang,
+                     hours=hours, slot_min=sim.timeslot_duration_min))
+    ax.set_ylabel(t("Satellite ID", lang))
+    ax.set_title(f"{tf(title, lang) if lang == 'zh' else title}\n"
+                 f"{t('Contact Rate:', lang)} {sim.stats.get('contact_rate', 0):.1%}")
 
     plt.tight_layout()
     _ensure_dir(output_path)
@@ -224,6 +234,7 @@ def plot_accuracy_comparison(
     baseline_history: list[dict] | None = None,
     output_path: str = "accuracy_comparison.png",
     title: str = "Accuracy: SpaceFL vs Standard FL",
+    lang: str = "en",
 ) -> str:
     """
     绘制 SpaceFL 与标准 FL 准确率对比曲线。
@@ -238,6 +249,8 @@ def plot_accuracy_comparison(
         输出 PNG 路径。
     title : str
         图表标题。
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
@@ -248,43 +261,46 @@ def plot_accuracy_comparison(
         print("[警告] matplotlib 未安装，跳过准确率图")
         return output_path
 
+    if lang == "zh":
+        setup_cjk_font()
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     # 左图：按轮次
     rounds_space = [h.get("round", i) for i, h in enumerate(spacefl_history)]
     acc_space = [h.get("accuracy", 0) for h in spacefl_history]
-    ax1.plot(rounds_space, acc_space, "b-o", markersize=3, linewidth=1.2, label="SpaceFL")
+    ax1.plot(rounds_space, acc_space, "b-o", markersize=3, linewidth=1.2, label=t("SpaceFL", lang))
 
     if baseline_history:
         rounds_base = [h.get("round", i) for i, h in enumerate(baseline_history)]
         acc_base = [h.get("accuracy", 0) for h in baseline_history]
-        ax1.plot(rounds_base, acc_base, "r--s", markersize=3, linewidth=1.2, label="Standard FL")
+        ax1.plot(rounds_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang))
 
-    ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label="90% threshold")
-    ax1.set_xlabel("Round")
-    ax1.set_ylabel("Accuracy")
-    ax1.set_title("Accuracy vs Rounds")
+    ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label=t("90% threshold", lang))
+    ax1.set_xlabel(t("Round", lang))
+    ax1.set_ylabel(t("Accuracy", lang))
+    ax1.set_title(t("Accuracy vs Rounds", lang))
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim(0, 1.05)
 
     # 右图：按时间槽
     ts_space = [h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(spacefl_history)]
-    ax2.plot(ts_space, acc_space, "b-o", markersize=3, linewidth=1.2, label="SpaceFL")
+    ax2.plot(ts_space, acc_space, "b-o", markersize=3, linewidth=1.2, label=t("SpaceFL", lang))
 
     if baseline_history:
         ts_base = [h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(baseline_history)]
-        ax2.plot(ts_base, acc_base, "r--s", markersize=3, linewidth=1.2, label="Standard FL")
+        ax2.plot(ts_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang))
 
     ax2.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5)
-    ax2.set_xlabel("Timeslot")
-    ax2.set_ylabel("Accuracy")
-    ax2.set_title("Accuracy vs Virtual Time")
+    ax2.set_xlabel(t("Timeslot", lang))
+    ax2.set_ylabel(t("Accuracy", lang))
+    ax2.set_title(t("Accuracy vs Virtual Time", lang))
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.set_ylim(0, 1.05)
 
-    fig.suptitle(title, fontsize=13, fontweight="bold")
+    fig.suptitle(tf(title, lang) if lang == "zh" else title, fontsize=13, fontweight="bold")
     plt.tight_layout()
     _ensure_dir(output_path)
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -299,6 +315,7 @@ def plot_time_breakdown(
     history: list[dict],
     output_path: str = "time_breakdown.png",
     title: str = "Per-Round Time Breakdown",
+    lang: str = "en",
 ) -> str:
     """
     绘制每轮时间分解堆叠柱状图。
@@ -311,6 +328,8 @@ def plot_time_breakdown(
         输出 PNG 路径。
     title : str
         图表标题。
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
@@ -320,6 +339,9 @@ def plot_time_breakdown(
     if not HAS_MPL:
         print("[警告] matplotlib 未安装，跳过时间分解图")
         return output_path
+
+    if lang == "zh":
+        setup_cjk_font()
 
     # 提取时间分解数据
     rounds = []
@@ -349,7 +371,8 @@ def plot_time_breakdown(
 
     bottom = np.zeros(len(rounds))
     colors = ["#3498db", "#2ecc71", "#e74c3c", "#f39c12", "#9b59b6"]
-    labels = ["Wait Dist", "Download", "Train", "Wait Return", "Upload"]
+    labels_raw = ["Wait Dist", "Download", "Train", "Wait Return", "Upload"]
+    labels = [t(l, lang) for l in labels_raw]
     data = [wait_dist, download, train, wait_return, upload]
 
     for d, color, label in zip(data, colors, labels):
@@ -357,9 +380,9 @@ def plot_time_breakdown(
         ax.bar(x, d_arr, width, bottom=bottom, color=color, label=label, alpha=0.85)
         bottom += d_arr
 
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Timeslots")
-    ax.set_title(title)
+    ax.set_xlabel(t("Round", lang))
+    ax.set_ylabel(t("Timeslot", lang))
+    ax.set_title(tf(title, lang) if lang == "zh" else title)
     ax.legend(fontsize=8, ncol=5, loc="upper right")
     ax.set_xticks(x[::max(1, len(rounds) // 20)])
     ax.grid(axis="y", alpha=0.3)
@@ -379,6 +402,7 @@ def plot_ground_station_map(
     output_path: str = "ground_station_map.png",
     title: str = "Ground Station Distribution",
     show_tracks: bool = False,
+    lang: str = "en",
 ) -> str:
     """
     绘制世界地图上的地面站分布和卫星轨道。
@@ -393,6 +417,8 @@ def plot_ground_station_map(
         图表标题。
     show_tracks : bool
         是否显示卫星轨迹。
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
@@ -402,6 +428,9 @@ def plot_ground_station_map(
     if not HAS_MPL:
         print("[警告] matplotlib 未安装，跳过地图生成")
         return output_path
+
+    if lang == "zh":
+        setup_cjk_font()
 
     fig, ax = plt.subplots(figsize=(14, 7))
 
@@ -433,9 +462,9 @@ def plot_ground_station_map(
     # 地图范围
     ax.set_xlim(-180, 180)
     ax.set_ylim(-90, 90)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
-    ax.set_title(title)
+    ax.set_xlabel(t("Longitude", lang))
+    ax.set_ylabel(t("Latitude", lang))
+    ax.set_title(tf(title, lang) if lang == "zh" else title)
     ax.axhline(y=0, color="gray", linestyle="--", alpha=0.3)
     ax.grid(True, alpha=0.3)
 
@@ -459,6 +488,7 @@ def plot_ground_station_map(
 def save_experiment_report(
     results: dict[str, Any],
     output_dir: str = "experiment_output",
+    lang: str = "en",
 ) -> str:
     """
     保存完整实验报告（JSON + 所有图表）。
@@ -471,6 +501,8 @@ def save_experiment_report(
         - experiments: list of {name, gs_count, spacefl_history, baseline_history, contact_stats}
     output_dir : str
         输出目录。
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
@@ -503,6 +535,7 @@ def save_experiment_report(
                     spacefl_hist, baseline_hist,
                     output_path=os.path.join(exp_dir, "accuracy.png"),
                     title=f"Accuracy: {exp_name}",
+                    lang=lang,
                 )
 
             # 时间分解
@@ -511,6 +544,7 @@ def save_experiment_report(
                     spacefl_hist,
                     output_path=os.path.join(exp_dir, "time_breakdown.png"),
                     title=f"Time Breakdown: {exp_name}",
+                    lang=lang,
                 )
 
             # 时空信息图

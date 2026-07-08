@@ -12,6 +12,8 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import numpy as np
 
+from fl_space.viz.i18n import setup_cjk_font, t, tf
+
 if TYPE_CHECKING:
     from fl_space.environment import GroundStationNetwork
     from fl_space.orbit import KeplerOrbit
@@ -108,8 +110,11 @@ class OrbitVisualizer:
     封装了常用的可视化方法，支持保存图片。
     """
 
-    def __init__(self, figsize: tuple = (16, 8)):
+    def __init__(self, figsize: tuple = (16, 8), lang: str = "en"):
         self.figsize = figsize
+        self.lang = lang
+        if lang == "zh":
+            setup_cjk_font()
 
     def plot_map(
         self,
@@ -122,6 +127,7 @@ class OrbitVisualizer:
         show_ground_tracks: bool = True,
         snapshot_time_min: Optional[float] = None,
         save_path: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> plt.Figure:
         """2D 地图视图：卫星轨迹 + 地面站。
 
@@ -150,6 +156,7 @@ class OrbitVisualizer:
         -------
         fig : matplotlib Figure
         """
+        _lang = lang if lang is not None else self.lang
         fig, ax = plt.subplots(figsize=self.figsize)
         _draw_earth_background(ax)
 
@@ -185,7 +192,7 @@ class OrbitVisualizer:
                     gs_names.append(gs.name)
 
             ax.scatter(gs_lons, gs_lats, c=GS_COLOR, s=80, marker="^",
-                      edgecolors="white", linewidths=1, zorder=6, label="Ground Station")
+                      edgecolors="white", linewidths=1, zorder=6, label=t("Ground Station", _lang))
 
             # 标签
             for lon, lat, name in zip(gs_lons, gs_lats, gs_names):
@@ -205,9 +212,9 @@ class OrbitVisualizer:
         ax.set_ylim(-90, 90)
         ax.set_xticks(np.arange(-180, 181, 60))
         ax.set_yticks(np.arange(-90, 91, 30))
-        ax.set_xlabel("Longitude (deg)")
-        ax.set_ylabel("Latitude (deg)")
-        ax.set_title(title, fontweight="bold", color="white", pad=12)
+        ax.set_xlabel(t("Longitude (deg)", _lang))
+        ax.set_ylabel(t("Latitude (deg)", _lang))
+        ax.set_title(tf(title, _lang) if _lang == "zh" else title, fontweight="bold", color="white", pad=12)
         ax.set_facecolor(EARTH_OCEAN)
         fig.patch.set_facecolor("#0d1117")
         ax.tick_params(colors="white")
@@ -231,6 +238,7 @@ class OrbitVisualizer:
         gs_labels: Optional[list[str]] = None,
         title: str = "SpaceFL — 接触矩阵热力图",
         save_path: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> plt.Figure:
         """接触矩阵热力图。
 
@@ -250,6 +258,7 @@ class OrbitVisualizer:
         -------
         fig : matplotlib Figure
         """
+        _lang = lang if lang is not None else self.lang
         num_timeslots = contact_matrix.shape[1]
         fig, ax = plt.subplots(figsize=(14, max(4, num_satellites * 0.4)))
 
@@ -272,13 +281,13 @@ class OrbitVisualizer:
         ax.set_xticks(tick_positions)
         ax.set_xticklabels(tick_labels, fontsize=7, rotation=45)
 
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Satellite")
-        ax.set_title(title, fontweight="bold")
+        ax.set_xlabel(t("Time", _lang))
+        ax.set_ylabel(t("Satellite", _lang))
+        ax.set_title(tf(title, _lang) if _lang == "zh" else title, fontweight="bold")
 
         # 接触率统计
         contact_rate = binary.mean() * 100
-        ax.text(0.99, 1.02, f"Contact Rate: {contact_rate:.1f}%",
+        ax.text(0.99, 1.02, tf("Contact Rate: {rate:.1f}%", _lang, rate=contact_rate),
                 transform=ax.transAxes, ha="right", fontsize=9,
                 bbox=dict(boxstyle="round", facecolor="#f0f0f0", alpha=0.8))
 
@@ -301,6 +310,7 @@ class OrbitVisualizer:
         cluster_map: Optional[dict[str, list[int]]] = None,
         title: str = "SpaceFL — 星座概览",
         save_path: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> plt.Figure:
         """综合仪表盘：地图 + 热力图 + 统计信息。
 
@@ -314,6 +324,7 @@ class OrbitVisualizer:
         -------
         fig : matplotlib Figure
         """
+        _lang = lang if lang is not None else self.lang
         fig = plt.figure(figsize=(16, 9), facecolor="#0d1117")
         gs = GridSpec(2, 3, figure=fig, height_ratios=[3, 2],
                       hspace=0.35, wspace=0.35)
@@ -356,7 +367,7 @@ class OrbitVisualizer:
         ax_map.set_facecolor(EARTH_OCEAN)
         ax_map.tick_params(colors="white")
         ax_map.grid(True, alpha=0.12, color="white")
-        ax_map.set_title("Constellation Map", color="white", fontweight="bold")
+        ax_map.set_title(t("Constellation Map", _lang), color="white", fontweight="bold")
 
         # ---- 右上: 统计面板 ----
         ax_stats = fig.add_subplot(gs[0, 2])
@@ -364,27 +375,27 @@ class OrbitVisualizer:
         ax_stats.set_facecolor("#161b22")
 
         stats_lines = [
-            f"Satellites: {n_sats}",
-            f"Ground Stations: {len(ground_stations) if ground_stations else 0}",
-            f"Altitude: {orbits[0].elements.semi_major_axis_km - orbits[0].body.radius_km:.0f} km" if orbits else "",
-            f"Duration: {duration_hours}h",
-            f"Snapshot: T={snapshot_time_min:.0f}min",
+            f"{t('Satellites:', _lang)} {n_sats}",
+            f"{t('Ground Stations:', _lang)} {len(ground_stations) if ground_stations else 0}",
+            f"{t('Altitude:', _lang)} {orbits[0].elements.semi_major_axis_km - orbits[0].body.radius_km:.0f} km" if orbits else "",
+            f"{t('Duration:', _lang)} {duration_hours}h",
+            f"{t('Snapshot:', _lang)} T={snapshot_time_min:.0f}min",
         ]
         if cluster_map:
             stats_lines.append("")
-            stats_lines.append("Clusters:")
+            stats_lines.append(f"{t('Clusters:', _lang)}")
             for name, indices in cluster_map.items():
                 if name != "_custom":
-                    stats_lines.append(f"  {name}: {len(indices)} sats")
+                    stats_lines.append(f"  {name}: {len(indices)} {t('sats', _lang)}")
 
         if contact_matrix is not None:
             binary = contact_matrix >= 0
             rate = binary.mean() * 100
             stats_lines.append("")
-            stats_lines.append(f"Contact Rate: {rate:.1f}%")
+            stats_lines.append(f"{t('Contact Rate:', _lang)} {rate:.1f}%")
             total_slots = contact_matrix.shape[1]
             avg_contacts = binary.sum(axis=0).mean()
-            stats_lines.append(f"Avg Contacts/slot: {avg_contacts:.1f}")
+            stats_lines.append(f"{t('Avg Contacts/slot:', _lang)} {avg_contacts:.1f}")
 
         y_pos = 0.95
         for line in stats_lines:
@@ -413,11 +424,11 @@ class OrbitVisualizer:
             ax_heat.set_xticks(tick_pos)
             ax_heat.set_xticklabels(tick_lab, fontsize=7, color="white", rotation=30)
 
-            ax_heat.set_xlabel("Time", color="white")
-            ax_heat.set_ylabel("Satellite", color="white")
-            ax_heat.set_title("Contact Matrix", color="white", fontweight="bold")
+            ax_heat.set_xlabel(t("Time", _lang), color="white")
+            ax_heat.set_ylabel(t("Satellite", _lang), color="white")
+            ax_heat.set_title(t("Contact Matrix", _lang), color="white", fontweight="bold")
 
-        fig.suptitle(title, color="white", fontsize=13, fontweight="bold", y=0.98)
+        fig.suptitle(tf(title, _lang) if _lang == "zh" else title, color="white", fontsize=13, fontweight="bold", y=0.98)
         fig.patch.set_facecolor("#0d1117")
 
         if save_path:
@@ -438,9 +449,10 @@ def plot_constellation_2d(
     duration_hours: float = 24.0,
     title: str = "SpaceFL Constellation",
     save_path: Optional[str] = None,
+    lang: str = "en",
 ) -> plt.Figure:
     """快速绘制星座 2D 地图。"""
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
     return viz.plot_map(
         orbits=orbits,
         ground_stations=ground_stations,
@@ -448,6 +460,7 @@ def plot_constellation_2d(
         snapshot_time_min=0.0,
         title=title,
         save_path=save_path,
+        lang=lang,
     )
 
 
@@ -458,9 +471,10 @@ def plot_contact_heatmap(
     duration_hours: float,
     title: str = "Contact Matrix",
     save_path: Optional[str] = None,
+    lang: str = "en",
 ) -> plt.Figure:
     """快速绘制接触矩阵热力图。"""
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
     return viz.plot_contact_heatmap(
         contact_matrix=contact_matrix,
         num_satellites=num_satellites,
@@ -468,6 +482,7 @@ def plot_contact_heatmap(
         duration_hours=duration_hours,
         title=title,
         save_path=save_path,
+        lang=lang,
     )
 
 
@@ -476,15 +491,17 @@ def plot_ground_track(
     duration_hours: float = 24.0,
     title: str = "Ground Track",
     save_path: Optional[str] = None,
+    lang: str = "en",
 ) -> plt.Figure:
     """快速绘制单星星下点轨迹。"""
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
     return viz.plot_map(
         orbits=[orbit],
         duration_hours=duration_hours,
         snapshot_time_min=0.0,
         title=title,
         save_path=save_path,
+        lang=lang,
     )
 
 
@@ -492,6 +509,7 @@ def quick_plot(
     simulator,
     title: str = "SpaceFL — Quick View",
     save_path: Optional[str] = None,
+    lang: str = "en",
 ) -> plt.Figure:
     """一键可视化：传入模拟器，自动绘制仪表盘。
 
@@ -501,12 +519,14 @@ def quick_plot(
         已运行的 OrbitSimulator 实例。
     title : str
     save_path : str, optional
+    lang : str
+        语言，'en' 或 'zh'。
 
     Returns
     -------
     fig : matplotlib Figure
     """
-    viz = OrbitVisualizer()
+    viz = OrbitVisualizer(lang=lang)
 
     # 提取数据
     orbits = simulator.orbits
@@ -530,4 +550,5 @@ def quick_plot(
         gs_labels=gs_labels,
         title=title,
         save_path=save_path,
+        lang=lang,
     )

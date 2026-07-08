@@ -1,34 +1,24 @@
-# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 *.egg-info/
-*.egg
 dist/
 build/
-.eggs/
-
-# IDE
-.vscode/
+*.egg
+venv/
+.venv/
+env/
 .idea/
-
-# CodeBuddy
-.codebuddy/
-
-# OS
+.vscode/
+*.swp
+*.swo
+output/
+demo_output/
+experiment_output/
+results/
+.fls_session.json
 .DS_Store
 Thumbs.db
-
-# Archives
-*.tar.gz
-*.zip
-
-# Results
-results/
-
-# Generated output
-experiment_output/
-
-# Session
-.fls_session.json
+.ipynb_checkpoints/
+data/
+*.pth
+*.pt

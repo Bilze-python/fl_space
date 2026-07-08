@@ -280,6 +280,7 @@ def run_experiment_suite(
     seed: int = 42,
     output_dir: str = "experiment_output",
     verbose: bool = True,
+    lang: str = "en",
 ) -> dict[str, Any]:
     """
     运行完整实验套件：多组地面站 + 基线对比。
@@ -431,13 +432,15 @@ def run_experiment_suite(
         # 生成热力图
         heatmap_path = os.path.join(output_dir, f"heatmap_gs{gs_count}.png")
         plot_contact_heatmap(sim, heatmap_path,
-                             title=f"Contact Matrix (GS={gs_count}, Sats={num_satellites})")
+                             title=f"Contact Matrix (GS={gs_count}, Sats={num_satellites})",
+                             lang=lang)
 
         # 地面站分布图
         gs_map_path = os.path.join(output_dir, f"gs_map_gs{gs_count}.png")
         plot_ground_station_map(sim, gs_map_path,
                                 title=f"Ground Stations (GS={gs_count})",
-                                show_tracks=True)
+                                show_tracks=True,
+                                lang=lang)
 
         # 运行 SpaceFL
         fl_config = FLConfig(**base_fl_config)
