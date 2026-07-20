@@ -184,6 +184,7 @@ class FLRunner:
                 learning_rate=config.learning_rate,
                 buffer_size=config.buffer_size,
                 staleness_weight=config.staleness_weight,
+                server_learning_rate=config.server_learning_rate,
                 device=config.device,
             )
         else:
@@ -788,3 +789,10 @@ class FLRunner:
         if self._server is None:
             return []
         return self._server.get_history_dict()
+
+    @property
+    def event_history(self) -> list[dict[str, Any]]:
+        """Detailed client and server events from the latest run."""
+        if self._server is None:
+            return []
+        return self._server.get_event_history()

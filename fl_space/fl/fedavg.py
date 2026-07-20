@@ -34,7 +34,6 @@ from fl_space.fl.core import (
 
 # PyTorch 可选依赖
 try:
-    import numpy as np
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader
@@ -67,9 +66,11 @@ class RandomSelector(ClientSelector):
         fraction: float = 0.5,
         min_clients: int = 2,
         seed: int | None = None,
+        connected_only: bool = False,
     ):
         self.fraction = fraction
         self.min_clients = min_clients
+        self.connected_only = connected_only
         self._rng = random.Random(seed)
 
     def select(
@@ -79,15 +80,18 @@ class RandomSelector(ClientSelector):
         **kwargs: Any,
     ) -> list[int]:
         """随机选择客户端。"""
-        # 仅考虑已连接的客户端
-        connected = [c for c in clients if c.is_connected]
-        if not connected:
+        eligible = (
+            [c for c in clients if c.is_connected]
+            if self.connected_only
+            else list(clients)
+        )
+        if not eligible:
             return []
 
-        n_select = max(self.min_clients, int(len(connected) * self.fraction))
-        n_select = min(n_select, len(connected))
+        n_select = max(self.min_clients, int(len(eligible) * self.fraction))
+        n_select = min(n_select, len(eligible))
 
-        selected = self._rng.sample(connected, n_select)
+        selected = self._rng.sample(eligible, n_select)
         return [c.client_id for c in selected]
 
 
@@ -228,6 +232,7 @@ class FixedEpochTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
+            base_version=round_num,
         )
 
 
@@ -259,7 +264,7 @@ class SyncWeightedAggregator(Aggregator):
     ) -> bool:
         """
         当收集到至少 1 个更新时触发聚合。
-        
+
         在同步 FL 中，服务器先选定客户端、训练全部完成后收集更新，
         因此收到的 update 数量 = 实际参与的客户端数。
         min_updates 仅作为安全下限（避免空聚合），默认为 1。
@@ -305,9 +310,7 @@ class SyncWeightedAggregator(Aggregator):
 
         for update in updates:
             weight_ratio = update.data_size / total_size
-            for i, (agg_w, client_w) in enumerate(
-                zip(aggregated, update.weights)
-            ):
+            for agg_w, client_w in zip(aggregated, update.weights):
                 if isinstance(client_w, torch.Tensor):
                     agg_w.add_(client_w.float() * weight_ratio)
                 else:
@@ -391,6 +394,7 @@ def create_fedavg_components(
     learning_rate: float = 0.01,
     device: str = "cpu",
     seed: int | None = None,
+    connected_only: bool = False,
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
     一键创建 FedAvg 的四件套组件。
@@ -431,6 +435,7 @@ def create_fedavg_components(
         fraction=fraction,
         min_clients=min_clients,
         seed=seed,
+        connected_only=connected_only,
     )
     trainer = FixedEpochTrainer(
         local_epochs=local_epochs,

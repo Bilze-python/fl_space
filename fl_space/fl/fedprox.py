@@ -158,6 +158,7 @@ class ProximalTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
+            base_version=round_num,
         )
 
 

@@ -71,6 +71,11 @@ class ClientUpdate:
     data_size: int
     train_loss: float
     round_num: int
+    model_delta: list[Any] | None = None
+    base_version: int = 0
+    started_at: int = 0
+    completed_at: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -102,6 +107,7 @@ class FLRoundResult:
     timeslot: int = 0
     timeslot_start: int = 0
     time_breakdown: dict[str, Any] | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 # ── 四个核心抽象接口 ──────────────────────────────────────────

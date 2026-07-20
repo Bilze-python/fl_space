@@ -22,3 +22,10 @@ Thumbs.db
 data/
 *.pth
 *.pt
+compare_output/
+compare_three_output/
+algorithm_validation_output/
+fedleo_output/
+tmp/
+*.zip
+*.docx

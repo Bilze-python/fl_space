@@ -86,6 +86,8 @@ class FLConfig:
     mu: float = 0.01
     buffer_size: int = 5
     staleness_weight: bool = False
+    server_learning_rate: float = 1.0
+    async_eval_every: int = 1
     device: str = "cpu"
     seed: int | None = None
     # 时间模型配置
@@ -263,6 +265,7 @@ class FLServer:
         self._global_model: Any = None
         self._clients: list[ClientState] = []
         self._history: list[FLRoundResult] = []
+        self._events: list[dict[str, Any]] = []
         self._sim_time_limit: int | None = None
 
     def _build_time_model(self) -> TimeModel:
@@ -280,6 +283,11 @@ class FLServer:
     def history(self) -> list[FLRoundResult]:
         """训练历史记录。"""
         return self._history
+
+    @property
+    def events(self) -> list[dict[str, Any]]:
+        """Return a copy of the communication and aggregation event log."""
+        return list(self._events)
 
     @staticmethod
     def _get_client_data_sizes(
@@ -476,189 +484,168 @@ class FLServer:
         test_loader: Any,
         verbose: bool = True,
     ) -> list[FLRoundResult]:
-        """
-        运行同步 FL 训练（适用于 FedAvg / FedProx）。
+        """Run paper-faithful synchronous FedAvg/FedProx rounds.
 
-        通信驱动轮次推进：
-            1. 找到当前时刻可通信的卫星 → 分发全局模型
-            2. 卫星本地训练（不占虚拟时间）
-            3. 等待各卫星下一次接触窗口 → 上传模型
-            4. 聚合 → 新全局模型诞生 → 本轮完成
-            5. 时间跳到聚合后下一次有卫星连接的时隙 → 下一轮
-
-        Parameters
-        ----------
-        model : nn.Module
-            初始全局模型。
-        train_loaders : dict[int, DataLoader]
-            客户端 ID → 本地训练数据 Loader。
-        test_loader : DataLoader
-            测试数据 Loader。
-        verbose : bool
-            是否打印进度。
-
-        Returns
-        -------
-        list[FLRoundResult]
-            每轮训练结果。
+        The selected client set is fixed for the whole round. With an orbital
+        scheduler, every selected satellite receives the same global version at
+        its next contact and the server waits until every selected update has
+        returned before aggregating.
         """
         self._global_model = copy.deepcopy(model)
         self._init_clients()
         self._history = []
+        self._events = []
 
-        # 获取模拟器引用（用于通信窗口查询）
         sim = self.scheduler._sim if self.scheduler is not None else None
         self._sim_time_limit = None
         if sim is not None and getattr(self.config, "limit_to_sim_window", True):
             self._sim_time_limit = int(getattr(sim, "num_timeslots_pre", sim.num_timeslots))
 
-        # 计算模型大小（字节），供时间模型使用
         model_size_bytes = sum(
             p.numel() * p.element_size() for p in self._global_model.parameters()
         )
-
-        # 预计算客户端数据量
         client_data_sizes = self._get_client_data_sizes(train_loaders)
 
-        # ── 基线评估（训练前，随机初始化模型）──
-        if verbose:
-            print("  基线评估（随机模型）...", end="", flush=True)
-        baseline_metrics = self.evaluator.evaluate(
-            self._global_model, test_loader, -1,
+        baseline_metrics = self.evaluator.evaluate(self._global_model, test_loader, -1)
+        self._history.append(
+            FLRoundResult(
+                round_num=-1,
+                eval_metrics=baseline_metrics,
+                num_clients=0,
+                train_loss=baseline_metrics.get("loss", 0.0),
+                timeslot_start=0,
+                time_breakdown=TimeBreakdown().to_dict(),
+                extra={"phase": "baseline"},
+            )
         )
-        self._history.append(FLRoundResult(
-            round_num=-1,
-            eval_metrics=baseline_metrics,
-            num_clients=0,
-            train_loss=baseline_metrics.get("loss", 0.0),
-            timeslot_start=0,
-            time_breakdown=None,
-        ))
-        if verbose:
-            acc = baseline_metrics.get("accuracy", 0)
-            print(f" 准确率 {acc:.2%}（随机基线 ≈ 10% for 10类）")
 
-        current_ts = 0  # 当前虚拟时间槽
-        completed_rounds = 0  # 已完成轮次计数
+        current_ts = 0
+        for completed_rounds in range(self.config.num_rounds):
+            round_start = current_ts
 
-        while completed_rounds < self.config.num_rounds:
-            # ── 时间分解记录 ──
+            # 尝试推进到有客户端在线的时隙
+            max_advance = 200  # 安全阀：最多跳过 200 个时隙
+            skip_count = 0
+            self._update_connectivity(round_start)
+            while skip_count < max_advance:
+                if any(c.is_connected for c in self._clients):
+                    break
+                round_start += 1
+                skip_count += 1
+                self._update_connectivity(round_start)
+            current_ts = round_start
+
+            if skip_count >= max_advance:
+                break  # 仿真窗口内无可接触客户端
+
             breakdown = TimeBreakdown()
-
-            # ── 1. 找到下一个有卫星连接的时隙（分发窗口）──
-            if self._sim_time_limit is not None and current_ts >= self._sim_time_limit:
-                if verbose:
-                    print("  Reached simulation time limit; stopping training.")
-                break
-            start_ts = self._advance_to_next_contact(current_ts, self._sim_time_limit)
-            if start_ts is None:
-                if verbose:
-                    print(f"  轮次 {completed_rounds + 1}: 无更多通信窗口，训练终止")
-                break
-
-            breakdown.wait_distribution = start_ts - current_ts
-            current_ts = start_ts
-
-            # ── 1b. 模型下载耗时 ──
             download_slots = self.time_model.compute_download_slots(model_size_bytes)
-            breakdown.download = download_slots
-            current_ts += download_slots
-            if self._sim_time_limit is not None and current_ts >= self._sim_time_limit:
-                if verbose:
-                    print("  Download would exceed simulation time limit; stopping training.")
-                break
-
-            # ── 2. 更新通信状态，选择客户端 ──
-            self._update_connectivity(current_ts)
             selected_ids = self.selector.select(self._clients, completed_rounds)
-            if len(selected_ids) < 1:
-                # 无可选客户端，前进1个时隙重试
+            if not selected_ids:
+                # 有连接但选择器返回空（如 CappedSelector.min_clients 不满足）
                 current_ts += 1
                 continue
 
-            # ── 3. 本地训练（并行 + 时间模型决定耗时）──
-            if verbose:
-                print(
-                    f"  轮次 {completed_rounds + 1:3d}/{self.config.num_rounds} | "
-                    f"训练 {len(selected_ids)} 客户端...",
-                    end="",
-                    flush=True,
-                )
-            train_start_ts = current_ts
-            updates = self._train_clients_parallel(
-                selected_ids,
-                train_loaders,
-                completed_rounds,
-            )
-            max_train_slots = 0
-            for update in updates:
-                cid = update.client_id
+            global_weights = [param.data.clone() for param in self._global_model.parameters()]
+            updates: list[ClientUpdate] = []
+            arrival_times: list[int] = []
+            download_times: list[int] = []
+            train_end_times: list[int] = []
+            round_complete = True
+
+            for cid in selected_ids:
+                if self.scheduler is None:
+                    download_ts = round_start
+                else:
+                    contact = self._get_next_contact_for_client(
+                        cid,
+                        round_start - 1,
+                        self._sim_time_limit,
+                    )
+                    if contact is None:
+                        round_complete = False
+                        break
+                    download_ts = contact[0]
+
                 n_samples = client_data_sizes.get(cid, 100)
                 train_slots = self.time_model.compute_train_slots(
                     cid,
                     n_samples,
                     self.config.local_epochs,
                 )
-                breakdown.per_satellite[cid] = {"train": train_slots}
-                max_train_slots = max(max_train_slots, train_slots)
+                train_start_ts = download_ts + download_slots
+                train_end_ts = train_start_ts + train_slots
+                upload_slots = self.time_model.compute_upload_slots(model_size_bytes)
 
-            if not updates:
-                current_ts += 1
-                continue
-
-            breakdown.train = max_train_slots
-            current_ts = train_start_ts + max_train_slots
-
-            # ── 4. 等待各卫星返回（下一次接触窗口 + 上传时间）──
-            if sim is not None:
-                return_times = []
-                returned_client_ids: set[int] = set()
-                return_start_ts = current_ts
-                for cid in selected_ids:
-                    next_contact = self._get_next_contact_for_client(
+                if self.scheduler is None:
+                    arrival_ts = train_end_ts + upload_slots
+                else:
+                    upload_contact = self._get_next_contact_for_client(
                         cid,
-                        current_ts,
+                        train_end_ts - 1,
                         self._sim_time_limit,
                     )
-                    if next_contact is not None:
-                        contact_ts = next_contact[0]
-                        # 上传时间叠加在接触窗口之后
-                        upload_slots = self.time_model.compute_upload_slots(
-                            model_size_bytes,
-                        )
-                        breakdown.per_satellite.setdefault(cid, {})
-                        breakdown.per_satellite[cid]["upload"] = upload_slots
-                        breakdown.per_satellite[cid]["wait_return"] = contact_ts - current_ts
-                        arrival_ts = contact_ts + upload_slots
-                        if self._sim_time_limit is not None and arrival_ts >= self._sim_time_limit:
-                            continue
-                        returned_client_ids.add(cid)
-                        return_times.append(arrival_ts)
-                if return_times:
-                    current_ts = max(return_times)
-                    breakdown.wait_return = current_ts - return_start_ts
-                # 如果无返回窗口，模型更新丢失，但仍聚合已返回的
-            else:
-                # 无模拟器：固定步进
-                current_ts += self.config.timeslots_per_round
-                breakdown.wait_return = self.config.timeslots_per_round
+                    if upload_contact is None:
+                        round_complete = False
+                        break
+                    arrival_ts = upload_contact[0] + upload_slots
 
-            # 上传时间从 per_satellite 汇总
-            breakdown.upload = max(
-                (v.get("upload", 0) for v in breakdown.per_satellite.values()),
-                default=0,
-            )
-            if sim is not None:
-                updates = [u for u in updates if u.client_id in returned_client_ids]
-                if not updates:
-                    current_ts += 1
-                    continue
-            # 去掉上传时间重复计算（wait_return 已包含 upload 叠加）
-            # 这里 wait_return 记录的是从 train_end 到 return_ts 的总等待时间
-            # upload 单独记录以便分解展示
+                if self._sim_time_limit is not None and arrival_ts >= self._sim_time_limit:
+                    round_complete = False
+                    break
 
-            # ── 5. 聚合 → 新全局模型诞生 ──
-            global_weights = [param.data.clone() for param in self._global_model.parameters()]
+                update = self._train_client(
+                    cid,
+                    train_loaders,
+                    completed_rounds,
+                    global_weights=global_weights,
+                )
+                if update is None:
+                    round_complete = False
+                    break
+
+                update.started_at = train_start_ts
+                update.completed_at = arrival_ts
+                update.metadata.update(
+                    {
+                        "download_timeslot": download_ts,
+                        "train_end_timeslot": train_end_ts,
+                        "upload_timeslot": arrival_ts - upload_slots,
+                    }
+                )
+                updates.append(update)
+                arrival_times.append(arrival_ts)
+                download_times.append(download_ts)
+                train_end_times.append(train_end_ts)
+                breakdown.per_satellite[cid] = {
+                    "download_at": download_ts,
+                    "train": train_slots,
+                    "upload": upload_slots,
+                    "arrive_at": arrival_ts,
+                }
+                self._events.append(
+                    {
+                        "event": "client_update",
+                        "algorithm": self.config.algorithm,
+                        "round": completed_rounds,
+                        "client_id": cid,
+                        "base_version": completed_rounds,
+                        "download_timeslot": download_ts,
+                        "train_start_timeslot": train_start_ts,
+                        "train_end_timeslot": train_end_ts,
+                        "arrival_timeslot": arrival_ts,
+                    }
+                )
+
+            if not round_complete or len(updates) != len(selected_ids):
+                if verbose:
+                    print(
+                        f"  Round {completed_rounds + 1}: selected set could not finish "
+                        "inside the simulation window"
+                    )
+                break
+
+            current_ts = max(arrival_times, default=round_start)
             if self.aggregator.should_aggregate(updates, completed_rounds):
                 new_weights = self.aggregator.aggregate(
                     global_weights,
@@ -669,26 +656,30 @@ class FLServer:
                     for param, new_w in zip(self._global_model.parameters(), new_weights):
                         param.data.copy_(new_w)
 
-            # 标记客户端参与
             for cid in selected_ids:
-                client = self._clients[cid]
-                client.last_update_round = completed_rounds
+                self._clients[cid].last_update_round = completed_rounds
 
-            # ── 6. 评估 ──
             eval_metrics = self.evaluator.evaluate(
                 self._global_model,
                 test_loader,
                 completed_rounds,
             )
-
-            # ── 6b. 自适应 μ 反馈 (FedProxSat) ──
             current_acc = eval_metrics.get("accuracy", 0)
             if hasattr(self.trainer, "update_accuracy"):
                 _ = self.trainer.update_accuracy(current_acc)
 
-            # 计算时间分解总计
-            breakdown.total = current_ts - start_ts
-
+            breakdown.download = download_slots
+            breakdown.train = max(
+                (item["train"] for item in breakdown.per_satellite.values()),
+                default=0,
+            )
+            breakdown.upload = max(
+                (item["upload"] for item in breakdown.per_satellite.values()),
+                default=0,
+            )
+            breakdown.wait_distribution = max(download_times, default=round_start) - round_start
+            breakdown.wait_return = current_ts - min(train_end_times, default=current_ts)
+            breakdown.total = current_ts - round_start
             avg_loss = sum(u.train_loss for u in updates) / len(updates)
             result = FLRoundResult(
                 round_num=completed_rounds,
@@ -696,65 +687,35 @@ class FLServer:
                 train_loss=round(avg_loss, 6),
                 eval_metrics=eval_metrics,
                 timeslot=current_ts,
-                timeslot_start=start_ts,
+                timeslot_start=round_start,
                 time_breakdown=breakdown.to_dict(),
+                extra={
+                    "selected_client_ids": selected_ids,
+                    "base_version": completed_rounds,
+                    "client_updates": len(updates),
+                },
             )
             self._history.append(result)
+            self._events.append(
+                {
+                    "event": "server_aggregate",
+                    "algorithm": self.config.algorithm,
+                    "round": completed_rounds,
+                    "timeslot": current_ts,
+                    "client_ids": selected_ids,
+                }
+            )
 
-            completed_rounds += 1
-
-            # ── 早停检查 ──
             early_stop_acc = getattr(self.config, "early_stop_acc", None)
             if early_stop_acc is not None and current_acc >= early_stop_acc:
-                if verbose:
-                    print(
-                        f"\n  >>> 早停触发: 准确率 {current_acc:.4f} >= {early_stop_acc} "
-                        f"(第 {completed_rounds} 轮)"
-                    )
                 break
-
-            # 准备下一轮：从聚合时刻之后开始
-            current_ts += 1
-
+            current_ts += max(1, self.config.timeslots_per_round if sim is None else 1)
             if verbose:
                 acc = eval_metrics.get("accuracy", 0)
-                conn_at_start = (
-                    len(self.scheduler.get_connected_sats(start_ts))
-                    if self.scheduler
-                    else len(selected_ids)
-                )
-                # 构建时间分解显示
-                tm_display = self.time_model.slots_to_display(
-                    breakdown.total,
-                    getattr(self.time_model, "timeslot_duration_min", 1.0),
-                )
-                parts = []
-                if breakdown.download > 0:
-                    parts.append(f"下载:{breakdown.download}")
-                if breakdown.train > 0:
-                    parts.append(f"训练:{breakdown.train}")
-                if breakdown.upload > 0:
-                    parts.append(f"上传:{breakdown.upload}")
-                time_info = " | ".join(parts) if parts else "瞬时"
                 print(
-                    f"  \r  轮次 {completed_rounds:3d}/{self.config.num_rounds} | "
-                    f"TS={start_ts:4d}→{result.timeslot:4d} "
-                    f"({tm_display}) | "
-                    f"在线:{conn_at_start} | "
-                    f"选中:{len(updates):2d} | "
-                    f"{time_info} | "
-                    f"准确率:{acc:.4f}"
-                )
-
-        # ── 虚拟时间汇总 ──
-        if sim is not None and self._history:
-            final_ts = self._history[-1].timeslot
-            total_hours = final_ts * sim.timeslot_duration_min / 60.0
-            if verbose:
-                print(
-                    f"\n  [模拟时间] 总虚拟时间: {final_ts} timeslots = "
-                    f"{total_hours:.1f} 小时 ({total_hours / 24:.1f} 天), "
-                    f"预计算: {sim.num_timeslots_pre:.0f} slots"
+                    f"  Round {completed_rounds + 1:3d}/{self.config.num_rounds} | "
+                    f"TS={round_start}->{result.timeslot} | clients={len(updates)} | "
+                    f"accuracy={acc:.4f}"
                 )
 
         return self._history
@@ -817,39 +778,13 @@ class FLServer:
         test_loader: Any,
         verbose: bool = True,
     ) -> list[FLRoundResult]:
-        """
-        运行异步 FL 训练（适用于 FedBuff）。
-
-        流程：
-            与同步不同，客户端独立训练并随时提交更新。
-            服务端在每个 timeslot：
-                1. 更新通信状态
-                2. 让所有可通信的客户端分别训练
-                3. 将更新放入缓冲区
-                4. 缓冲区满时触发聚合
-                5. 周期性评估
-
-        Parameters
-        ----------
-        model : nn.Module
-            初始全局模型。
-        train_loaders : dict[int, DataLoader]
-            客户端 ID → 本地训练数据 Loader。
-        test_loader : DataLoader
-            测试数据 Loader。
-        verbose : bool
-            是否打印进度。
-
-        Returns
-        -------
-        list[FLRoundResult]
-            聚合事件记录。
-        """
+        """Run event-driven FedBuff with versioned client deltas."""
         from fl_space.fl.fedbuff import BufferAggregator
 
         self._global_model = copy.deepcopy(model)
         self._init_clients()
         self._history = []
+        self._events = []
 
         if not isinstance(self.aggregator, BufferAggregator):
             raise TypeError(
@@ -862,90 +797,201 @@ class FLServer:
         if sim is not None and getattr(self.config, "limit_to_sim_window", True):
             self._sim_time_limit = int(getattr(sim, "num_timeslots_pre", sim.num_timeslots))
 
-        total_timeslots = self.config.num_rounds * self.config.timeslots_per_round
+        total_timeslots = self.config.num_rounds * max(1, self.config.timeslots_per_round)
         if self._sim_time_limit is not None:
             total_timeslots = min(total_timeslots, self._sim_time_limit)
-        training_clients: set[int] = set()
-        global_round = 0
 
-        eval_interval = max(1, total_timeslots // 20)  # 约 20 次评估
-        last_eval_metrics: dict[str, float] = {}
+        model_size_bytes = sum(
+            p.numel() * p.element_size() for p in self._global_model.parameters()
+        )
+        client_data_sizes = self._get_client_data_sizes(train_loaders)
+        pending_updates: dict[int, tuple[int, ClientUpdate]] = {}
+        global_version = 0
+        total_arrivals = 0
+        eval_every = max(1, self.config.async_eval_every)
+
+        baseline_metrics = self.evaluator.evaluate(self._global_model, test_loader, -1)
+        self._history.append(
+            FLRoundResult(
+                round_num=-1,
+                num_clients=0,
+                train_loss=baseline_metrics.get("loss", 0.0),
+                eval_metrics=baseline_metrics,
+                timeslot=0,
+                timeslot_start=0,
+                extra={"phase": "baseline"},
+            )
+        )
 
         for ts in range(total_timeslots):
-            # 1. 更新通信状态
             self._update_connectivity(ts)
 
-            # 2. 选择可参与训练的客户端
+            ready_clients = sorted(
+                cid
+                for cid, (ready_ts, _update) in pending_updates.items()
+                if ready_ts <= ts and self._clients[cid].is_connected
+            )
+            for cid in ready_clients:
+                _ready_ts, update = pending_updates.pop(cid)
+                update.completed_at = ts
+                update.metadata["arrival_timeslot"] = ts
+                buffer_agg.add_update(update)
+                total_arrivals += 1
+                self._clients[cid].last_update_round = global_version
+                self._events.append(
+                    {
+                        "event": "client_arrival",
+                        "algorithm": "fedbuff",
+                        "timeslot": ts,
+                        "client_id": cid,
+                        "base_version": update.base_version,
+                        "arrival_version": global_version,
+                        "staleness": global_version - update.base_version,
+                    }
+                )
+
+                while (
+                    global_version < self.config.num_rounds
+                    and buffer_agg.should_aggregate([], global_version)
+                ):
+                    before_version = global_version
+                    global_weights = [
+                        param.data.clone() for param in self._global_model.parameters()
+                    ]
+                    new_weights = buffer_agg.aggregate(
+                        global_weights,
+                        [],
+                        global_version,
+                    )
+                    with torch.no_grad():
+                        for param, new_w in zip(self._global_model.parameters(), new_weights):
+                            param.data.copy_(new_w)
+                    global_version += 1
+
+                    status = buffer_agg.buffer_status()
+                    should_evaluate = (
+                        global_version % eval_every == 0
+                        or global_version == self.config.num_rounds
+                    )
+                    eval_metrics = (
+                        self.evaluator.evaluate(
+                            self._global_model,
+                            test_loader,
+                            global_version,
+                        )
+                        if should_evaluate
+                        else {}
+                    )
+                    staleness_values = status["last_staleness"]
+                    result = FLRoundResult(
+                        round_num=global_version,
+                        num_clients=status["last_aggregate_count"],
+                        train_loss=0.0,
+                        eval_metrics=eval_metrics,
+                        timeslot=ts,
+                        timeslot_start=ts,
+                        extra={
+                            "base_server_version": before_version,
+                            "client_ids": status["last_client_ids"],
+                            "staleness": staleness_values,
+                            "mean_staleness": (
+                                sum(staleness_values) / len(staleness_values)
+                                if staleness_values
+                                else 0.0
+                            ),
+                            "buffer_remaining": status["current_count"],
+                            "total_arrivals": total_arrivals,
+                        },
+                    )
+                    self._history.append(result)
+                    self._events.append(
+                        {
+                            "event": "server_aggregate",
+                            "algorithm": "fedbuff",
+                            "timeslot": ts,
+                            "version": global_version,
+                            "client_ids": status["last_client_ids"],
+                            "staleness": staleness_values,
+                            "buffer_remaining": status["current_count"],
+                        }
+                    )
+                    if verbose:
+                        acc = eval_metrics.get("accuracy")
+                        acc_text = f"{acc:.4f}" if acc is not None else "not evaluated"
+                        print(
+                            f"  FedBuff update {global_version:3d}/{self.config.num_rounds} | "
+                            f"TS={ts} | clients={status['last_client_ids']} | "
+                            f"staleness={staleness_values} | accuracy={acc_text}"
+                        )
+
+            if global_version >= self.config.num_rounds:
+                break
+
+            busy_clients = set(pending_updates)
             available = self.selector.select(
                 self._clients,
-                global_round,
-                already_training=training_clients,
+                global_version,
+                already_training=busy_clients,
             )
-
-            # 3. 每个可用客户端独立训练
+            global_weights = [param.data.clone() for param in self._global_model.parameters()]
+            download_slots = self.time_model.compute_download_slots(model_size_bytes)
             for cid in available:
-                update = self._train_client(cid, train_loaders, global_round)
-                if update is not None:
-                    buffer_agg.add_update(update)
-                    self._clients[cid].last_update_round = global_round
-
-            # 4. 检查缓冲区是否触发聚合
-            if buffer_agg.should_aggregate([], global_round):
-                global_weights = [param.data.clone() for param in self._global_model.parameters()]
-                new_weights = buffer_agg.aggregate(
-                    global_weights,
-                    [],
-                    global_round,
+                n_samples = client_data_sizes.get(cid, 100)
+                train_slots = self.time_model.compute_train_slots(
+                    cid,
+                    n_samples,
+                    self.config.local_epochs,
                 )
-                with torch.no_grad():
-                    for param, new_w in zip(self._global_model.parameters(), new_weights):
-                        param.data.copy_(new_w)
-
-                global_round += 1
-
-                # 5. 周期性评估
-                if ts % eval_interval == 0:
-                    last_eval_metrics = self.evaluator.evaluate(
-                        self._global_model,
-                        test_loader,
-                        global_round,
-                    )
-
-                status = buffer_agg.buffer_status()
-                result = FLRoundResult(
-                    round_num=global_round,
-                    num_clients=status.get("last_aggregate_count", status["current_count"]),
-                    train_loss=0.0,  # 异步模式下难以精确计算
-                    eval_metrics=dict(last_eval_metrics),
-                    timeslot=ts,
+                ready_ts = ts + max(1, download_slots + train_slots)
+                update = self._train_client(
+                    cid,
+                    train_loaders,
+                    global_version,
+                    global_weights=global_weights,
                 )
-                self._history.append(result)
+                if update is None:
+                    continue
+                update.base_version = global_version
+                update.round_num = global_version
+                update.started_at = ts
+                update.metadata.update(
+                    {
+                        "ready_timeslot": ready_ts,
+                        "download_slots": download_slots,
+                        "train_slots": train_slots,
+                    }
+                )
+                pending_updates[cid] = (ready_ts, update)
+                self._events.append(
+                    {
+                        "event": "client_train_start",
+                        "algorithm": "fedbuff",
+                        "timeslot": ts,
+                        "ready_timeslot": ready_ts,
+                        "client_id": cid,
+                        "base_version": global_version,
+                    }
+                )
 
-                if verbose:
-                    acc = last_eval_metrics.get("accuracy", 0)
-                    print(
-                        f"  Timeslot {ts:4d} | 聚合 #{global_round:3d} | "
-                        f"缓冲区: {status['current_count']}/{status['buffer_size']} | "
-                        f"准确率: {acc:.4f}"
-                    )
+        if self._history and self._history[-1].round_num >= 0:
+            final_metrics = self.evaluator.evaluate(
+                self._global_model,
+                test_loader,
+                global_version,
+            )
+            self._history[-1].eval_metrics = final_metrics
 
-        # 最终评估
-        final_metrics = self.evaluator.evaluate(
-            self._global_model,
-            test_loader,
-            global_round,
+        self._events.append(
+            {
+                "event": "run_complete",
+                "algorithm": "fedbuff",
+                "timeslot": self._history[-1].timeslot if self._history else 0,
+                "server_updates": global_version,
+                "arrivals": total_arrivals,
+                "buffered": buffer_agg.buffer_status()["current_count"],
+                "pending": len(pending_updates),
+            }
         )
-        self._history.append(FLRoundResult(
-            round_num=global_round,
-            num_clients=0,
-            train_loss=0.0,
-            eval_metrics=dict(final_metrics),
-            timeslot=total_timeslots,
-        ))
-        if verbose:
-            acc = final_metrics.get("accuracy", 0)
-            print(f"\n  最终准确率: {acc:.4f}")
-            print(f"  总聚合次数: {global_round}")
 
         return self._history
 
@@ -1015,5 +1061,11 @@ class FLServer:
             entry.update(r.eval_metrics)
             if r.time_breakdown:
                 entry["time_breakdown"] = r.time_breakdown
+            if r.extra:
+                entry.update(r.extra)
             results.append(entry)
         return results
+
+    def get_event_history(self) -> list[dict[str, Any]]:
+        """Return communication and aggregation events for reproducibility."""
+        return list(self._events)

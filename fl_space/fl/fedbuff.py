@@ -183,8 +183,10 @@ class AsyncTrainer(LocalTrainer):
 
         avg_loss = total_loss / max(self.local_epochs, 1)
 
-        local_weights = [
-            param.data.clone() for param in local_model.parameters()
+        local_weights = [param.data.clone() for param in local_model.parameters()]
+        model_delta = [
+            global_param.detach().clone().to(local_param.device) - local_param
+            for global_param, local_param in zip(global_weights, local_weights)
         ]
 
         return ClientUpdate(
@@ -193,6 +195,9 @@ class AsyncTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
+            model_delta=model_delta,
+            base_version=round_num,
+            started_at=int(kwargs.get("started_at", 0)),
         )
 
 
@@ -225,16 +230,24 @@ class BufferAggregator(Aggregator):
         self,
         buffer_size: int = 5,
         staleness_weight: bool = False,
+        server_learning_rate: float = 1.0,
     ):
+        if buffer_size < 1:
+            raise ValueError("buffer_size must be at least 1")
+        if server_learning_rate <= 0:
+            raise ValueError("server_learning_rate must be positive")
         self.buffer_size = buffer_size
         self.staleness_weight = staleness_weight
+        self.server_learning_rate = server_learning_rate
 
-        # FIFO 缓冲区
-        self._buffer: deque[ClientUpdate] = deque(maxlen=buffer_size)
+        # Do not cap the deque: arrivals beyond K belong to the next server update.
+        self._buffer: deque[ClientUpdate] = deque()
 
         # 全局轮次计数器（用于 staleness 计算）
         self._global_round: int = 0
         self._last_aggregate_count: int = 0
+        self._last_batch: list[ClientUpdate] = []
+        self._last_staleness: list[int] = []
 
         # 线程安全锁
         self._lock = threading.Lock()
@@ -276,10 +289,8 @@ class BufferAggregator(Aggregator):
         round_num: int,
         **kwargs: Any,
     ) -> list[torch.Tensor]:
-        """Aggregate buffered updates with optional normalized staleness weighting."""
+        """Apply the mean buffered client delta, following FedBuff Algorithm 1."""
         with self._lock:
-            self._global_round += 1
-
             if len(self._buffer) < self.buffer_size:
                 self._last_aggregate_count = 0
                 return global_weights
@@ -289,16 +300,15 @@ class BufferAggregator(Aggregator):
                 for _ in range(self.buffer_size)
             ]
             self._last_aggregate_count = len(batch_updates)
-
-        total_size = sum(u.data_size for u in batch_updates)
-        if total_size == 0:
-            return global_weights
+            self._last_batch = list(batch_updates)
 
         effective_weights: list[tuple[ClientUpdate, float]] = []
         total_effective_weight = 0.0
+        staleness_values: list[int] = []
         for update in batch_updates:
-            staleness = max(0, self._global_round - update.round_num)
-            base_weight = update.data_size / total_size
+            staleness = max(0, round_num - update.base_version)
+            staleness_values.append(staleness)
+            base_weight = 1.0
             if self.staleness_weight and staleness > 0:
                 effective_weight = base_weight / (1 + staleness)
             else:
@@ -309,22 +319,30 @@ class BufferAggregator(Aggregator):
         if total_effective_weight <= 0:
             return global_weights
 
-        aggregated = [
-            torch.zeros_like(w, dtype=torch.float32)
-            for w in global_weights
-        ]
+        mean_delta = [torch.zeros_like(w, dtype=torch.float32) for w in global_weights]
 
         for update, effective_weight in effective_weights:
             weight_ratio = effective_weight / total_effective_weight
-            for agg_w, client_w in zip(aggregated, update.weights):
-                if isinstance(client_w, torch.Tensor):
-                    agg_w.add_(client_w.float() * weight_ratio)
+            deltas = update.model_delta
+            if deltas is None:
+                deltas = [
+                    global_weight.detach().clone() - client_weight
+                    for global_weight, client_weight in zip(global_weights, update.weights)
+                ]
+            for aggregate_delta, client_delta in zip(mean_delta, deltas):
+                if isinstance(client_delta, torch.Tensor):
+                    aggregate_delta.add_(client_delta.float() * weight_ratio)
                 else:
-                    agg_w.add_(
-                        torch.tensor(client_w, dtype=torch.float32) * weight_ratio
+                    aggregate_delta.add_(
+                        torch.tensor(client_delta, dtype=torch.float32) * weight_ratio
                     )
 
-        return aggregated
+        self._global_round = round_num + 1
+        self._last_staleness = staleness_values
+        return [
+            global_weight.float() - self.server_learning_rate * delta
+            for global_weight, delta in zip(global_weights, mean_delta)
+        ]
 
     def buffer_status(self) -> dict[str, Any]:
         """
@@ -341,6 +359,8 @@ class BufferAggregator(Aggregator):
                 "current_count": len(self._buffer),
                 "global_round": self._global_round,
                 "last_aggregate_count": self._last_aggregate_count,
+                "last_client_ids": [u.client_id for u in self._last_batch],
+                "last_staleness": list(self._last_staleness),
             }
 
 
@@ -354,6 +374,7 @@ def create_fedbuff_components(
     learning_rate: float = 0.01,
     buffer_size: int = 5,
     staleness_weight: bool = False,
+    server_learning_rate: float = 1.0,
     device: str = "cpu",
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
@@ -401,6 +422,7 @@ def create_fedbuff_components(
     aggregator = BufferAggregator(
         buffer_size=buffer_size,
         staleness_weight=staleness_weight,
+        server_learning_rate=server_learning_rate,
     )
     evaluator = StandardEvaluator(device=device)
 
