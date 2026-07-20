@@ -1,0 +1,6 @@
+修复了三个算法存在的客户端无法选中漏洞，更新了代码到达数学实现级别
+
+核心修复：
+- server.py run_sync() 添加 _update_connectivity() 调用
+- fedavg/fedprox/fedbuff 按论文语义重构（增量聚合、陈旧度、server_lr）
+- core.py ClientUpdate 新增 model_delta/base_version/timestamp 字段
