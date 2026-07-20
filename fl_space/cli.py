@@ -164,6 +164,25 @@ def _tune_set(args: argparse.Namespace, key: str, coerce: type = float) -> int:
     except (ValueError, TypeError):
         print(f"错误: '{args.value}' 不是有效的 {coerce.__name__} 值")
         return 1
+    rules = {
+        "lr": lambda x: x > 0,
+        "rounds": lambda x: x >= 1,
+        "epochs": lambda x: x >= 1,
+        "batch_size": lambda x: x >= 1,
+        "mu": lambda x: x >= 0,
+        "buffer_size": lambda x: x >= 1,
+        "workers": lambda x: x >= 1,
+        "data_workers": lambda x: x >= 0,
+        "alpha": lambda x: x > 0,
+        "early_stop": lambda x: 0 <= x <= 1,
+        "class_probability": lambda x: 0 <= x <= 1,
+        "classes_per_client": lambda x: x >= 1,
+        "max_samples": lambda x: x >= 0,
+        "preferred_clients_per_class": lambda x: x >= 1,
+    }
+    if key in rules and not rules[key](val):
+        print(f"错误: {key} = {val} 超出允许范围")
+        return 1
     s["tune"][key] = val
     save_session(s)
     print(f"  [tune] {key} = {val}")
@@ -363,6 +382,14 @@ def cmd_tune_reset(args: argparse.Namespace) -> int:
     return cmd_tune_show(args)
 
 
+def cmd_reset(args: argparse.Namespace) -> int:
+    """Restore both tune and mount sections to the shipped defaults."""
+    save_session(_deep_copy_default())
+    print("  [session] tune 和 mount 已恢复为默认值")
+    cmd_tune_show(args)
+    return cmd_mount_show(args)
+
+
 # ══════════════════════════════════════════════════════════════════
 #  mount 指令 — 挂载组件
 # ══════════════════════════════════════════════════════════════════
@@ -390,7 +417,11 @@ def cmd_mount_isl(args: argparse.Namespace) -> int:
 
 def cmd_mount_isl_buffer(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["isl_buffer"] = float(args.value)
+    value = float(args.value)
+    if value < 0:
+        print("错误: isl_buffer 必须 >= 0 km")
+        return 1
+    s["mount"]["isl_buffer"] = value
     save_session(s)
     print(f"  [mount] isl_buffer = {s['mount']['isl_buffer']} km")
     return 0
@@ -398,7 +429,11 @@ def cmd_mount_isl_buffer(args: argparse.Namespace) -> int:
 
 def cmd_mount_isl_step(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["isl_step"] = float(args.value)
+    value = float(args.value)
+    if value <= 0:
+        print("错误: isl_step 必须 > 0 秒")
+        return 1
+    s["mount"]["isl_step"] = value
     save_session(s)
     print(f"  [mount] isl_step = {s['mount']['isl_step']} s")
     return 0
@@ -442,7 +477,11 @@ def cmd_mount_staleness(args: argparse.Namespace) -> int:
 
 def cmd_mount_sats(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["sats"] = int(args.value)
+    value = int(args.value)
+    if value < 1:
+        print("错误: sats 必须 >= 1")
+        return 1
+    s["mount"]["sats"] = value
     save_session(s)
     print(f"  [mount] sats = {s['mount']['sats']}")
     return 0
@@ -450,7 +489,11 @@ def cmd_mount_sats(args: argparse.Namespace) -> int:
 
 def cmd_mount_stations(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["stations"] = int(args.value)
+    value = int(args.value)
+    if value < 1:
+        print("错误: stations 必须 >= 1")
+        return 1
+    s["mount"]["stations"] = value
     save_session(s)
     print(f"  [mount] stations = {s['mount']['stations']}")
     return 0
@@ -458,7 +501,11 @@ def cmd_mount_stations(args: argparse.Namespace) -> int:
 
 def cmd_mount_sim_hours(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["sim_hours"] = float(args.value)
+    value = float(args.value)
+    if value <= 0:
+        print("错误: sim_hours 必须 > 0")
+        return 1
+    s["mount"]["sim_hours"] = value
     save_session(s)
     print(f"  [mount] sim_hours = {s['mount']['sim_hours']} h")
     return 0
@@ -466,7 +513,11 @@ def cmd_mount_sim_hours(args: argparse.Namespace) -> int:
 
 def cmd_mount_timeslot_min(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["timeslot_min"] = float(args.value)
+    value = float(args.value)
+    if value <= 0:
+        print("错误: timeslot_min 必须 > 0")
+        return 1
+    s["mount"]["timeslot_min"] = value
     save_session(s)
     print(f"  [mount] timeslot_min = {s['mount']['timeslot_min']} min")
     return 0
@@ -474,7 +525,11 @@ def cmd_mount_timeslot_min(args: argparse.Namespace) -> int:
 
 def cmd_mount_altitude(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["altitude"] = float(args.value)
+    value = float(args.value)
+    if value <= 0:
+        print("错误: altitude 必须 > 0 km")
+        return 1
+    s["mount"]["altitude"] = value
     save_session(s)
     print(f"  [mount] altitude = {s['mount']['altitude']} km")
     return 0
@@ -482,7 +537,11 @@ def cmd_mount_altitude(args: argparse.Namespace) -> int:
 
 def cmd_mount_inclination(args: argparse.Namespace) -> int:
     s = load_session()
-    s["mount"]["inclination"] = float(args.value)
+    value = float(args.value)
+    if not 0 <= value <= 180:
+        print("错误: inclination 必须在 0~180 deg")
+        return 1
+    s["mount"]["inclination"] = value
     save_session(s)
     print(f"  [mount] inclination = {s['mount']['inclination']} deg")
     return 0
@@ -511,6 +570,13 @@ def cmd_mount_config(args: argparse.Namespace) -> int:
 
 def _merge_json_into_session(session: dict, data: dict) -> None:
     """将 JSON 数据键值映射到 session 的 tune/mount 字段。"""
+    # Native session/template files use explicit sections; accept them first.
+    for section in ("tune", "mount"):
+        values = data.get(section)
+        if isinstance(values, dict):
+            for key in DEFAULT_SESSION[section]:
+                if key in values:
+                    session[section][key] = values[key]
     # 常见 JSON 字段 → session 映射
     key_map = {
         "learning_rate": ("tune", "lr"),
@@ -1749,6 +1815,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_help = sub.add_parser("help", help="显示分类帮助", add_help=False)
     p_help.set_defaults(func=cmd_help)
+
+    p_reset = sub.add_parser("reset", help="恢复全部默认配置", add_help=False)
+    p_reset.set_defaults(func=cmd_reset)
 
     p_comp = sub.add_parser("completion", help="安装Tab补全", add_help=False)
     p_comp_sub = p_comp.add_subparsers(dest="action", title="操作")
