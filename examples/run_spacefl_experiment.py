@@ -192,7 +192,7 @@ def run_spacefl_experiment(
         print(f"\n  [SpaceFL] 启动训练 (GS={sim.num_ground_stations}, "
               f"Sats={sim.num_satellites})")
 
-    history = runner.run(
+    runner.run(
         dataset_name=dataset,
         iid=iid,
         alpha=alpha,
@@ -248,7 +248,7 @@ def run_baseline_fl(
     if verbose:
         print("\n  [Baseline FL] 启动训练 (无轨道约束)")
 
-    history = runner.run(
+    runner.run(
         dataset_name=dataset,
         iid=iid,
         alpha=alpha,
@@ -444,7 +444,7 @@ def run_experiment_suite(
 
         # 运行 SpaceFL
         fl_config = FLConfig(**base_fl_config)
-        spacefl_history, server = run_spacefl_experiment(
+        spacefl_history, _server = run_spacefl_experiment(
             sim, fl_config, dataset=dataset, iid=iid, alpha=alpha, verbose=verbose,
         )
 
@@ -669,7 +669,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 运行实验
     t_start = _time.time()
-    report = run_experiment_suite(
+    run_experiment_suite(
         gs_counts=args.gs_counts,
         num_satellites=args.sats,
         num_rounds=args.rounds,

@@ -118,8 +118,6 @@ def fedbuff_config(**overrides: Any) -> FLConfig:
         "learning_rate": 0.01,
         "buffer_size": 5,
         "staleness_weight": False,
-        "server_learning_rate": 1.0,
-        "async_eval_every": 1,
         "classes_per_client": 2,
         "max_samples_per_client": 1000,
         "partition_strategy": "probability",

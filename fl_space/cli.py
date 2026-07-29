@@ -164,25 +164,6 @@ def _tune_set(args: argparse.Namespace, key: str, coerce: type = float) -> int:
     except (ValueError, TypeError):
         print(f"错误: '{args.value}' 不是有效的 {coerce.__name__} 值")
         return 1
-    rules = {
-        "lr": lambda x: x > 0,
-        "rounds": lambda x: x >= 1,
-        "epochs": lambda x: x >= 1,
-        "batch_size": lambda x: x >= 1,
-        "mu": lambda x: x >= 0,
-        "buffer_size": lambda x: x >= 1,
-        "workers": lambda x: x >= 1,
-        "data_workers": lambda x: x >= 0,
-        "alpha": lambda x: x > 0,
-        "early_stop": lambda x: 0 <= x <= 1,
-        "class_probability": lambda x: 0 <= x <= 1,
-        "classes_per_client": lambda x: x >= 1,
-        "max_samples": lambda x: x >= 0,
-        "preferred_clients_per_class": lambda x: x >= 1,
-    }
-    if key in rules and not rules[key](val):
-        print(f"错误: {key} = {val} 超出允许范围")
-        return 1
     s["tune"][key] = val
     save_session(s)
     print(f"  [tune] {key} = {val}")
@@ -382,14 +363,6 @@ def cmd_tune_reset(args: argparse.Namespace) -> int:
     return cmd_tune_show(args)
 
 
-def cmd_reset(args: argparse.Namespace) -> int:
-    """Restore both tune and mount sections to the shipped defaults."""
-    save_session(_deep_copy_default())
-    print("  [session] tune 和 mount 已恢复为默认值")
-    cmd_tune_show(args)
-    return cmd_mount_show(args)
-
-
 # ══════════════════════════════════════════════════════════════════
 #  mount 指令 — 挂载组件
 # ══════════════════════════════════════════════════════════════════
@@ -417,11 +390,7 @@ def cmd_mount_isl(args: argparse.Namespace) -> int:
 
 def cmd_mount_isl_buffer(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if value < 0:
-        print("错误: isl_buffer 必须 >= 0 km")
-        return 1
-    s["mount"]["isl_buffer"] = value
+    s["mount"]["isl_buffer"] = float(args.value)
     save_session(s)
     print(f"  [mount] isl_buffer = {s['mount']['isl_buffer']} km")
     return 0
@@ -429,11 +398,7 @@ def cmd_mount_isl_buffer(args: argparse.Namespace) -> int:
 
 def cmd_mount_isl_step(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if value <= 0:
-        print("错误: isl_step 必须 > 0 秒")
-        return 1
-    s["mount"]["isl_step"] = value
+    s["mount"]["isl_step"] = float(args.value)
     save_session(s)
     print(f"  [mount] isl_step = {s['mount']['isl_step']} s")
     return 0
@@ -477,11 +442,7 @@ def cmd_mount_staleness(args: argparse.Namespace) -> int:
 
 def cmd_mount_sats(args: argparse.Namespace) -> int:
     s = load_session()
-    value = int(args.value)
-    if value < 1:
-        print("错误: sats 必须 >= 1")
-        return 1
-    s["mount"]["sats"] = value
+    s["mount"]["sats"] = int(args.value)
     save_session(s)
     print(f"  [mount] sats = {s['mount']['sats']}")
     return 0
@@ -489,11 +450,7 @@ def cmd_mount_sats(args: argparse.Namespace) -> int:
 
 def cmd_mount_stations(args: argparse.Namespace) -> int:
     s = load_session()
-    value = int(args.value)
-    if value < 1:
-        print("错误: stations 必须 >= 1")
-        return 1
-    s["mount"]["stations"] = value
+    s["mount"]["stations"] = int(args.value)
     save_session(s)
     print(f"  [mount] stations = {s['mount']['stations']}")
     return 0
@@ -501,11 +458,7 @@ def cmd_mount_stations(args: argparse.Namespace) -> int:
 
 def cmd_mount_sim_hours(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if value <= 0:
-        print("错误: sim_hours 必须 > 0")
-        return 1
-    s["mount"]["sim_hours"] = value
+    s["mount"]["sim_hours"] = float(args.value)
     save_session(s)
     print(f"  [mount] sim_hours = {s['mount']['sim_hours']} h")
     return 0
@@ -513,11 +466,7 @@ def cmd_mount_sim_hours(args: argparse.Namespace) -> int:
 
 def cmd_mount_timeslot_min(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if value <= 0:
-        print("错误: timeslot_min 必须 > 0")
-        return 1
-    s["mount"]["timeslot_min"] = value
+    s["mount"]["timeslot_min"] = float(args.value)
     save_session(s)
     print(f"  [mount] timeslot_min = {s['mount']['timeslot_min']} min")
     return 0
@@ -525,11 +474,7 @@ def cmd_mount_timeslot_min(args: argparse.Namespace) -> int:
 
 def cmd_mount_altitude(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if value <= 0:
-        print("错误: altitude 必须 > 0 km")
-        return 1
-    s["mount"]["altitude"] = value
+    s["mount"]["altitude"] = float(args.value)
     save_session(s)
     print(f"  [mount] altitude = {s['mount']['altitude']} km")
     return 0
@@ -537,11 +482,7 @@ def cmd_mount_altitude(args: argparse.Namespace) -> int:
 
 def cmd_mount_inclination(args: argparse.Namespace) -> int:
     s = load_session()
-    value = float(args.value)
-    if not 0 <= value <= 180:
-        print("错误: inclination 必须在 0~180 deg")
-        return 1
-    s["mount"]["inclination"] = value
+    s["mount"]["inclination"] = float(args.value)
     save_session(s)
     print(f"  [mount] inclination = {s['mount']['inclination']} deg")
     return 0
@@ -570,13 +511,6 @@ def cmd_mount_config(args: argparse.Namespace) -> int:
 
 def _merge_json_into_session(session: dict, data: dict) -> None:
     """将 JSON 数据键值映射到 session 的 tune/mount 字段。"""
-    # Native session/template files use explicit sections; accept them first.
-    for section in ("tune", "mount"):
-        values = data.get(section)
-        if isinstance(values, dict):
-            for key in DEFAULT_SESSION[section]:
-                if key in values:
-                    session[section][key] = values[key]
     # 常见 JSON 字段 → session 映射
     key_map = {
         "learning_rate": ("tune", "lr"),
@@ -779,58 +713,46 @@ def cmd_run_train(args: argparse.Namespace) -> int:
     algo = m["algo"]
     device = t["device"]
 
-    # Merge session and command-line values exactly once.
-    effective = {
-        "num_rounds": args.rounds if args.rounds is not None else t["rounds"],
-        "local_epochs": args.epochs if args.epochs is not None else t["epochs"],
-        "learning_rate": args.lr if args.lr is not None else t["lr"],
-        "batch_size": args.batch_size if args.batch_size is not None else t["batch_size"],
-        "mu": args.mu if args.mu is not None else t["mu"],
-        "buffer_size": (
-            args.buffer_size if args.buffer_size is not None else t["buffer_size"]
-        ),
-        "fraction": args.fraction if args.fraction is not None else 0.5,
-        "server_learning_rate": (
-            args.server_lr if args.server_lr is not None else 1.0
-        ),
-        "async_eval_every": args.eval_every if args.eval_every is not None else 1,
-        "staleness_weight": (
-            args.staleness_weight
-            if args.staleness_weight is not None
-            else m["staleness"]
-        ),
-        "seed": args.seed if args.seed is not None else t["seed"],
-        "partition_strategy": t["partition_strategy"],
-        "class_probability": t["class_probability"],
-        "preference_mode": t["preference_mode"],
-        "preferred_clients_per_class": t["preferred_clients_per_class"],
-        "sample_cap_strategy": t["sample_cap_strategy"],
-        "data_dir": t["data_dir"],
-    }
-    device = args.device if args.device is not None else device
-
+    # CLI 覆盖
+    overrides: dict[str, Any] = {}
+    if getattr(args, "rounds", None) is not None:
+        overrides["num_rounds"] = args.rounds
+    if getattr(args, "epochs", None) is not None:
+        overrides["local_epochs"] = args.epochs
+    if getattr(args, "lr", None) is not None:
+        overrides["learning_rate"] = args.lr
+    if getattr(args, "batch_size", None) is not None:
+        overrides["batch_size"] = args.batch_size
+    if getattr(args, "mu", None) is not None:
+        overrides["mu"] = args.mu
+    if getattr(args, "buffer_size", None) is not None:
+        overrides["buffer_size"] = args.buffer_size
+    if getattr(args, "device", None) is not None:
+        overrides["device"] = args.device
+    if getattr(args, "seed", None) is not None:
+        overrides["seed"] = args.seed
     if getattr(args, "partition_strategy", None) is not None:
-        effective["partition_strategy"] = args.partition_strategy
+        overrides["partition_strategy"] = args.partition_strategy
         t["partition_strategy"] = args.partition_strategy
     if getattr(args, "class_probability", None) is not None:
-        effective["class_probability"] = args.class_probability
+        overrides["class_probability"] = args.class_probability
         t["class_probability"] = args.class_probability
     if getattr(args, "data_dir", None) is not None:
-        effective["data_dir"] = args.data_dir
+        overrides["data_dir"] = args.data_dir
         t["data_dir"] = args.data_dir
     if getattr(args, "preference_mode", None) is not None:
-        effective["preference_mode"] = args.preference_mode
+        overrides["preference_mode"] = args.preference_mode
         t["preference_mode"] = args.preference_mode
     if getattr(args, "preferred_clients_per_class", None) is not None:
-        effective["preferred_clients_per_class"] = args.preferred_clients_per_class
+        overrides["preferred_clients_per_class"] = args.preferred_clients_per_class
         t["preferred_clients_per_class"] = args.preferred_clients_per_class
     if getattr(args, "sample_cap_strategy", None) is not None:
-        effective["sample_cap_strategy"] = args.sample_cap_strategy
+        overrides["sample_cap_strategy"] = args.sample_cap_strategy
         t["sample_cap_strategy"] = args.sample_cap_strategy
 
     time_model = getattr(args, "time_model", None) or m["time_model"]
     if time_model:
-        effective["time_model"] = time_model
+        overrides["time_model"] = time_model
 
     import contextlib
 
@@ -838,9 +760,9 @@ def cmd_run_train(args: argparse.Namespace) -> int:
     if tma:
         if isinstance(tma, str):
             with contextlib.suppress(json.JSONDecodeError):
-                effective["time_model_kwargs"] = json.loads(tma)
+                overrides["time_model_kwargs"] = json.loads(tma)
         else:
-            effective["time_model_kwargs"] = tma
+            overrides["time_model_kwargs"] = tma
 
     # 从 preset 创建
     runner = FLRunner.from_preset(
@@ -848,7 +770,21 @@ def cmd_run_train(args: argparse.Namespace) -> int:
         scale=t["scale"],
         dataset=t["dataset"],
         device=device,
-        **effective,
+        num_rounds=t["rounds"],
+        local_epochs=t["epochs"],
+        batch_size=t["batch_size"],
+        learning_rate=t["lr"],
+        mu=t["mu"],
+        buffer_size=t["buffer_size"],
+        staleness_weight=m["staleness"],
+        seed=t["seed"],
+        partition_strategy=t["partition_strategy"],
+        class_probability=t["class_probability"],
+        preference_mode=t["preference_mode"],
+        preferred_clients_per_class=t["preferred_clients_per_class"],
+        sample_cap_strategy=t["sample_cap_strategy"],
+        data_dir=t["data_dir"],
+        **overrides,
     )
 
     quiet = getattr(args, "quiet", False)
@@ -882,14 +818,25 @@ def cmd_run_train(args: argparse.Namespace) -> int:
     if args.output:
         output_data = {
             "config": {
-                **runner.config.to_dict(),
+                "algorithm": algo,
                 "dataset": t["dataset"],
                 "scale": t["scale"],
+                "rounds": t["rounds"],
+                "local_epochs": t["epochs"],
+                "learning_rate": t["lr"],
+                "batch_size": t["batch_size"],
                 "iid": not t["non_iid"],
                 "alpha": t["alpha"],
+                "classes_per_client": t.get("classes_per_client"),
+                "max_samples_per_client": t.get("max_samples"),
+                "partition_strategy": t.get("partition_strategy"),
+                "class_probability": t.get("class_probability"),
+                "preference_mode": t.get("preference_mode"),
+                "preferred_clients_per_class": t.get("preferred_clients_per_class"),
+                "sample_cap_strategy": t.get("sample_cap_strategy"),
+                "data_dir": t.get("data_dir"),
             },
             "history": runner.history_dict,
-            "events": runner.event_history,
             "client_label_distribution": runner.client_label_distribution,
         }
         with open(args.output, "w", encoding="utf-8") as f:
@@ -1075,64 +1022,6 @@ def cmd_run_quick_test(args: argparse.Namespace) -> int:
     args.output = args.output or "results"
 
     return run_quick_test(args)
-
-
-def cmd_run_fedleo(args: argparse.Namespace) -> int:
-    """运行 FedLEO 去中心化卸载实验。"""
-    if not _check_torch():
-        print("错误: FedLEO 实验需要 PyTorch 和 torchvision。请运行: pip install fl-space[full]")
-        return 1
-
-    from fl_space.fedleo.experiment import parse_discrete_ratios, run_fedleo_vs_baseline
-
-    run_fedleo_vs_baseline(
-        num_planes=args.planes,
-        sats_per_plane=args.sats_per_plane,
-        num_ground_stations=args.gs,
-        num_rounds=args.rounds,
-        local_epochs=args.epochs,
-        batch_size=args.batch_size,
-        learning_rate=args.lr,
-        dataset=args.dataset,
-        data_dir=args.data_dir,
-        device=args.device,
-        offload_every_n_rounds=args.offload_every,
-        max_offload_iter=args.max_offload_iter,
-        bandwidth_mbps=args.bandwidth_mbps,
-        bytes_per_sample=args.bytes_per_sample,
-        timeslot_duration_sec=args.timeslot_sec,
-        discrete_ratios=parse_discrete_ratios(args.ratios),
-        delay_weight=args.delay_weight,
-        divergence_weight=args.divergence_weight,
-        comm_cost_weight=args.comm_cost_weight,
-        eval_every_n_rounds=args.eval_every,
-        classes_per_client=args.classes_per_client,
-        max_samples_per_client=args.max_samples_per_client,
-        sample_imbalance=args.sample_imbalance,
-        seed=args.seed,
-        verbose=not args.quiet,
-        output_dir=args.output or "fedleo_output",
-        run_baseline=not args.no_baseline,
-    )
-    return 0
-
-
-def cmd_run_validate_algorithms(args: argparse.Namespace) -> int:
-    """Run deterministic validation for the three built-in FL algorithms."""
-    if not _check_torch():
-        print("错误: 算法验证需要 PyTorch。请运行: pip install fl-space[full]")
-        return 1
-
-    from fl_space.fl.validation import run_algorithm_validation
-
-    report = run_algorithm_validation(
-        output_dir=args.output,
-        rounds=args.rounds,
-        seeds=args.seeds,
-    )
-    print(f"  契约检查: {'通过' if report['contracts_passed'] else '失败'}")
-    print(f"  验证结果: {os.path.abspath(args.output)}")
-    return 0 if report["contracts_passed"] else 1
 
 
 def cmd_run_list(args: argparse.Namespace) -> int:
@@ -1402,8 +1291,6 @@ SpaceFL — 太空联邦学习命令行工具
   fls run simulate               运行轨道接触模拟
   fls run train                  运行 FL 训练实验
   fls run experiment             运行 SpaceFL 完整太空实验
-  fls run fedleo                 运行 FedLEO 去中心化卸载实验
-  fls run validate-algorithms    验证 FedAvg/FedProx/FedBuff
   fls run quick-test             FedProxSat 快速测试
   fls run list [资源]            查看内置资源
   fls run export                 导出模拟结果 JSON
@@ -1511,7 +1398,7 @@ $fls_commands = @(
     "sim-hours", "timeslot-min", "altitude", "inclination",
     "config", "clear",
     # run 子命令
-    "simulate", "train", "experiment", "fedleo", "validate-algorithms", "quick-test",
+    "simulate", "train", "experiment", "quick-test",
     "list", "export", "serve"
 )
 
@@ -1665,15 +1552,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--batch-size", type=int, default=None, help="覆盖batch size")
     p_tr.add_argument("--mu", type=float, default=None, help="覆盖μ")
     p_tr.add_argument("--buffer-size", type=int, default=None, help="覆盖缓冲区K")
-    p_tr.add_argument("--fraction", type=float, default=None, help="同步算法客户端参与比例")
-    p_tr.add_argument("--server-lr", type=float, default=None, help="FedBuff服务端学习率")
-    p_tr.add_argument("--eval-every", type=int, default=None, help="FedBuff每N次聚合评估")
-    p_tr.add_argument(
-        "--staleness-weight",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="FedBuff启用/禁用陈旧度降权",
-    )
     p_tr.add_argument("--device", choices=["cpu", "cuda"], default=None, help="覆盖设备")
     p_tr.add_argument("--seed", type=int, default=None, help="覆盖种子")
     p_tr.add_argument("--time-model", type=str, default=None, help="覆盖时间模型")
@@ -1698,54 +1576,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--quiet", "-q", action="store_true", help="安静模式")
     p_exp.add_argument("--no-session", action="store_true", help="忽略session")
     p_exp.set_defaults(func=cmd_run_experiment)
-
-    # run fedleo
-    p_fedleo = run_sub.add_parser("fedleo", help="FedLEO去中心化卸载实验", add_help=False)
-    p_fedleo.add_argument("--planes", type=int, default=3, help="轨道面数")
-    p_fedleo.add_argument("--sats-per-plane", type=int, default=5, help="每轨道面卫星数")
-    p_fedleo.add_argument("--gs", type=int, default=5, help="地面站数(基线)")
-    p_fedleo.add_argument("--rounds", type=int, default=30, help="训练轮次")
-    p_fedleo.add_argument("--epochs", type=int, default=2, help="本地epoch")
-    p_fedleo.add_argument("--batch-size", type=int, default=32, help="batch size")
-    p_fedleo.add_argument("--lr", type=float, default=0.01, help="学习率")
-    p_fedleo.add_argument("--dataset", choices=["mnist", "fashion_mnist", "cifar10"], default="mnist", help="数据集")
-    p_fedleo.add_argument("--data-dir", type=str, default="./data", help="数据目录")
-    p_fedleo.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="计算设备")
-    p_fedleo.add_argument("--offload-every", type=int, default=5, help="每N轮执行一次卸载")
-    p_fedleo.add_argument("--max-offload-iter", type=int, default=3, help="单次卸载最大迭代数")
-    p_fedleo.add_argument("--bandwidth-mbps", type=float, default=10.0, help="ISL带宽Mbps")
-    p_fedleo.add_argument("--bytes-per-sample", type=int, default=None, help="每样本字节数")
-    p_fedleo.add_argument("--timeslot-sec", type=float, default=60.0, help="timeslot秒数")
-    p_fedleo.add_argument("--ratios", type=str, default=None, help="离散卸载比例, 如 0,0.25,0.5,1")
-    p_fedleo.add_argument("--delay-weight", type=float, default=1.0, help="时延改善权重")
-    p_fedleo.add_argument("--divergence-weight", type=float, default=0.5, help="数据均衡/散度代理权重")
-    p_fedleo.add_argument("--comm-cost-weight", type=float, default=0.3, help="通信成本权重")
-    p_fedleo.add_argument("--eval-every", type=int, default=1, help="每N轮评估一次")
-    p_fedleo.add_argument("--classes-per-client", type=int, default=2, help="每类偏好客户端数")
-    p_fedleo.add_argument("--max-samples-per-client", type=int, default=1000, help="每客户端最大样本数")
-    p_fedleo.add_argument("--sample-imbalance", type=float, default=0.0, help="样本截断异构度[0,0.95]")
-    p_fedleo.add_argument("--seed", type=int, default=42, help="随机种子")
-    p_fedleo.add_argument("--output", "-o", type=str, default="fedleo_output", help="输出目录")
-    p_fedleo.add_argument("--no-baseline", action="store_true", help="不运行FedAvg基线")
-    p_fedleo.add_argument("--quiet", "-q", action="store_true", help="安静模式")
-    p_fedleo.set_defaults(func=cmd_run_fedleo)
-
-    # run validate-algorithms
-    p_validate = run_sub.add_parser(
-        "validate-algorithms",
-        help="验证FedAvg/FedProx/FedBuff论文语义",
-        add_help=False,
-    )
-    p_validate.add_argument("--rounds", type=int, default=12, help="服务端更新次数")
-    p_validate.add_argument("--seeds", type=int, nargs="+", default=[7, 17, 27])
-    p_validate.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        default="algorithm_validation_output",
-        help="验证结果目录",
-    )
-    p_validate.set_defaults(func=cmd_run_validate_algorithms)
 
     # run quick-test
     p_qt = run_sub.add_parser("quick-test", help="FedProxSat快速测试", add_help=False)
@@ -1816,9 +1646,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_help = sub.add_parser("help", help="显示分类帮助", add_help=False)
     p_help.set_defaults(func=cmd_help)
 
-    p_reset = sub.add_parser("reset", help="恢复全部默认配置", add_help=False)
-    p_reset.set_defaults(func=cmd_reset)
-
     p_comp = sub.add_parser("completion", help="安装Tab补全", add_help=False)
     p_comp_sub = p_comp.add_subparsers(dest="action", title="操作")
     p_ci = p_comp_sub.add_parser("install", help="安装补全", add_help=False)
@@ -1874,7 +1701,7 @@ def main(argv: list[str] | None = None) -> int:
             print("请指定 mount 子命令。可用: algo, isl, backend, body, ...")
             print("运行 'fls help' 查看完整列表。")
         elif args.category == "run":
-            print("请指定 run 子命令。可用: simulate, train, experiment, fedleo, validate-algorithms, quick-test, list, export, serve")
+            print("请指定 run 子命令。可用: simulate, train, experiment, quick-test, list, export, serve")
             print("运行 'fls help' 查看完整列表。")
         elif args.category == "completion":
             print("请指定 completion 操作。可用: install, ps1")

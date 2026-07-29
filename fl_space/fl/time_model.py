@@ -216,7 +216,7 @@ class TimeModel(ABC):
 
     # ── 工厂方法 ──────────────────────────────────────────
 
-    _BUILTIN: dict[str, type[TimeModel]] = {}
+    _BUILTIN: dict[str, type[TimeModel]] = {}  # noqa: RUF012
 
     @classmethod
     def register(cls, name: str, model_cls: type[TimeModel]) -> None:
@@ -259,7 +259,7 @@ class TimeModel(ABC):
             return cls._import_from_file(spec, **kwargs)
 
         # 3. 未知
-        available = list(cls._BUILTIN.keys()) + ["<path/to/file.py:ClassName>"]
+        available = [*list(cls._BUILTIN.keys()), "<path/to/file.py:ClassName>"]
         raise ValueError(
             f"未知时间模型: '{spec}'。"
             f"可用: {available}"

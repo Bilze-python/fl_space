@@ -1,14 +1,28 @@
 """
 无交互版验证脚本
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fl_space.environment import CelestialBody, GroundStationNetwork, create_default_network, create_extended_network
-from fl_space.orbit import KeplerOrbit, ConstellationConfig, create_circular_orbit, generate_walker_phases, generate_cluster_phases, MultiSatVisibility, VisibilityEngine
-from fl_space.simulator import OrbitSimulator, create_default_simulator, create_mars_simulator
-from fl_space.config.loader import load_sim_config_from_dict
 from fl_space.config.defaults import CONSTELLATION_PRESETS
+from fl_space.config.loader import load_sim_config_from_dict
+from fl_space.environment import (
+    CelestialBody,
+    GroundStationNetwork,
+    create_default_network,
+    create_extended_network,
+)
+from fl_space.orbit import (
+    ConstellationConfig,
+    MultiSatVisibility,
+    VisibilityEngine,
+    create_circular_orbit,
+    generate_cluster_phases,
+    generate_walker_phases,
+)
+from fl_space.simulator import OrbitSimulator, create_default_simulator, create_mars_simulator
 
 errors = []
 
@@ -25,7 +39,9 @@ print("=" * 60)
 
 # ---- 天体 ----
 print("\n[1] 天体参数")
-earth = CelestialBody.earth(); mars = CelestialBody.mars(); moon = CelestialBody.moon()
+earth = CelestialBody.earth()
+mars = CelestialBody.mars()
+moon = CelestialBody.moon()
 check("Earth预设", earth.name == "Earth")
 check("Mars预设", mars.name == "Mars")
 check("Moon预设", moon.name == "Moon")
@@ -138,9 +154,14 @@ check("火星通信记录生成", isinstance(comm_m, list))
 
 # ---- Skyfield后端 ----
 print("\n[9] Skyfield 高精度后端")
-from fl_space.orbit import SKYFIELD_AVAILABLE
+from fl_space.orbit import SKYFIELD_AVAILABLE  # noqa: E402
+
 if SKYFIELD_AVAILABLE:
-    from fl_space.orbit.skyfield_backend import SkyfieldOrbitBackend, get_precise_body_params, list_supported_bodies
+    from fl_space.orbit.skyfield_backend import (
+        SkyfieldOrbitBackend,
+        get_precise_body_params,
+        list_supported_bodies,
+    )
     check("Skyfield可用", SKYFIELD_AVAILABLE)
     bodies = list_supported_bodies()
     check("支持天体列表", len(bodies) >= 4 and 'earth' in bodies)
@@ -151,7 +172,9 @@ if SKYFIELD_AVAILABLE:
     sf = SkyfieldOrbitBackend()
     yr, mo, dy = 2024, 6, 1
     import math
-    a = (14 - mo) // 12; y = yr + 4800 - a; m = mo + 12 * a - 3
+    a = (14 - mo) // 12
+    y = yr + 4800 - a
+    m = mo + 12 * a - 3
     epoch_jd = (dy + (153*m+2)//5 + 365*y + y//4 - y//100 + y//400 - 32045 - 0.5)
     sat = sf.create_satellite_from_kepler(500, 90, 30, 60, epoch_jd=epoch_jd)
     check("SGP4卫星创建", sat is not None)

@@ -32,6 +32,15 @@ class GroundStation:
         最小通信仰角 (°)，低于此角度视为不可见。
     antenna_gain_dbi : float
         天线增益 (dBi)，用于信号链路预算（可选）。
+    num_antennas : int
+        天线数量（可并行指向的独立天线数），默认 1。
+    max_concurrent_sats : int
+        单站同一时刻最大并发接入卫星数，默认等于 num_antennas。
+    downlink_rate_mbps : float
+        单条链路下行速率上限 (Mbps)，用于预估下行数据量。
+    maintenance_windows : list[tuple[int, int]]
+        运维/检修禁用时段列表，元素为 (start_timeslot, end_timeslot)（闭区间），
+        落入其中的时刻不建立链路。默认无。
     """
     name: str
     lat_deg: float
@@ -39,6 +48,25 @@ class GroundStation:
     altitude_km: float = 0.0
     min_elevation_deg: float = 0.0
     antenna_gain_dbi: float = 0.0
+    # --- 可调度资源字段 ---
+    num_antennas: int = 1
+    max_concurrent_sats: int = 0
+    downlink_rate_mbps: float = 100.0
+    maintenance_windows: Optional[list[tuple[int, int]]] = None
+
+    def __post_init__(self) -> None:
+        # max_concurrent_sats 缺省时取天线数
+        if self.max_concurrent_sats <= 0:
+            self.max_concurrent_sats = max(1, self.num_antennas)
+        if self.maintenance_windows is None:
+            self.maintenance_windows = []
+
+    def is_available_at(self, timeslot: int) -> bool:
+        """判断该地面站在指定 timeslot 是否处于可用（非检修）状态。"""
+        return all(
+            not (start <= timeslot <= end)
+            for start, end in self.maintenance_windows or []
+        )
 
     @property
     def lat_rad(self) -> float:
@@ -57,6 +85,21 @@ class GroundStation:
         """返回 (纬度弧度, 经度弧度)。"""
         return (self.lat_rad, self.lon_rad)
 
+    def ecef(self) -> tuple[float, float, float]:
+        """返回 WGS84 椭球下的 ECEF 直角坐标 (x, y, z)，单位 km。
+
+        公式：
+            N = a / √(1 - e²·sin²φ)
+            X = (N + h)·cosφ·cosλ
+            Y = (N + h)·cosφ·sinλ
+            Z = [N·(1 - e²) + h]·sinφ
+
+        其中 a = 6378.137 km, f = 1/298.257223563。
+        """
+        from fl_space.utils.coordinate_utils import geodetic_to_ecef
+
+        return geodetic_to_ecef(self.lat_deg, self.lon_deg, self.altitude_km)
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
@@ -65,6 +108,10 @@ class GroundStation:
             "altitude_km": self.altitude_km,
             "min_elevation_deg": self.min_elevation_deg,
             "antenna_gain_dbi": self.antenna_gain_dbi,
+            "num_antennas": self.num_antennas,
+            "max_concurrent_sats": self.max_concurrent_sats,
+            "downlink_rate_mbps": self.downlink_rate_mbps,
+            "maintenance_windows": self.maintenance_windows,
         }
 
     @classmethod

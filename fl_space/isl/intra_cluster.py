@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Optional
 
 import numpy as np
 
@@ -33,7 +32,7 @@ def _merge_visibility_to_windows(
     *,
     satellite_a: str,
     satellite_b: str,
-    cluster_id: Optional[str],
+    cluster_id: str | None,
     sample_times_utc: Sequence[datetime],
     visibility: Sequence[bool],
     ranges_km: Sequence[float],
@@ -44,9 +43,9 @@ def _merge_visibility_to_windows(
         raise ValueError("可见性 / 距离序列长度不一致")
 
     windows: list[ISLWindow] = []
-    start_idx: Optional[int] = None
-    cur_min: Optional[float] = None
-    cur_max: Optional[float] = None
+    start_idx: int | None = None
+    cur_min: float | None = None
+    cur_max: float | None = None
 
     for i in range(n):
         if visibility[i]:
@@ -113,7 +112,7 @@ def _ensure_utc(dt: datetime) -> datetime:
 
 def compute_intra_cluster_los_windows(
     ecef_positions: dict[str, np.ndarray],
-    cluster_assignments: dict[str, Optional[str]],
+    cluster_assignments: dict[str, str | None],
     sample_times: Sequence[datetime],
     *,
     atmosphere_buffer_km: float = 0.0,
@@ -150,7 +149,7 @@ def compute_intra_cluster_los_windows(
             )
 
     # 按 cluster 分组
-    by_cluster: dict[Optional[str], list[str]] = defaultdict(list)
+    by_cluster: dict[str | None, list[str]] = defaultdict(list)
     for name, cid in cluster_assignments.items():
         if name not in ecef_positions:
             continue
@@ -211,7 +210,7 @@ class WGS84ISLCalculator(ISLCalculator):
     def compute(
         self,
         ecef_positions: dict[str, np.ndarray],
-        cluster_assignments: dict[str, Optional[str]],
+        cluster_assignments: dict[str, str | None],
         sample_times: Sequence[datetime],
         **kwargs,
     ) -> list[ISLWindow]:

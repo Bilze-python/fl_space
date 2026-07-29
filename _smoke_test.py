@@ -1,17 +1,23 @@
-"""Smoke test: verify ISL, Flower, and Pydantic integration works."""
+﻿﻿"""Smoke test: verify ISL, Flower, and Pydantic integration works."""
+import os
 import sys
-sys.path.insert(0, r'd:\fl_space')
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 print("=== ISL Module Import Test ===")
-from fl_space.isl import (
-    ISLCalculator, ISLConfig, ISLWindow, NoISLCalculator,
-    is_los_clear_ecef, WGS84_A_KM, WGS84_B_KM,
-    compute_intra_cluster_los_windows, WGS84ISLCalculator,
+from fl_space.isl import (  # noqa: E402
+    ISLConfig,
+    NoISLCalculator,
+    WGS84ISLCalculator,
+    compute_intra_cluster_los_windows,
+    is_los_clear_ecef,
 )
+
 print("  ISL imports OK")
 
 # Test WGS84 occlusion
-import numpy as np
+import numpy as np  # noqa: E402
+
 r1 = np.array([7000.0, 0.0, 0.0])  # point on x-axis
 r2 = np.array([-7000.0, 0.0, 0.0])  # opposite side - should be blocked
 blocked = is_los_clear_ecef(r1, r2)
@@ -32,7 +38,8 @@ assert cfg.atmosphere_buffer_km == 80.0
 print("  ISLConfig OK")
 
 # Test calculator factory
-from fl_space.isl.intra_cluster import create_isl_calculator
+from fl_space.isl.intra_cluster import create_isl_calculator  # noqa: E402
+
 calc_wgs84 = create_isl_calculator(cfg)
 assert isinstance(calc_wgs84, WGS84ISLCalculator)
 calc_disabled = create_isl_calculator(ISLConfig(enabled=False))
@@ -40,7 +47,8 @@ assert isinstance(calc_disabled, NoISLCalculator)
 print("  Calculator factory OK")
 
 # Test ISL window computation with mock data
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
 n_samples = 10
 ecef = {
     "SAT-00": np.column_stack([r3 + np.array([i*10, 0, 0]) for i in range(n_samples)]),
@@ -54,7 +62,8 @@ print(f"  ISL compute: {len(windows)} windows")
 assert len(windows) >= 0
 
 print("\n=== Flower Integration Test ===")
-from fl_space.integrations.flower import FlowerAdapter, ContactWindow, IntraLinkWindow
+from fl_space.integrations.flower import ContactWindow, FlowerAdapter  # noqa: E402
+
 print("  Flower imports OK")
 
 cw = ContactWindow(satellite_name="SAT-00", station_name="GS-Beijing",
@@ -70,7 +79,7 @@ assert "SAT-00" in visible
 
 print("\n=== Pydantic Config Test (optional) ===")
 try:
-    from fl_space.config.schemas import SpaceFLScenario, WalkerSpec, GroundStation
+    from fl_space.config.schemas import GroundStation, SpaceFLScenario, WalkerSpec  # noqa: F401
     spec = WalkerSpec(num_planes=2, sats_per_plane=5, altitude_km=550)
     assert spec.total_satellites == 10
     print("  Pydantic schemas OK")
@@ -78,12 +87,12 @@ except ImportError:
     print("  Pydantic not installed (optional) — skipped")
 
 print("\n=== OrbitSimulator ISL Integration Test ===")
-from fl_space.isl.base import ISLConfig as ICfg
-from fl_space.simulator import OrbitSimulator
+from fl_space.isl.base import ISLConfig as ICfg  # noqa: E402
+from fl_space.simulator import OrbitSimulator  # noqa: E402
 
 # Without ISL (backward compatible)
 sim_no_isl = OrbitSimulator(num_satellites=3, num_ground_stations=2, verbose=False)
-assert sim_no_isl.isl_config.enabled == False
+assert not sim_no_isl.isl_config.enabled
 print(f"  Without ISL: {sim_no_isl.isl_stats}")
 
 # With ISL
@@ -92,7 +101,7 @@ sim_isl = OrbitSimulator(
     isl_config=ICfg(enabled=True, calculator="wgs84"),
     verbose=False,
 )
-assert sim_isl.isl_config.enabled == True
+assert sim_isl.isl_config.enabled
 stats = sim_isl.isl_stats
 print(f"  With ISL: total_windows={stats['total_windows']}, unique_links={stats['unique_links']}")
 
@@ -110,8 +119,9 @@ print(f"  Flower adapter: {len(adapter2.contact_windows)} contact windows, "
       f"{len(adapter2.intra_links)} intra links")
 
 print("\n=== KeplerOrbit ECEF Test ===")
-from fl_space.environment import CelestialBody
-from fl_space.orbit import KeplerOrbit, OrbitalElements
+from fl_space.environment import CelestialBody  # noqa: E402
+from fl_space.orbit import KeplerOrbit, OrbitalElements  # noqa: E402
+
 earth = CelestialBody.earth()
 oe = OrbitalElements(
     semi_major_axis_km=earth.radius_km + 500,
@@ -125,7 +135,8 @@ assert abs(r - (earth.radius_km + 500)) < 10.0
 
 # Compatibility: FL experiment still works
 print("\n=== FL Experiment Compatibility Test ===")
-from examples.standard_experiment import run_single_experiment
+from examples.standard_experiment import run_single_experiment  # noqa: E402
+
 exp = run_single_experiment(
     gs_count=2, sat_count=3, num_rounds=5, local_epochs=1,
     isl_enabled=True, isl_atmosphere_buffer_km=0.0,

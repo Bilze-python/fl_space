@@ -1,4 +1,4 @@
-"""
+﻿﻿﻿"""
 SpaceFL 快速演示 — 轨道模拟 + FL训练一步跑通
 
 用法:
@@ -6,18 +6,29 @@ SpaceFL 快速演示 — 轨道模拟 + FL训练一步跑通
     python _run_demo.py --lang zh  # 中文版
 """
 import argparse
-import os, sys, json, time
+import os
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 保证重定向到文件时中文不乱码（Windows 控制台默认 GBK）
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 
 from fl_space.environment import CelestialBody, create_default_network
-from fl_space.orbit import create_circular_orbit, KeplerOrbit
+from fl_space.orbit import create_circular_orbit
 from fl_space.simulator import OrbitSimulator
-from fl_space.viz.i18n import setup_cjk_font, t as i18n_t
+from fl_space.viz.i18n import setup_cjk_font
+from fl_space.viz.i18n import t as i18n_t
 
 # 解析 --lang 参数
 _parser = argparse.ArgumentParser()
@@ -69,7 +80,7 @@ print("\n" + "=" * 60)
 print("  Part 2: 接触热力图")
 print("=" * 60)
 
-from fl_space.utils import plot_contact_heatmap, plot_ground_station_map
+from fl_space.utils import plot_contact_heatmap, plot_ground_station_map  # noqa: E402
 
 out_dir = "demo_output"
 os.makedirs(out_dir, exist_ok=True)
@@ -89,12 +100,15 @@ print("\n" + "=" * 60)
 print("  Part 3: 联邦学习训练 (FedAvg, 20轮)")
 print("=" * 60)
 
-from fl_space.fl.fedavg import (
-    CappedSelector, FixedEpochTrainer, StandardEvaluator, SyncWeightedAggregator,
+from fl_space.fl.fedavg import (  # noqa: E402
+    CappedSelector,
+    FixedEpochTrainer,
+    StandardEvaluator,
+    SyncWeightedAggregator,
 )
-from fl_space.fl.runner import FLRunner
-from fl_space.fl.scheduler import CommunicationScheduler
-from fl_space.fl.server import FLConfig
+from fl_space.fl.runner import FLRunner  # noqa: E402
+from fl_space.fl.scheduler import CommunicationScheduler  # noqa: E402
+from fl_space.fl.server import FLConfig  # noqa: E402
 
 config = FLConfig(
     algorithm="fedavg", num_rounds=20, num_clients=3,

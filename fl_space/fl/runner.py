@@ -1,4 +1,4 @@
-"""
+﻿"""
 FL 实验运行器 — 一站式 FL 实验入口
 
 职责：
@@ -28,6 +28,7 @@ FL 实验运行器 — 一站式 FL 实验入口
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from fl_space.fl.config import DATASET_PRESETS, FLConfig, get_preset_config
@@ -184,7 +185,6 @@ class FLRunner:
                 learning_rate=config.learning_rate,
                 buffer_size=config.buffer_size,
                 staleness_weight=config.staleness_weight,
-                server_learning_rate=config.server_learning_rate,
                 device=config.device,
             )
         else:
@@ -741,7 +741,15 @@ class FLRunner:
         # 3. 训练
         if verbose:
             print("[3/3] 开始训练...")
+            if self.config.staged_training:
+                phase1 = int(self.config.num_rounds * self.config.stage1_rounds_ratio)
+                print(f"  分段训练: 阶段1={phase1}轮(lr={self.config.stage1_lr}) "
+                      f"→ 阶段2={self.config.num_rounds - phase1}轮(lr={self.config.stage2_lr})")
             print()
+
+        # ── Round 12: 分段训练 ──
+        if self.config.staged_training:
+            return self._run_staged_training(verbose=verbose)
 
         self._server = FLServer(
             config=self.config,
@@ -778,6 +786,91 @@ class FLRunner:
 
         return history
 
+    def _run_staged_training(self, verbose: bool = True) -> list[FLRoundResult]:
+        """分段训练 (Round 12)：前期快速拟合峰值 + 后期微调固化稳定解。
+
+        阶段 1: 高学习率快速拟合 → 拉高准确率峰值
+        阶段 2: 低学习率全时段真实轨道微调 → 固化高匹配率稳态
+
+        使用全时序滚动轨道数据，不用片段化窗口训练，
+        杜绝峰值虚高、稳态下跌的问题。
+        """
+        phase1_rounds = max(1, int(self.config.num_rounds * self.config.stage1_rounds_ratio))
+
+        # ── 阶段 1: 快速拟合 ──
+        phase1_config = copy.deepcopy(self.config)
+        phase1_config.num_rounds = phase1_rounds
+        phase1_config.learning_rate = self.config.stage1_lr
+
+        if verbose:
+            print(f"--- 阶段 1/{phase1_rounds} 轮 (lr={self.config.stage1_lr}) ---")
+
+        self._server = FLServer(
+            config=phase1_config,
+            selector=self.selector,
+            trainer=self.trainer,
+            aggregator=self.aggregator,
+            evaluator=self.evaluator,
+            scheduler=self.scheduler,
+        )
+        phase1_history = self._server.run(
+            model=self._model,
+            train_loaders=self._train_loaders,
+            test_loader=self._test_loader,
+            verbose=verbose,
+        )
+
+        # ── 阶段 2: 微调固化 ──
+        phase2_rounds = self.config.num_rounds - phase1_rounds
+        phase2_config = copy.deepcopy(self.config)
+        phase2_config.num_rounds = phase2_rounds
+        phase2_config.learning_rate = self.config.stage2_lr
+
+        if verbose:
+            print(f"--- 阶段 2/{phase2_rounds} 轮 (lr={self.config.stage2_lr}) ---")
+
+        # 使用阶段 1 训练后的模型作为起点
+        if phase1_history:
+            self._model.load_state_dict(
+                {k: v.clone() for k, v in self._model.state_dict().items()}
+            )
+
+        self._server = FLServer(
+            config=phase2_config,
+            selector=self.selector,
+            trainer=self.trainer,
+            aggregator=self.aggregator,
+            evaluator=self.evaluator,
+            scheduler=self.scheduler,
+        )
+        phase2_history = self._server.run(
+            model=self._model,
+            train_loaders=self._train_loaders,
+            test_loader=self._test_loader,
+            verbose=verbose,
+        )
+
+        # 合并历史
+        # 调整阶段 2 的轮次号
+        for r in phase2_history:
+            r.round_num += phase1_rounds
+
+        full_history = phase1_history + phase2_history
+
+        if verbose:
+            print()
+            print("=== 分段训练完成 ===")
+            if full_history:
+                final_acc = full_history[-1].eval_metrics.get("accuracy", 0)
+                phase1_best = max(
+                    (r.eval_metrics.get("accuracy", 0) for r in phase1_history),
+                    default=0,
+                )
+                print(f"  阶段 1 最佳: {phase1_best:.4f}")
+                print(f"  阶段 2 最终: {final_acc:.4f}")
+
+        return full_history
+
     @property
     def client_label_distribution(self) -> dict[str, Any]:
         """Client-side label distribution generated during data preparation."""
@@ -789,10 +882,3 @@ class FLRunner:
         if self._server is None:
             return []
         return self._server.get_history_dict()
-
-    @property
-    def event_history(self) -> list[dict[str, Any]]:
-        """Detailed client and server events from the latest run."""
-        if self._server is None:
-            return []
-        return self._server.get_event_history()

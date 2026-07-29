@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from fl_space.environment import CelestialBody
 
@@ -70,7 +70,7 @@ class SatelliteSpec:
     inclination_deg: float = 90.0
     raan_deg: float = 0.0
     true_anomaly_deg: float = 0.0
-    semi_major_axis_km: Optional[float] = None
+    semi_major_axis_km: float | None = None
     eccentricity: float = 0.0
     arg_perigee_deg: float = 0.0
     comm_range_km: float = 0.0
@@ -223,7 +223,7 @@ class MultiClusterConfig:
         return sum(c.num_satellites for c in self.clusters) + len(self.custom_satellites)
 
     def generate_orbits(
-        self, body: Optional[CelestialBody] = None
+        self, body: CelestialBody | None = None
     ) -> tuple[list[KeplerOrbit], dict[str, list[int]]]:
         """生成所有卫星轨道，返回 (轨道列表, {簇名: [卫星索引...]})。
 
@@ -255,7 +255,7 @@ class MultiClusterConfig:
         if self.custom_satellites:
             custom_start = len(all_orbits)
             for spec in self.custom_satellites:
-                all_orbits.append(spec.to_orbit(body))
+                all_orbits.append(spec.to_orbit(body))  # noqa: PERF401
             cluster_map["_custom"] = list(range(custom_start, len(all_orbits)))
 
         return all_orbits, cluster_map
@@ -351,7 +351,7 @@ class MultiClusterConfig:
 
 def orbits_from_legacy_config(
     config: ConstellationConfig,
-    body: Optional[CelestialBody] = None,
+    body: CelestialBody | None = None,
 ) -> tuple[list[KeplerOrbit], dict[str, list[int]]]:
     """从旧版 ConstellationConfig 创建轨道（兼容过渡）。
 

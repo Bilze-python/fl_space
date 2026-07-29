@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from collections import deque
 import copy
+from dataclasses import dataclass
 import threading
 from typing import Any
 
@@ -114,6 +115,9 @@ class AsyncTrainer(LocalTrainer):
     与 FedAvg 的 FixedEpochTrainer 类似（固定 E 个 epoch 的 SGD），
     但设计用于异步场景：客户端独立训练并随时提交更新。
 
+    支持动态 Epoch：通过 timing_cache 按轨道间隔自适应调整本地
+    训练轮数，避免固定 epoch 浪费短窗口或不足长窗口。
+
     Parameters
     ----------
     local_epochs : int
@@ -124,6 +128,12 @@ class AsyncTrainer(LocalTrainer):
         学习率，默认 0.01。
     device : str
         计算设备。
+    timing_cache : TimingCachePool | None
+        定时缓存池，用于动态 Epoch 计算。None 时使用固定 epoch。
+    max_epochs : int
+        动态模式下最大 epoch 上限。
+    warning_threshold_min : float
+        窗口预警阈值（分钟），距下次接轨<此时强制停止训练。
     """
 
     def __init__(
@@ -132,6 +142,9 @@ class AsyncTrainer(LocalTrainer):
         batch_size: int = 32,
         learning_rate: float = 0.01,
         device: str = "cpu",
+        timing_cache: Any | None = None,
+        max_epochs: int = 10,
+        warning_threshold_min: float = 5.0,
     ):
         if not TORCH_AVAILABLE:
             raise ImportError("FedBuff 需要 PyTorch，请运行: pip install torch")
@@ -140,6 +153,38 @@ class AsyncTrainer(LocalTrainer):
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.device = device
+        self._timing_cache = timing_cache
+        self.max_epochs = max_epochs
+        self.warning_threshold_min = warning_threshold_min
+        self._effective_epochs: int = local_epochs
+
+    def set_client_context(self, client_id: int, timeslot: int) -> int:
+        """
+        设置当前客户端上下文，计算动态 Epoch。
+
+        Parameters
+        ----------
+        client_id : int
+            客户端 ID。
+        timeslot : int
+            当前虚拟时间。
+
+        Returns
+        -------
+        int
+            生效的 epoch 数。
+        """
+        if self._timing_cache is not None:
+            dyn_epochs = self._timing_cache.get_dynamic_epochs(
+                client_id, timeslot,
+                max_epochs=self.max_epochs,
+                warning_threshold_min=self.warning_threshold_min,
+            )
+            self._effective_epochs = dyn_epochs
+            self.local_epochs = dyn_epochs
+            return dyn_epochs
+        self._effective_epochs = self.local_epochs
+        return self.local_epochs
 
     def train(
         self,
@@ -183,10 +228,8 @@ class AsyncTrainer(LocalTrainer):
 
         avg_loss = total_loss / max(self.local_epochs, 1)
 
-        local_weights = [param.data.clone() for param in local_model.parameters()]
-        model_delta = [
-            global_param.detach().clone().to(local_param.device) - local_param
-            for global_param, local_param in zip(global_weights, local_weights)
+        local_weights = [
+            param.data.clone() for param in local_model.parameters()
         ]
 
         return ClientUpdate(
@@ -195,27 +238,61 @@ class AsyncTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
-            model_delta=model_delta,
-            base_version=round_num,
-            started_at=int(kwargs.get("started_at", 0)),
         )
 
 
 # ── 3. 缓冲区聚合器 ───────────────────────────────────────────
 
 
+@dataclass
+class StalenessConfig:
+    """陈旧度配置 — 动态阈值与分层丢弃。
+
+    Attributes
+    ----------
+    base_tau : int
+        基础陈旧阈值 τ。
+    dynamic_tau : bool
+        是否启用基于轨道间隔的动态 τ。
+    tiered_filter : bool
+        是否启用分层陈旧丢弃（轻度/中度/重度）。
+    mild_weight_decay : float
+        轻度陈旧降权因子（0~1），默认 0.9。
+    moderate_weight_decay : float
+        中度陈旧降权因子（0~1），默认 0.5。
+    adaptive_buffer : bool
+        是否启用基于在线卫星数的动态缓冲区大小。
+    timing_cache : Any | None
+        定时缓存池引用。
+    """
+
+    base_tau: int = 5
+    dynamic_tau: bool = False
+    tiered_filter: bool = False
+    mild_weight_decay: float = 0.9
+    moderate_weight_decay: float = 0.5
+    adaptive_buffer: bool = False
+    timing_cache: Any | None = None
+
+
 class BufferAggregator(Aggregator):
     """
-    异步缓冲区聚合器 (FedBuff 核心)。
+    异步缓冲区聚合器 (FedBuff 核心) — 含动态陈旧度优化。
 
     维护一个大小为 K 的 FIFO 缓冲区。
     当缓冲区满时：
         1. 取出最旧的 K 个更新
-        2. 加权平均聚合
-        3. 更新全局模型
+        2. 分层陈旧度过滤（轻度/中度/重度）
+        3. 加权平均聚合
+        4. 更新全局模型
 
     这种方式不需要同步等待所有客户端，
     天然适应卫星通信不可预测的特点。
+
+    新增（论文第四方向 FedBuff Async Staleness Timing）：
+        - 动态陈旧阈值 τ：长间隔卫星放宽，短间隔收紧
+        - 自适应缓冲区 D：在线卫星多增大，少缩小
+        - 分层陈旧丢弃：轻度保留 → 中度降权 → 重度丢弃
 
     Parameters
     ----------
@@ -224,48 +301,160 @@ class BufferAggregator(Aggregator):
         K 越小越异步但 staleness 越大。
     staleness_weight : bool
         是否对陈旧更新降权。True 时较旧的更新权重降低。
+    staleness_config : StalenessConfig | None
+        陈旧度动态配置。None 时使用传统固定策略。
     """
 
     def __init__(
         self,
         buffer_size: int = 5,
         staleness_weight: bool = False,
-        server_learning_rate: float = 1.0,
+        staleness_config: StalenessConfig | None = None,
     ):
-        if buffer_size < 1:
-            raise ValueError("buffer_size must be at least 1")
-        if server_learning_rate <= 0:
-            raise ValueError("server_learning_rate must be positive")
         self.buffer_size = buffer_size
         self.staleness_weight = staleness_weight
-        self.server_learning_rate = server_learning_rate
+        self._staleness_cfg = staleness_config
 
-        # Do not cap the deque: arrivals beyond K belong to the next server update.
-        self._buffer: deque[ClientUpdate] = deque()
+        # 动态缓冲区范围
+        self._base_buffer_size = buffer_size
+        self._min_buffer_size = max(2, buffer_size // 2)
+        self._max_buffer_size = buffer_size * 2
+
+        # FIFO 缓冲区
+        self._buffer: deque[ClientUpdate] = deque(maxlen=buffer_size)
 
         # 全局轮次计数器（用于 staleness 计算）
         self._global_round: int = 0
         self._last_aggregate_count: int = 0
-        self._last_batch: list[ClientUpdate] = []
-        self._last_staleness: list[int] = []
+
+        # 统计
+        self._drop_count: int = 0
+        self._total_updates_received: int = 0
 
         # 线程安全锁
         self._lock = threading.Lock()
 
-    def add_update(self, update: ClientUpdate) -> None:
+    def update_buffer_size(self, online_sat_count: int) -> int:
         """
-        向缓冲区添加一个客户端更新（线程安全）。
+        基于在线卫星数动态调整缓冲区大小。
 
-        在异步场景中，训练任务可能在不同线程中完成，
-        此方法确保缓冲区操作的线程安全。
+        在线卫星多 → 增大 D，批量聚合提升效率
+        在线卫星少（1-2颗） → 缩小 D，减少轮次等待
+
+        Parameters
+        ----------
+        online_sat_count : int
+            当前在线卫星数。
+
+        Returns
+        -------
+        int
+            调整后的缓冲区大小。
+        """
+        if not (self._staleness_cfg and self._staleness_cfg.adaptive_buffer):
+            return self.buffer_size
+
+        if online_sat_count <= 2:
+            new_size = max(self._min_buffer_size, online_sat_count)
+        elif online_sat_count <= 5:
+            new_size = online_sat_count
+        else:
+            new_size = min(self._max_buffer_size, online_sat_count * 2 // 3)
+
+        with self._lock:
+            self.buffer_size = new_size
+            # 用新的 maxlen 重新创建 deque
+            old_buf = list(self._buffer)
+            self._buffer = deque(old_buf, maxlen=new_size)
+
+        return new_size
+
+    def _get_dynamic_tau(self, sat_id: int) -> int:
+        """获取某卫星的动态陈旧阈值。
+
+        Parameters
+        ----------
+        sat_id : int
+            卫星 ID（-1 时返回基础值）。
+
+        Returns
+        -------
+        int
+            动态 τ 值。
+        """
+        cfg = self._staleness_cfg
+        if cfg is None or not cfg.dynamic_tau or cfg.timing_cache is None:
+            return cfg.base_tau if cfg else 5
+
+        # 使用 timing_cache 获取动态 τ
+        if sat_id >= 0:
+            return cfg.timing_cache.get_staleness_threshold(sat_id, 0, cfg.base_tau)
+        return cfg.base_tau
+
+    def _classify_staleness(self, staleness: int, sat_id: int) -> str:
+        """分层陈旧度分类。
+
+        Parameters
+        ----------
+        staleness : int
+            陈旧轮次数。
+        sat_id : int
+            卫星 ID。
+
+        Returns
+        -------
+        str
+            "mild" | "moderate" | "severe" | "normal"
+        """
+        cfg = self._staleness_cfg
+        if cfg is None or not cfg.tiered_filter:
+            return "normal"
+
+        tau = self._get_dynamic_tau(sat_id)
+
+        if staleness <= tau:
+            return "mild"
+        elif staleness <= 2 * tau:
+            return "moderate"
+        else:
+            return "severe"
+
+    def add_update(self, update: ClientUpdate) -> bool:
+        """
+        向缓冲区添加一个客户端更新（线程安全 + 分层陈旧过滤）。
+
+        分层陈旧丢弃机制：
+            1. 轻度陈旧（τ内）：正常入缓冲区（可能适度降权）
+            2. 中度陈旧（τ~2τ）：降权入缓冲区，不直接丢弃
+            3. 重度陈旧（>2τ）：定时判定失效，拒绝入队
 
         Parameters
         ----------
         update : ClientUpdate
             客户端训练结果。
+
+        Returns
+        -------
+        bool
+            True 表示成功入队，False 表示因陈旧度被丢弃。
         """
+        self._total_updates_received += 1
+
+        # 分层陈旧度检查
+        cfg = self._staleness_cfg
+        if cfg is not None and cfg.tiered_filter:
+            staleness = max(0, self._global_round - update.round_num)
+            classification = self._classify_staleness(staleness, update.client_id)
+
+            if classification == "severe":
+                # 重度陈旧：丢弃
+                with self._lock:
+                    self._drop_count += 1
+                return False
+
         with self._lock:
             self._buffer.append(update)
+        return True
 
     def should_aggregate(
         self,
@@ -289,8 +478,10 @@ class BufferAggregator(Aggregator):
         round_num: int,
         **kwargs: Any,
     ) -> list[torch.Tensor]:
-        """Apply the mean buffered client delta, following FedBuff Algorithm 1."""
+        """Aggregate buffered updates with tiered staleness weighting."""
         with self._lock:
+            self._global_round += 1
+
             if len(self._buffer) < self.buffer_size:
                 self._last_aggregate_count = 0
                 return global_weights
@@ -300,49 +491,50 @@ class BufferAggregator(Aggregator):
                 for _ in range(self.buffer_size)
             ]
             self._last_aggregate_count = len(batch_updates)
-            self._last_batch = list(batch_updates)
 
+        total_size = sum(u.data_size for u in batch_updates)
+        if total_size == 0:
+            return global_weights
+
+        cfg = self._staleness_cfg
         effective_weights: list[tuple[ClientUpdate, float]] = []
         total_effective_weight = 0.0
-        staleness_values: list[int] = []
         for update in batch_updates:
-            staleness = max(0, round_num - update.base_version)
-            staleness_values.append(staleness)
-            base_weight = 1.0
-            if self.staleness_weight and staleness > 0:
-                effective_weight = base_weight / (1 + staleness)
-            else:
-                effective_weight = base_weight
-            effective_weights.append((update, effective_weight))
-            total_effective_weight += effective_weight
+            staleness = max(0, self._global_round - update.round_num)
+            base_weight = update.data_size / total_size
+
+            # 分层陈旧降权
+            if cfg is not None and cfg.tiered_filter:
+                classification = self._classify_staleness(staleness, update.client_id)
+                if classification == "moderate":
+                    base_weight *= cfg.moderate_weight_decay
+                elif classification == "mild" and staleness > 0:
+                    base_weight *= cfg.mild_weight_decay
+            elif self.staleness_weight and staleness > 0:
+                base_weight = base_weight / (1 + staleness)
+
+            effective_weights.append((update, base_weight))
+            total_effective_weight += base_weight
 
         if total_effective_weight <= 0:
             return global_weights
 
-        mean_delta = [torch.zeros_like(w, dtype=torch.float32) for w in global_weights]
+        aggregated = [
+            torch.zeros_like(w, dtype=torch.float32)
+            for w in global_weights
+        ]
 
         for update, effective_weight in effective_weights:
             weight_ratio = effective_weight / total_effective_weight
-            deltas = update.model_delta
-            if deltas is None:
-                deltas = [
-                    global_weight.detach().clone() - client_weight
-                    for global_weight, client_weight in zip(global_weights, update.weights)
-                ]
-            for aggregate_delta, client_delta in zip(mean_delta, deltas):
-                if isinstance(client_delta, torch.Tensor):
-                    aggregate_delta.add_(client_delta.float() * weight_ratio)
+            for agg_w, client_w in zip(aggregated, update.weights):
+                if isinstance(client_w, torch.Tensor):
+                    agg_w.add_(client_w.float() * weight_ratio)
                 else:
-                    aggregate_delta.add_(
-                        torch.tensor(client_delta, dtype=torch.float32) * weight_ratio
+                    agg_w.add_(
+                        torch.tensor(client_w, dtype=torch.float32) * weight_ratio
                     )
 
-        self._global_round = round_num + 1
-        self._last_staleness = staleness_values
-        return [
-            global_weight.float() - self.server_learning_rate * delta
-            for global_weight, delta in zip(global_weights, mean_delta)
-        ]
+        return aggregated
 
     def buffer_status(self) -> dict[str, Any]:
         """
@@ -351,7 +543,7 @@ class BufferAggregator(Aggregator):
         Returns
         -------
         dict
-            包含 buffer_size, current_count, global_round 的字典。
+            包含 buffer_size, current_count, global_round 等信息的字典。
         """
         with self._lock:
             return {
@@ -359,8 +551,11 @@ class BufferAggregator(Aggregator):
                 "current_count": len(self._buffer),
                 "global_round": self._global_round,
                 "last_aggregate_count": self._last_aggregate_count,
-                "last_client_ids": [u.client_id for u in self._last_batch],
-                "last_staleness": list(self._last_staleness),
+                "total_updates_received": self._total_updates_received,
+                "drop_count": self._drop_count,
+                "drop_rate": (
+                    self._drop_count / max(self._total_updates_received, 1)
+                ),
             }
 
 
@@ -374,8 +569,11 @@ def create_fedbuff_components(
     learning_rate: float = 0.01,
     buffer_size: int = 5,
     staleness_weight: bool = False,
-    server_learning_rate: float = 1.0,
     device: str = "cpu",
+    staleness_config: StalenessConfig | None = None,
+    timing_cache: Any | None = None,
+    max_epochs: int = 10,
+    warning_threshold_min: float = 5.0,
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
     一键创建 FedBuff 的四件套组件。
@@ -396,6 +594,14 @@ def create_fedbuff_components(
         是否对陈旧更新降权。
     device : str
         计算设备。
+    staleness_config : StalenessConfig | None
+        陈旧度动态配置（含动态τ、分层丢弃、自适应D）。
+    timing_cache : TimingCachePool | None
+        定时缓存池（用于动态 Epoch）。
+    max_epochs : int
+        动态模式下最大 epoch 数。
+    warning_threshold_min : float
+        窗口预警阈值（分钟）。
 
     Returns
     -------
@@ -404,11 +610,13 @@ def create_fedbuff_components(
 
     使用示例::
 
-        from fl_space.fl.fedbuff import create_fedbuff_components
+        from fl_space.fl.fedbuff import create_fedbuff_components, StalenessConfig
 
+        sc = StalenessConfig(base_tau=5, dynamic_tau=True, tiered_filter=True)
         selector, trainer, aggregator, evaluator = create_fedbuff_components(
             buffer_size=5,
             staleness_weight=True,
+            staleness_config=sc,
             device="cuda",
         )
     """
@@ -418,11 +626,14 @@ def create_fedbuff_components(
         batch_size=batch_size,
         learning_rate=learning_rate,
         device=device,
+        timing_cache=timing_cache,
+        max_epochs=max_epochs,
+        warning_threshold_min=warning_threshold_min,
     )
     aggregator = BufferAggregator(
         buffer_size=buffer_size,
         staleness_weight=staleness_weight,
-        server_learning_rate=server_learning_rate,
+        staleness_config=staleness_config,
     )
     evaluator = StandardEvaluator(device=device)
 

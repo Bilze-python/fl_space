@@ -15,12 +15,10 @@ Pydantic v2 配置契约 — 可选的强类型配置校验层。
 
 from __future__ import annotations
 
-from typing import Optional
-
 try:
     from pydantic import BaseModel, Field, field_validator
-except ImportError:
-    raise ImportError("Pydantic 未安装。请运行: pip install pydantic pyyaml")
+except ImportError as err:
+    raise ImportError("Pydantic 未安装。请运行: pip install pydantic pyyaml") from err
 
 
 # ── 轨道配置 ──────────────────────────────────────────────
@@ -77,7 +75,7 @@ class FLExperimentSpec(BaseModel):
     batch_size: int = Field(default=32, ge=1)
     learning_rate: float = Field(default=0.01, gt=0.0)
     mu: float = Field(default=0.01, ge=0.0)
-    early_stop_acc: Optional[float] = Field(default=0.90, ge=0.0, le=1.0)
+    early_stop_acc: float | None = Field(default=0.90, ge=0.0, le=1.0)
     dataset: str = Field(default="mnist")
     device: str = Field(default="cpu")
     fraction: float = Field(default=1.0, gt=0.0, le=1.0)

@@ -28,10 +28,6 @@ full = [
     "tqdm>=4.65.0",
     "skyfield>=1.48",
 ]
-web = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
-]
 
 [tool.ruff]
 # 目标 Python 版本

@@ -1,4 +1,4 @@
-"""
+﻿"""
 FedAvg 算法 — 联邦平均 (Federated Averaging)
 
 论文: "Communication-Efficient Learning of Deep Networks from Decentralized Data"
@@ -66,11 +66,9 @@ class RandomSelector(ClientSelector):
         fraction: float = 0.5,
         min_clients: int = 2,
         seed: int | None = None,
-        connected_only: bool = False,
     ):
         self.fraction = fraction
         self.min_clients = min_clients
-        self.connected_only = connected_only
         self._rng = random.Random(seed)
 
     def select(
@@ -80,18 +78,15 @@ class RandomSelector(ClientSelector):
         **kwargs: Any,
     ) -> list[int]:
         """随机选择客户端。"""
-        eligible = (
-            [c for c in clients if c.is_connected]
-            if self.connected_only
-            else list(clients)
-        )
-        if not eligible:
+        # 仅考虑已连接的客户端
+        connected = [c for c in clients if c.is_connected]
+        if not connected:
             return []
 
-        n_select = max(self.min_clients, int(len(eligible) * self.fraction))
-        n_select = min(n_select, len(eligible))
+        n_select = max(self.min_clients, int(len(connected) * self.fraction))
+        n_select = min(n_select, len(connected))
 
-        selected = self._rng.sample(eligible, n_select)
+        selected = self._rng.sample(connected, n_select)
         return [c.client_id for c in selected]
 
 
@@ -138,6 +133,181 @@ class CappedSelector(ClientSelector):
 
         selected = self._rng.sample(connected, n_select)
         return [c.client_id for c in selected]
+
+
+class LoadBalancedCappedSelector(CappedSelector):
+    """
+    带负载均衡感知的数量上限选择器 (Round 12)。
+
+    在 CappedSelector 基础上增加负载均衡感知：
+    - 优先选择当前负载较低的 GS 覆盖的卫星
+    - 打散多 GS 争抢同一卫星的扎堆现象
+    - 多站少星场景下自动触发休眠调度
+
+    Parameters
+    ----------
+    max_count : int
+        最多选择的客户端数。
+    min_clients : int
+        最少参与客户端数。
+    load_balance_weight : float
+        负载均衡权重 (0=纯随机, 1=完全负载优先)。
+    scheduler : CommunicationScheduler | None
+        通信调度器引用（用于获取 GS 负载信息）。
+    seed : int | None
+        随机种子。
+    """
+
+    def __init__(
+        self,
+        max_count: int = 3,
+        min_clients: int = 1,
+        load_balance_weight: float = 0.3,
+        scheduler: Any | None = None,
+        seed: int | None = None,
+    ):
+        super().__init__(max_count=max_count, min_clients=min_clients, seed=seed)
+        self.load_balance_weight = load_balance_weight
+        self._scheduler = scheduler
+        self._gs_selection_counts: dict[int, int] = {}
+
+    def select(
+        self,
+        clients: list[ClientState],
+        round_num: int,
+        **kwargs: Any,
+    ) -> list[int]:
+        connected = [c for c in clients if c.is_connected]
+        if not connected:
+            return []
+
+        n_select = max(self.min_clients, len(connected))
+        n_select = min(n_select, self.max_count)
+        n_select = min(n_select, len(connected))
+
+        # 无调度器或权重为 0 → 纯随机
+        if self._scheduler is None or self.load_balance_weight <= 0 or n_select <= 1:
+            selected = self._rng.sample(connected, n_select)
+            return [c.client_id for c in selected]
+
+        # 负载均衡感知选择：优先低负载 GS 覆盖的卫星
+        scores = []
+        for c in connected:
+            gs_ids = kwargs.get("sat_to_gs", {}).get(c.client_id, [])
+            if gs_ids:
+                avg_gs_load = sum(
+                    self._gs_selection_counts.get(g, 0) for g in gs_ids
+                ) / len(gs_ids)
+            else:
+                avg_gs_load = 0.0
+            # 分数 = 随机因子 + 负载均衡因子（负载越低分数越高）
+            random_score = self._rng.random()
+            load_score = 1.0 / (1.0 + avg_gs_load)  # 负载低的分数高
+            combined = (
+                (1 - self.load_balance_weight) * random_score
+                + self.load_balance_weight * load_score
+            )
+            scores.append((c, combined))
+
+        scores.sort(key=lambda x: x[1], reverse=True)
+        selected = [c for c, _ in scores[:n_select]]
+
+        # 更新 GS 选择计数
+        for c in selected:
+            for gs_id in kwargs.get("sat_to_gs", {}).get(c.client_id, []):
+                self._gs_selection_counts[gs_id] = (
+                    self._gs_selection_counts.get(gs_id, 0) + 1
+                )
+
+        return [c.client_id for c in selected]
+
+
+class SmoothCappedSelector(CappedSelector):
+    """
+    带时序平滑约束的选择器 (Round 12)。
+
+    在 GS=7 这类临界配置中限制相邻轮次卫星频繁切换，
+    抑制输出结果震荡。
+
+    Parameters
+    ----------
+    max_count : int
+        最多选择的客户端数。
+    min_clients : int
+        最少参与客户端数。
+    smoothness_factor : float
+        平滑权重 (0=无约束, 1=完全保留上一轮选择)。
+    seed : int | None
+        随机种子。
+    """
+
+    def __init__(
+        self,
+        max_count: int = 3,
+        min_clients: int = 1,
+        smoothness_factor: float = 0.3,
+        seed: int | None = None,
+    ):
+        super().__init__(max_count=max_count, min_clients=min_clients, seed=seed)
+        self.smoothness_factor = smoothness_factor
+        self._last_selection: list[int] = []
+        self._switch_count: int = 0
+
+    @property
+    def switch_count(self) -> int:
+        return self._switch_count
+
+    def select(
+        self,
+        clients: list[ClientState],
+        round_num: int,
+        **kwargs: Any,
+    ) -> list[int]:
+        connected = [c for c in clients if c.is_connected]
+        if not connected:
+            self._last_selection = []
+            return []
+
+        n_select = max(self.min_clients, len(connected))
+        n_select = min(n_select, self.max_count)
+        n_select = min(n_select, len(connected))
+
+        connected_ids = {c.client_id for c in connected}
+
+        # 保留上一轮仍在线的客户端
+        carry_over = [
+            cid for cid in self._last_selection if cid in connected_ids
+        ]
+
+        if self.smoothness_factor > 0 and carry_over and n_select > 1:
+            # 保留部分上一轮选择
+            keep_count = max(1, int(n_select * self.smoothness_factor))
+            keep_count = min(keep_count, len(carry_over))
+            keep = carry_over[:keep_count]
+
+            # 剩余名额随机补充
+            remaining_connected = [
+                c for c in connected if c.client_id not in keep
+            ]
+            need = n_select - len(keep)
+            if need > 0 and remaining_connected:
+                new_picks = self._rng.sample(
+                    remaining_connected, min(need, len(remaining_connected))
+                )
+                keep.extend(c.client_id for c in new_picks)
+            result = keep[:n_select]
+        else:
+            selected = self._rng.sample(connected, n_select)
+            result = [c.client_id for c in selected]
+
+        # 统计切换次数
+        if self._last_selection:
+            old_set = set(self._last_selection)
+            new_set = set(result)
+            self._switch_count += len(old_set.symmetric_difference(new_set)) // 2
+
+        self._last_selection = result
+        return result
 
 
 # ── 2. 本地训练器 ────────────────────────────────────────────
@@ -232,7 +402,6 @@ class FixedEpochTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
-            base_version=round_num,
         )
 
 
@@ -310,7 +479,9 @@ class SyncWeightedAggregator(Aggregator):
 
         for update in updates:
             weight_ratio = update.data_size / total_size
-            for agg_w, client_w in zip(aggregated, update.weights):
+            for _i, (agg_w, client_w) in enumerate(
+                zip(aggregated, update.weights)
+            ):
                 if isinstance(client_w, torch.Tensor):
                     agg_w.add_(client_w.float() * weight_ratio)
                 else:
@@ -394,7 +565,6 @@ def create_fedavg_components(
     learning_rate: float = 0.01,
     device: str = "cpu",
     seed: int | None = None,
-    connected_only: bool = False,
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
     一键创建 FedAvg 的四件套组件。
@@ -435,7 +605,6 @@ def create_fedavg_components(
         fraction=fraction,
         min_clients=min_clients,
         seed=seed,
-        connected_only=connected_only,
     )
     trainer = FixedEpochTrainer(
         local_epochs=local_epochs,

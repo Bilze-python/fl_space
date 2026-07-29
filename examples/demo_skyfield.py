@@ -75,13 +75,13 @@ def demo_kepler_vs_skyfield():
     print("  Kepler vs Skyfield 后端对比")
     print("=" * 60)
 
-    config = dict(
-        num_satellites=3,
-        num_ground_stations=3,
-        orbit_altitude_km=500,
-        num_timeslots=240,
-        verbose=False,
-    )
+    config = {
+        "num_satellites": 3,
+        "num_ground_stations": 3,
+        "orbit_altitude_km": 500,
+        "num_timeslots": 240,
+        "verbose": False,
+    }
 
     t0 = __import__('time').time()
     sim_k = OrbitSimulator(backend="kepler", **config)

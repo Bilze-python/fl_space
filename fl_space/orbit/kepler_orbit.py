@@ -206,21 +206,18 @@ class KeplerOrbit:
 
         步骤:
         1. 平近点角 M = M₀ + n·t
-        2. 开普勒方程 M = E - e·sin(E) → 牛顿法求解E
+        2. 开普勒方程 M = E - e·sin(E) → Aitken 加速迭代求解 E (2-3 次收敛)
         3. 偏近点角E → 真近点角ν
         """
+        from fl_space.orbit.propagation_optimizer import solve_kepler_aitken
+
         e = self.elements.eccentricity
         M0 = self._mean_anomaly_from_true(self.elements.true_anomaly_rad, e)
         M = M0 + self._mean_motion * time_min
         M = M % (2 * math.pi)
 
-        # 牛顿法求解开普勒方程
-        E = M  # 初始猜测
-        for _ in range(20):
-            dE = (M - E + e * math.sin(E)) / (1.0 - e * math.cos(E))
-            E += dE
-            if abs(dE) < 1e-12:
-                break
+        # Aitken 加速迭代 (2-3 次收敛，替代 5-8 次标准牛顿法)
+        E = solve_kepler_aitken(M, e, tol=1e-12, max_iter=5)
 
         # 偏近点角 → 真近点角
         sin_nu = math.sqrt(1 - e**2) * math.sin(E) / (1 - e * math.cos(E))

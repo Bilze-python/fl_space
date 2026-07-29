@@ -1,5 +1,6 @@
-"""50轮 FedAvg + 10卫星 + 8地面站 快速测试"""
+﻿"""50轮 FedAvg + 10卫星 + 8地面站 快速测试"""
 from fl_space.cli import main
+
 main(["tune", "reset"])
 main(["mount", "clear"])
 main(["tune", "rounds", "50"])

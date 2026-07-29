@@ -90,7 +90,7 @@ def demo_3_constellation():
     print("  演示3: 不同星座分布策略")
     print("=" * 60)
 
-    earth = CelestialBody.earth()
+    CelestialBody.earth()
 
     # Walker 5/2/1
     print("\n  [Walker 5/2/1 星座]")

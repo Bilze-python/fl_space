@@ -46,8 +46,8 @@ def load_yaml_config(path: str | Path) -> dict[str, Any]:
     """
     try:
         import yaml
-    except ImportError:
-        raise ImportError("PyYAML 未安装。请运行: pip install pyyaml")
+    except ImportError as err:
+        raise ImportError("PyYAML 未安装。请运行: pip install pyyaml") from err
 
     yaml_path = Path(path)
     if not yaml_path.is_file():
@@ -67,9 +67,10 @@ def load_yaml_config(path: str | Path) -> dict[str, Any]:
 
     # 解析地面站
     gs_data = data.get("ground_stations", [])
-    gs_list = []
-    for gs in gs_data:
-        gs_list.append((gs.get("name", "GS"), gs.get("lat_deg", 0.0), gs.get("lon_deg", 0.0)))
+    gs_list = [
+        (gs.get("name", "GS"), gs.get("lat_deg", 0.0), gs.get("lon_deg", 0.0))
+        for gs in gs_data
+    ]
 
     # 解析 ISL
     isl_data = data.get("intra_cluster", {})

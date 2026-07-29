@@ -158,7 +158,6 @@ class ProximalTrainer(LocalTrainer):
             data_size=data_size,
             train_loss=avg_loss,
             round_num=round_num,
-            base_version=round_num,
         )
 
 
@@ -286,6 +285,87 @@ class AdaptiveProximalTrainer(ProximalTrainer):
             "oscillation": round(max(accs) - min(accs), 4) if len(accs) >= 2 else 0,
             "window_size": len(accs),
         }
+
+
+# ── FedProxTiming: 轨道定时感知动态 μ ──────────────────────────
+
+
+class TimingAdaptiveProximalTrainer(ProximalTrainer):
+    """
+    FedProxTiming — 基于轨道间隔定时的动态 μ 自适应训练器。
+
+    在 AdaptiveProximalTrainer 基础上增加轨道定时感知：
+        μ_dyn = base_mu × (T_base / T_wait)
+
+    逻辑（论文第七方向的 Business-Coupled-Timing）：
+        - T_wait 越大（高轨卫星长时间空闲），μ 同步放大，
+          更强约束本地模型偏离全局
+        - 短间隔卫星 μ 降低，充分挖掘本地非IID数据
+
+    Parameters
+    ----------
+    base_mu : float
+        基础近端系数。
+    base_interval_min : float
+        LEO 基准间隔（分钟），默认 30.0。
+    timing_cache : TimingCachePool | None
+        定时缓存池引用，None 时退化为标准 ProximalTrainer。
+    local_epochs, batch_size, learning_rate, device :
+        与 ProximalTrainer 相同。
+    """
+
+    def __init__(
+        self,
+        local_epochs: int = 5,
+        batch_size: int = 32,
+        learning_rate: float = 0.01,
+        base_mu: float = 0.01,
+        base_interval_min: float = 30.0,
+        timing_cache: Any | None = None,
+        device: str = "cpu",
+    ):
+        super().__init__(
+            local_epochs=local_epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            mu=base_mu,
+            device=device,
+        )
+        self.base_mu = base_mu
+        self.base_interval_min = base_interval_min
+        self._timing_cache = timing_cache
+        self._current_client_id: int = 0
+
+    def set_client_context(self, client_id: int, timeslot: int) -> None:
+        """
+        设置当前训练的客户端上下文，用于轨道定时感知 μ 计算。
+
+        由 FLServer 在调用 train() 前自动设置。
+
+        Parameters
+        ----------
+        client_id : int
+            当前训练客户端 ID。
+        timeslot : int
+            当前虚拟时间槽。
+        """
+        self._current_client_id = client_id
+        if self._timing_cache is not None:
+            self.mu = self._timing_cache.get_dynamic_mu(
+                client_id, timeslot, self.base_mu, self.base_interval_min
+            )
+
+    def train(self, client_id, model, train_loader, global_weights, round_num, **kwargs):
+        """重写 train，自动获取动态 μ。"""
+        # 从 kwargs 获取 timeslot 上下文
+        timeslot = kwargs.get("timeslot", 0)
+        self.set_client_context(client_id, timeslot)
+        return super().train(client_id, model, train_loader, global_weights, round_num, **kwargs)
+
+    @property
+    def effective_mu(self) -> float:
+        """当前生效的 μ 值。"""
+        return self.mu
 
 
 # ── 便捷构建函数 ──────────────────────────────────────────────

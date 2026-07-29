@@ -136,7 +136,8 @@ class ContactMatrix:
         List[int]
         """
         if self._full and 0 <= sat_id < self.num_satellites and 0 <= timeslot < self.num_timeslots:
-            return list(self._full[sat_id][timeslot])
+            # 直接返回内部引用（调用方不应对其修改，调用方如需修改自行拷贝）
+            return self._full[sat_id][timeslot]
         # fallback to simple
         gs_id = self.get_first_contact(sat_id, timeslot)
         return [gs_id] if gs_id >= 0 else []
@@ -145,28 +146,34 @@ class ContactMatrix:
         self, sat_id: int, after_timeslot: int
     ) -> Optional[tuple[int, int]]:
         """
-        获取某卫星在指定 timeslot 之后的下一次接触。
+        获取某卫星在指定 timeslot 之后的下一次接触（numpy 向量化）。
 
         Returns
         -------
         Optional[Tuple[int, int]]
             (timeslot, gs_id) 或 None
         """
-        for ts in range(after_timeslot + 1, self.num_timeslots):
-            gs_id = self._simple[sat_id, ts]
-            if gs_id >= 0:
-                return (ts, int(gs_id))
-        return None
+        start = after_timeslot + 1
+        if start >= self.num_timeslots:
+            return None
+        row = self._simple[sat_id, start:]
+        in_contact = row >= 0
+        if not np.any(in_contact):
+            return None
+        offset = int(np.argmax(in_contact))
+        return (start + offset, int(row[offset]))
 
     def get_satellites_in_contact(self, timeslot: int) -> list[int]:
         """
-        获取指定 timeslot 所有可与地面站通信的卫星 ID。
+        获取指定 timeslot 所有可与地面站通信的卫星 ID（numpy 向量化）。
 
         Returns
         -------
         List[int]
         """
-        return [sat_id for sat_id in range(self.num_satellites) if self._simple[sat_id, timeslot] >= 0]
+        col = self._simple[:, timeslot]
+        in_contact = col >= 0
+        return np.where(in_contact)[0].tolist()
 
     def get_contact_detail(
         self, sat_id: int, timeslot: int, gs_names: Optional[list[str]] = None
@@ -211,21 +218,17 @@ class ContactMatrix:
     # ---- 统计 ----
 
     def compute_statistics(self) -> dict:
-        """计算接触统计。"""
-        total_contacts = 0
-        sat_counts = []
-        gs_counts = [0] * max(1, self._simple.max() + 1)
+        """计算接触统计（numpy 向量化）。"""
+        in_contact = self._simple >= 0  # bool 矩阵 (N_sat, N_slots)
+        sat_counts = np.count_nonzero(in_contact, axis=1).tolist()
+        total_contacts = int(np.sum(sat_counts))
 
-        for sat_id in range(self.num_satellites):
-            count = 0
-            for ts in range(self.num_timeslots):
-                gs_id = self._simple[sat_id, ts]
-                if gs_id >= 0:
-                    count += 1
-                    if gs_id < len(gs_counts):
-                        gs_counts[gs_id] += 1
-            sat_counts.append(count)
-            total_contacts += count
+        # 按地面站统计（向量化）
+        gs_max_id = max(0, int(self._simple.max()))
+        gs_counts = [
+            int(np.count_nonzero(self._simple == gs_id))
+            for gs_id in range(gs_max_id + 1)
+        ]
 
         total_slots = self.num_satellites * self.num_timeslots
         return {

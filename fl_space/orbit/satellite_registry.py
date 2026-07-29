@@ -30,7 +30,7 @@ Examples
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from fl_space.environment import CelestialBody
@@ -137,7 +137,7 @@ class SatelliteRegistry:
         self._metadata[name] = {"description": description, "category": "dict"}
 
     def get(
-        self, name: str, body: Optional[CelestialBody] = None
+        self, name: str, body: CelestialBody | None = None
     ) -> MultiClusterConfig:
         """获取指定名称的卫星配置。
 
@@ -164,7 +164,7 @@ class SatelliteRegistry:
             )
         return self._registry[name](body)
 
-    def list_types(self, category: Optional[str] = None) -> list[dict]:
+    def list_types(self, category: str | None = None) -> list[dict]:
         """列出所有已注册的卫星类型。
 
         Parameters
@@ -211,7 +211,7 @@ class SatelliteRegistry:
         types = self.list_types()
         lines = [f"SatelliteRegistry({len(types)} types):"]
         for t in types:
-            lines.append(f"  {t['name']:20s} [{t['category']}] {t['description']}")
+            lines.append(f"  {t['name']:20s} [{t['category']}] {t['description']}")  # noqa: PERF401
         return "\n".join(lines)
 
 

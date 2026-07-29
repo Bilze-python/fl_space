@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
@@ -88,8 +88,8 @@ def _compute_ground_track(
     lats = np.zeros(n_points)
     lons = np.zeros(n_points)
 
-    for i, t in enumerate(times):
-        lat, lon = orbit.position_at_time(t)
+    for i, tt in enumerate(times):
+        lat, lon = orbit.position_at_time(tt)
         lats[i] = lat
         lons[i] = _wrap_lon(lon)
 
@@ -119,15 +119,15 @@ class OrbitVisualizer:
     def plot_map(
         self,
         orbits: list[KeplerOrbit],
-        ground_stations: Optional[GroundStationNetwork] = None,
+        ground_stations: GroundStationNetwork | None = None,
         duration_hours: float = 24.0,
         n_track_points: int = 300,
         title: str = "SpaceFL — 星座与地面站",
-        sat_labels: Optional[list[str]] = None,
+        sat_labels: list[str] | None = None,
         show_ground_tracks: bool = True,
-        snapshot_time_min: Optional[float] = None,
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        snapshot_time_min: float | None = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """2D 地图视图：卫星轨迹 + 地面站。
 
@@ -160,7 +160,7 @@ class OrbitVisualizer:
         fig, ax = plt.subplots(figsize=self.figsize)
         _draw_earth_background(ax)
 
-        n_sats = len(orbits)
+        len(orbits)
 
         # 轨迹
         if show_ground_tracks:
@@ -198,8 +198,8 @@ class OrbitVisualizer:
             for lon, lat, name in zip(gs_lons, gs_lats, gs_names):
                 ax.annotate(name, (lon, lat), textcoords="offset points",
                            xytext=(5, 7), fontsize=7, color="white",
-                           bbox=dict(boxstyle="round,pad=0.2", facecolor="#00000088",
-                                    edgecolor="none"),
+                           bbox={"boxstyle": "round,pad=0.2", "facecolor": "#00000088",
+                                    "edgecolor": "none"},
                            zorder=7)
 
         # 图例
@@ -234,11 +234,11 @@ class OrbitVisualizer:
         num_satellites: int,
         num_stations: int,
         duration_hours: float,
-        sat_labels: Optional[list[str]] = None,
-        gs_labels: Optional[list[str]] = None,
+        sat_labels: list[str] | None = None,
+        gs_labels: list[str] | None = None,
         title: str = "SpaceFL — 接触矩阵热力图",
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """接触矩阵热力图。
 
@@ -265,7 +265,7 @@ class OrbitVisualizer:
         # 二值化：有接触=1，无接触=0
         binary = (contact_matrix >= 0).astype(float)
 
-        im = ax.imshow(binary, aspect="auto", cmap="YlOrRd",
+        ax.imshow(binary, aspect="auto", cmap="YlOrRd",
                        interpolation="nearest", vmin=0, vmax=1)
 
         # 标签
@@ -289,7 +289,7 @@ class OrbitVisualizer:
         contact_rate = binary.mean() * 100
         ax.text(0.99, 1.02, tf("Contact Rate: {rate:.1f}%", _lang, rate=contact_rate),
                 transform=ax.transAxes, ha="right", fontsize=9,
-                bbox=dict(boxstyle="round", facecolor="#f0f0f0", alpha=0.8))
+                bbox={"boxstyle": "round", "facecolor": "#f0f0f0", "alpha": 0.8})
 
         fig.tight_layout()
 
@@ -301,16 +301,16 @@ class OrbitVisualizer:
     def plot_dashboard(
         self,
         orbits: list[KeplerOrbit],
-        ground_stations: Optional[GroundStationNetwork] = None,
-        contact_matrix: Optional[np.ndarray] = None,
+        ground_stations: GroundStationNetwork | None = None,
+        contact_matrix: np.ndarray | None = None,
         duration_hours: float = 24.0,
         snapshot_time_min: float = 0.0,
-        sat_labels: Optional[list[str]] = None,
-        gs_labels: Optional[list[str]] = None,
-        cluster_map: Optional[dict[str, list[int]]] = None,
+        sat_labels: list[str] | None = None,
+        gs_labels: list[str] | None = None,
+        cluster_map: dict[str, list[int]] | None = None,
         title: str = "SpaceFL — 星座概览",
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """综合仪表盘：地图 + 热力图 + 统计信息。
 
@@ -356,8 +356,8 @@ class OrbitVisualizer:
                     ax_map.annotate(station.name, (station.lon_deg, station.lat_deg),
                                    textcoords="offset points", xytext=(4, 5),
                                    fontsize=6, color="white",
-                                   bbox=dict(boxstyle="round,pad=0.15",
-                                            facecolor="#00000088", edgecolor="none"),
+                                   bbox={"boxstyle": "round,pad=0.15",
+                                            "facecolor": "#00000088", "edgecolor": "none"},
                                    zorder=7)
 
         ax_map.set_xlim(-180, 180)
@@ -393,7 +393,7 @@ class OrbitVisualizer:
             rate = binary.mean() * 100
             stats_lines.append("")
             stats_lines.append(f"{t('Contact Rate:', _lang)} {rate:.1f}%")
-            total_slots = contact_matrix.shape[1]
+            contact_matrix.shape[1]
             avg_contacts = binary.sum(axis=0).mean()
             stats_lines.append(f"{t('Avg Contacts/slot:', _lang)} {avg_contacts:.1f}")
 
@@ -445,10 +445,10 @@ class OrbitVisualizer:
 
 def plot_constellation_2d(
     orbits: list[KeplerOrbit],
-    ground_stations: Optional[GroundStationNetwork] = None,
+    ground_stations: GroundStationNetwork | None = None,
     duration_hours: float = 24.0,
     title: str = "SpaceFL Constellation",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制星座 2D 地图。"""
@@ -470,7 +470,7 @@ def plot_contact_heatmap(
     num_stations: int,
     duration_hours: float,
     title: str = "Contact Matrix",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制接触矩阵热力图。"""
@@ -490,7 +490,7 @@ def plot_ground_track(
     orbit: KeplerOrbit,
     duration_hours: float = 24.0,
     title: str = "Ground Track",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制单星星下点轨迹。"""
@@ -508,7 +508,7 @@ def plot_ground_track(
 def quick_plot(
     simulator,
     title: str = "SpaceFL — Quick View",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """一键可视化：传入模拟器，自动绘制仪表盘。

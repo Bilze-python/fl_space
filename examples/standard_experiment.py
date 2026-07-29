@@ -1,4 +1,4 @@
-"""
+﻿"""
 SpaceFL 标准化实验 — 论文地面站 + FedAvg + 网格搜索 + 全套标准化输出
 
 用法:
@@ -39,7 +39,6 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fl_space.environment import CelestialBody, GroundStation, GroundStationNetwork
-from fl_space.viz.i18n import setup_cjk_font, t, tf
 from fl_space.fl.fedavg import (
     CappedSelector,
     FixedEpochTrainer,
@@ -51,6 +50,7 @@ from fl_space.fl.scheduler import CommunicationScheduler
 from fl_space.fl.server import FLConfig
 from fl_space.orbit import KeplerOrbit, create_circular_orbit
 from fl_space.simulator import OrbitSimulator
+from fl_space.viz.i18n import setup_cjk_font, t, tf
 
 # matplotlib
 try:
@@ -238,6 +238,12 @@ def run_single_experiment(
         sample_cap_strategy=sample_cap_strategy,
         data_dir=data_dir,
         limit_to_sim_window=limit_to_sim_window,
+        # ISL 星间链路（启用 ISL 时同时开启中继传输）
+        isl_enabled=isl_enabled,
+        isl_calculator=isl_calculator,
+        isl_atmosphere_buffer_km=isl_atmosphere_buffer_km,
+        isl_step_seconds=isl_step_seconds,
+        isl_relay=isl_enabled,
     )
 
     scheduler = CommunicationScheduler(sim)
@@ -911,6 +917,52 @@ def _plot_gs_sat_contacts(exp: SingleExperiment, path: str, lang: str = "en") ->
     plt.close(fig)
 
 
+# ── Round 12: 组网配置推荐工具 ──────────────────────────────
+
+
+def _get_config_zone(gs: int, sat: int) -> str:
+    """判断 (GS, SAT) 配置属于哪个区间。
+
+    ┌──────────┬────────────────────────────┐
+    │ 推荐配置  │ 效果                        │
+    ├──────────┼────────────────────────────┤
+    │ GS=3~5   │ 高效区间，接触率最高        │
+    │ +SAT≥18  │                            │
+    │ GS≥10    │ 平稳饱和区间，结果稳定可控  │
+    │ +SAT任意 │                            │
+    │ GS=6~8   │ 劣势震荡区间，尽量规避使用  │
+    │ +SAT=12~ │                            │
+    │ 18       │                            │
+    └──────────┴────────────────────────────┘
+    """
+    if gs <= 5:
+        return "efficient"
+    if gs >= 10:
+        return "stable"
+    if 6 <= gs <= 8 and 12 <= sat <= 18:
+        return "critical"
+    if 6 <= gs <= 8:
+        return "critical"
+    return "transition"
+
+
+def _build_config_recommendation_table(
+    gs_counts: list[int], sat_counts: list[int]
+) -> dict[str, list[tuple[int, int]]]:
+    """构建组网配置推荐表，分区间归类。"""
+    table: dict[str, list[tuple[int, int]]] = {
+        "efficient": [],
+        "stable": [],
+        "critical": [],
+        "transition": [],
+    }
+    for gs in gs_counts:
+        for sat in sat_counts:
+            zone = _get_config_zone(gs, sat)
+            table[zone].append((gs, sat))
+    return table
+
+
 # ── 实验套件运行器 ─────────────────────────────────────────────
 
 
@@ -959,29 +1011,54 @@ def run_experiment_grid(
     total = len(gs_counts) * len(sat_counts)
     idx = 0
 
+    # ── Round 12: 组网配置推荐表 + GS 上限 ──
+    # GS 上限锁定在 8~10，多余地面站不参与常规分配计算
+    gs_cap = 10
+    gs_sleep_threshold = 10  # GS≥10 启用休眠调度
+
+    _build_config_recommendation_table(gs_counts, sat_counts)
+    effective_gs_counts = [min(g, gs_cap) for g in gs_counts]
+    backup_gs_counts = [max(0, g - gs_cap) for g in gs_counts]
+
+    # SAT=15 时 GS 从 3 微调至 4（冗余缓冲吸收轨道扰动）
+    def adjusted_gs(gs: int, sat: int) -> int:
+        if sat == 15 and gs == 3:
+            return 4
+        return min(gs, gs_cap)
+
     if verbose:
         print("=" * 70)
-        print("  SpaceFL 标准化实验 — 网格搜索")
+        print("  SpaceFL 标准化实验 v2 — 组网优化版")
         print("=" * 70)
         print(f"  GS: {gs_counts}")
         print(f"  SAT: {sat_counts}")
-        print("  算法: FedAvg (同步)")
-        print("  选择器: min(GS, SAT)")
+        print(f"  GS上限: {gs_cap} (多余改接力接收/备份冗余)")
+        print(f"  GS≥{gs_sleep_threshold}: 启用休眠调度")
+        print("  组网配置推荐:")
+        print("    高效区间: GS=3~5 + SAT≥18 — 接触率最高")
+        print("    稳定区间: GS≥10 + SAT任意 — 平稳饱和")
+        print("    劣势区间: GS=6~8 + SAT=12~18 — 规避")
+        if any(g == 3 for g in gs_counts) and 15 in sat_counts:
+            print("  SAT=15: GS=3→4 (冗余缓冲)")
         print(f"  最大轮次: {num_rounds}, 早停阈值: {early_stop_acc}")
         print(f"  数据集: {dataset}, 设备: {device}")
         print(f"  输出: {output_dir}/")
         print("=" * 70)
 
-    for gs in gs_counts:
+    for gs_raw, _gs_eff, gs_backup in zip(gs_counts, effective_gs_counts, backup_gs_counts):
         for sat in sat_counts:
             idx += 1
+            gs_use = adjusted_gs(gs_raw, sat)
+            zone = _get_config_zone(gs_use, sat)
             if verbose:
+                zone_label = {"efficient": "[高效]", "stable": "[平稳]", "critical": "[震荡]"}.get(zone, "")
+                extra = f" [GS上限: {gs_use}" + (f" +{gs_backup}备份" if gs_backup else "") + f", {zone_label}]"
                 print(f"\n{'─' * 50}")
-                print(f"  [{idx}/{total}] GS={gs}, SAT={sat}")
+                print(f"  [{idx}/{total}] GS={gs_raw}, SAT={sat}{extra}")
                 print(f"{'─' * 50}")
 
             exp = run_single_experiment(
-                gs_count=gs,
+                gs_count=gs_use,
                 sat_count=sat,
                 num_rounds=num_rounds,
                 local_epochs=local_epochs,
@@ -1014,7 +1091,7 @@ def run_experiment_grid(
                 limit_to_sim_window=limit_to_sim_window,
             )
 
-            exp_dir = os.path.join(output_dir, f"gs{gs}_sat{sat}")
+            exp_dir = os.path.join(output_dir, f"gs{gs_raw}_sat{sat}")
             generate_standard_outputs(exp, exp_dir, quiet=not verbose, lang=lang)
             results.append(exp)
 
@@ -1182,6 +1259,36 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--partition-strategy", choices=["iid", "dirichlet", "shard", "probability"], default="probability")
     p.add_argument("--class-probability", type=float, default=0.8)
     p.add_argument("--data-dir", type=str, default="./data")
+    p.add_argument(
+        "--preference-mode", dest="preference_mode",
+        choices=["class_balanced", "client_window"], default="class_balanced",
+        help="客户端选择偏好模式 (默认: class_balanced)",
+    )
+    p.add_argument(
+        "--preferred-clients-per-class", dest="preferred_clients_per_class",
+        type=int, default=1, help="每类优先客户端数 (默认: 1)",
+    )
+    p.add_argument(
+        "--sample-cap-strategy", dest="sample_cap_strategy",
+        choices=["preserve", "balanced"], default="preserve",
+        help="样本上限策略 preserve|balanced (默认: preserve)",
+    )
+    p.add_argument(
+        "--allow-sim-extension", dest="allow_sim_extension", action="store_true",
+        help="允许超出模拟窗口继续训练 (默认: 否, 即限制在当前窗口内)",
+    )
+    p.add_argument(
+        "--isl", dest="isl", choices=["disabled", "wgs84"], default="disabled",
+        help="ISL 星间链路计算器 disabled|wgs84 (默认: disabled)",
+    )
+    p.add_argument(
+        "--isl-buffer", dest="isl_buffer", type=float, default=0.0,
+        help="ISL WGS84 大气余量 (km, 默认: 0.0)",
+    )
+    p.add_argument(
+        "--isl-step", dest="isl_step", type=float, default=60.0,
+        help="ISL 采样步长 (秒, 默认: 60.0)",
+    )
     p.add_argument("--lang", choices=["en", "zh"], default="en",
                    help="输出图表语言 (默认: en)")
     p.add_argument("--quiet", "-q", action="store_true")
@@ -1221,6 +1328,10 @@ def main(argv: list[str] | None = None) -> int:
         sample_cap_strategy=args.sample_cap_strategy,
         data_dir=args.data_dir,
         limit_to_sim_window=not args.allow_sim_extension,
+        isl_enabled=(args.isl == "wgs84"),
+        isl_calculator=args.isl,
+        isl_atmosphere_buffer_km=args.isl_buffer,
+        isl_step_seconds=args.isl_step,
     )
 
     total_elapsed = _time.time() - t_start

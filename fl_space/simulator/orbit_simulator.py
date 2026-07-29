@@ -14,7 +14,7 @@
 与原 orbit_sim_v2.py 兼容，同时提供更丰富的功能。
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import time as _time
 from typing import Optional
 
@@ -187,8 +187,14 @@ class OrbitSimulator:
             self.orbits: list[KeplerOrbit] = generate_orbits(self.constellation_config, self.body)
 
         # ---- 地面站 ----
+        from fl_space.environment.ground_station import GroundStationNetwork
+
         if ground_station_network is not None:
-            self.ground_network = ground_station_network
+            # 统一转换为 GroundStationNetwork（兼容 list[GroundStation] 输入）
+            if isinstance(ground_station_network, GroundStationNetwork):
+                self.ground_network = ground_station_network
+            else:
+                self.ground_network = GroundStationNetwork(ground_station_network)
         elif use_extended_gs:
             self.ground_network = create_extended_network(num_ground_stations)
         else:
@@ -218,6 +224,16 @@ class OrbitSimulator:
 
         # ---- 保存可见性引擎引用（用于按需扩展）----
         self._multi_vis = None  # 延迟初始化（避免不必要的创建）
+
+        # ---- ECEF 坐标缓存（减少重复轨道推算）----
+        from fl_space.orbit.optimizer import OrbitCacheManager
+
+        self._ecef_cache = OrbitCacheManager(self.num_satellites, self.num_timeslots)
+
+        # ---- 地理栅格预筛选器（跳过不可达地面站）----
+        from fl_space.simulator.sparse_computer import GeoGridFilter
+
+        self._geo_grid_filter = GeoGridFilter(self)
 
         # ---- 生成接触数据 ----
         t0 = _time.time()
@@ -289,8 +305,6 @@ class OrbitSimulator:
                 cluster_map[f"SAT-{sat_id:02d}"] = None
 
         # 生成时间序列
-        from datetime import timedelta
-
         base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
         sample_times = [
             base_dt + timedelta(minutes=ts * self.timeslot_duration_min) for ts in range(n_slots)
@@ -302,6 +316,9 @@ class OrbitSimulator:
             sample_times=sample_times,
             atmosphere_buffer_km=self.isl_config.atmosphere_buffer_km,
         )
+
+        # 构建 ISL 时隙索引（O(1) 查询替代 O(N) 扫描）
+        self._build_isl_index()
         return self._isl_windows
 
     @property
@@ -321,7 +338,7 @@ class OrbitSimulator:
                 "avg_duration_s": 0.0,
             }
         total_dur = sum(w.duration_s for w in windows)
-        unique_links = len(set((w.satellite_a, w.satellite_b) for w in windows))
+        unique_links = len({(w.satellite_a, w.satellite_b) for w in windows})
         return {
             "total_windows": len(windows),
             "total_duration_s": total_dur,
@@ -329,8 +346,34 @@ class OrbitSimulator:
             "avg_duration_s": total_dur / len(windows),
         }
 
+    def _build_isl_index(self) -> None:
+        """构建 ISL 时隙索引 _isl_by_timeslot: dict[timeslot, list[ISLWindow]]。
+
+        将 ISL 窗口的 UTC 时间范围转换为 timeslot 范围并做时隙映射，
+        使 isl_active_at() 从 O(N) 扫描降为 O(1) 字典查询。
+        对含大量 ISL 窗口的星座（如 megaconstellation）收益显著。
+        """
+        if not self._isl_windows:
+            self._isl_by_timeslot: dict[int, list[ISLWindow]] = {}
+            return
+
+        base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
+        slot_sec = self.timeslot_duration_min * 60.0
+        n_slots = self.num_timeslots
+        idx: dict[int, list[ISLWindow]] = {ts: [] for ts in range(n_slots)}
+
+        for w in self._isl_windows:
+            start_ts = int((w.start_utc - base_dt).total_seconds() / slot_sec)
+            end_ts = int((w.end_utc - base_dt).total_seconds() / slot_sec)
+            start_ts = max(0, start_ts)
+            end_ts = min(n_slots - 1, end_ts)
+            for ts in range(start_ts, end_ts + 1):
+                idx[ts].append(w)
+
+        self._isl_by_timeslot = idx
+
     def isl_active_at(self, timeslot: int) -> list[ISLWindow]:
-        """查询指定 timeslot 中活跃的 ISL 窗口。
+        """查询指定 timeslot 中活跃的 ISL 窗口（O(1) 索引查询）。
 
         Parameters
         ----------
@@ -342,16 +385,13 @@ class OrbitSimulator:
         list[ISLWindow]
             该时隙内活跃的 ISL 窗口。
         """
-        from datetime import timedelta
-
-        base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
-        ts_start = base_dt + timedelta(minutes=timeslot * self.timeslot_duration_min)
-        ts_end = base_dt + timedelta(minutes=(timeslot + 1) * self.timeslot_duration_min)
-        active = []
-        for w in self.isl_windows:
-            if w.start_utc < ts_end and w.end_utc > ts_start:
-                active.append(w)
-        return active
+        # 兼容未构建索引的旧调用（回退到 O(N) 扫描）
+        if not hasattr(self, '_isl_by_timeslot') or not self._isl_by_timeslot:
+            base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
+            ts_start = base_dt + timedelta(minutes=timeslot * self.timeslot_duration_min)
+            ts_end = base_dt + timedelta(minutes=(timeslot + 1) * self.timeslot_duration_min)
+            return [w for w in self.isl_windows if w.start_utc < ts_end and w.end_utc > ts_start]
+        return self._isl_by_timeslot.get(timeslot, [])
 
     def isl_peers_at(self, sat_name: str, timeslot: int) -> list[str]:
         """查询指定时隙中与某卫星有 ISL 连接的相邻卫星。
@@ -430,8 +470,23 @@ class OrbitSimulator:
             self._generate_contacts_kepler()
 
     def _generate_contacts_kepler(self):
-        """Kepler 后端接触矩阵生成。"""
+        """Kepler 后端接触矩阵生成（含 GeoGridFilter 预筛选优化）。
+
+        思路:
+        1. GeoGridFilter 预筛：对每颗卫星，筛除轨道不可达的地面站
+        2. 仅对可达站点做球面几何判定，跳过永远不可视的星站组合
+        """
         multi_vis = self._get_multi_vis()
+        n_gs = self.num_ground_stations
+
+        # 对每颗卫星预计算不可达的 GS 集合（仅一次）
+        excluded_gs: dict[int, set[int]] = {}
+        for sat_id in range(self.num_satellites):
+            orbit = self.orbits[sat_id]
+            incl = float(orbit.elements.inclination_deg)
+            alt = float(orbit.elements.semi_major_axis_km - self.body.radius_km)
+            reachable = self._geo_grid_filter.get_gs_ids_for_orbit(incl, alt)
+            excluded_gs[sat_id] = {gid for gid in range(n_gs) if gid not in reachable}
 
         for ts in range(self.num_timeslots):
             if self.verbose and self.num_timeslots > 5000 and ts % (self.num_timeslots // 10) == 0:
@@ -445,12 +500,16 @@ class OrbitSimulator:
             all_visible = multi_vis.visible_matrix_at_time(time_min)
 
             for sat_id, visible_gs in enumerate(all_visible):
-                self.contact_matrix.set_contacts(sat_id, ts, visible_gs)
+                # 过滤掉轨道不可达的地面站
+                filtered = [gid for gid in visible_gs if gid not in excluded_gs.get(sat_id, set())]
+                self.contact_matrix.set_contacts(sat_id, ts, filtered)
 
         if self.verbose:
+            n_contact = int(np.count_nonzero(self.contact_matrix.simple_matrix >= 0))
+            total_slots = self.num_satellites * self.num_timeslots
             print(
                 f"    [OrbitSim:kepler] 接触矩阵生成完毕, "
-                f"接触率: {np.mean(np.sum(self.contact_matrix.simple_matrix >= 0, axis=1)) / self.num_timeslots * 100:.1f}%"
+                f"接触率: {n_contact / max(total_slots, 1) * 100:.1f}%"
             )
 
     def _get_multi_vis(self):
@@ -718,12 +777,20 @@ class OrbitSimulator:
         """
         获取卫星在指定 timeslot 的 ECEF 坐标 (km)。
 
+        使用 OrbitCacheManager 缓存，避免重复轨道推算。
+        同一卫星同一 timeslot 多次查询仅计算一次。
+
         Returns
         -------
         (x_km, y_km, z_km)
         """
+        cached = self._ecef_cache.get_ecef(sat_id, timeslot)
+        if cached is not None:
+            return cached
         time_min = timeslot * self.timeslot_duration_min
-        return self.orbits[sat_id].ecef_at_time(time_min)
+        ecef = self.orbits[sat_id].ecef_at_time(time_min)
+        self._ecef_cache.set_ecef(sat_id, timeslot, ecef)
+        return ecef
 
     def get_all_ecef_at_timeslot(self, timeslot: int) -> dict[int, tuple[float, float, float]]:
         """获取某时刻所有卫星的 ECEF 坐标。"""

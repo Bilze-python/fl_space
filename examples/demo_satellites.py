@@ -285,7 +285,7 @@ def demo4_comparison(lang: str = "en"):
 
     # 对比图：2x2 子图
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), facecolor="#0d1117")
-    viz = OrbitVisualizer()
+    OrbitVisualizer()
 
     for ax, (name, sim, _cmap, _n_sats) in zip(axes.flat, results):
         from fl_space.viz.orbit_plot import (

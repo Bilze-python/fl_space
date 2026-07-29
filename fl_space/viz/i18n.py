@@ -39,8 +39,8 @@ def setup_cjk_font() -> None:
         return
 
     try:
-        import matplotlib.pyplot as plt
         import matplotlib.font_manager as fm
+        import matplotlib.pyplot as plt
     except ImportError:
         return
 
@@ -160,8 +160,6 @@ _TRANSLATIONS: dict[str, str] = {
     # ── GS-SAT 分析 ──
     "GS-Satellite Contact Counts": "地面站-卫星接触次数",
     "GS-Satellite Contact Analysis": "地面站-卫星接触分析",
-    "Per-Satellite Contact Duration": "每卫星接触时长",
-    "Per-Satellite Contact Rate": "每卫星接触率",
 
     # ── 轨道剖面 ──
     "Orbit Cross-Section": "轨道剖面图",

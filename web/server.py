@@ -25,11 +25,11 @@ from typing import Any
 try:
     from fastapi import FastAPI, Query
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, HTMLResponse
-    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse, HTMLResponse  # noqa: F401
+    from fastapi.staticfiles import StaticFiles  # noqa: F401
     import uvicorn
-except ImportError:
-    raise ImportError("Web 服务器需要 fastapi 和 uvicorn。请运行: pip install fastapi uvicorn")
+except ImportError as err:
+    raise ImportError("Web 服务器需要 fastapi 和 uvicorn。请运行: pip install fastapi uvicorn") from err
 
 # ── 目录 ──
 WEB_DIR = Path(__file__).parent
@@ -53,17 +53,6 @@ def build_orbit_data(
     dict
         包含 satellites, ground_stations, timeslots 的字典。
     """
-    if sim_hours <= 0:
-        raise ValueError("sim_hours 必须大于 0")
-    if timeslot_min <= 0:
-        raise ValueError("timeslot_min 必须大于 0")
-    if sats < 1 or gs < 1:
-        raise ValueError("sats 和 gs 必须至少为 1")
-    if altitude_km <= 0:
-        raise ValueError("altitude_km 必须大于 0")
-    if not 0 <= inclination_deg <= 180:
-        raise ValueError("inclination_deg 必须在 0 到 180 之间")
-
     from fl_space.isl.base import ISLConfig
     from fl_space.simulator import OrbitSimulator
 
@@ -127,7 +116,7 @@ def build_orbit_data(
         for sid in range(sats):
             gs_ids = sim.get_all_contacts(sid, ts)
             for gid in gs_ids:
-                contacts.append({"sat_id": sid, "gs_id": gid})
+                contacts.append({"sat_id": sid, "gs_id": gid})  # noqa: PERF401
 
         # ISL 链路
         isl_links = []

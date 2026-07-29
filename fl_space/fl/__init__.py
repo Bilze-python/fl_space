@@ -1,4 +1,4 @@
-"""
+﻿"""
 联邦学习层 — 可插拔的 FL 算法框架
 
 将 FL 算法分解为四个可替换组件：
@@ -64,6 +64,15 @@ from fl_space.fl.core import (
 from fl_space.fl.core import (
     LocalTrainer as LocalTrainer,
 )
+from fl_space.fl.fedavg import (
+    CappedSelector as CappedSelector,
+)
+from fl_space.fl.fedavg import (
+    LoadBalancedCappedSelector as LoadBalancedCappedSelector,
+)
+from fl_space.fl.fedavg import (
+    SmoothCappedSelector as SmoothCappedSelector,
+)
 from fl_space.fl.models import (
     get_model as get_model,
 )
@@ -94,35 +103,47 @@ from fl_space.fl.time_model import (
 from fl_space.fl.time_model import (
     TimeModel as TimeModel,
 )
+from fl_space.fl.timing_cache import (
+    TimingCachePool as TimingCachePool,
+)
+from fl_space.fl.timing_cache import (
+    TimingMetrics as TimingMetrics,
+)
 
 __all__ = [
+    # 配置
+    "DATASET_PRESETS",
+    "EXPERIMENT_PRESETS",
+    # 定时缓存优化
+    "SCALE_PRESETS",
     # 核心抽象
     "Aggregator",
+    "CappedSelector",
     "ClientSelector",
     "ClientState",
     "ClientUpdate",
-    "Evaluator",
-    "FLRoundResult",
-    "LocalTrainer",
-    # 编排器
-    "FLServer",
-    "FLRunner",
     # 调度器
     "CommunicationScheduler",
-    # 时间模型
-    "TimeModel",
-    "TimeBreakdown",
-    "SlotTimeModel",
-    "PhysicsTimeModel",
-    # 配置
+    "Evaluator",
+    # 编排器
     "FLConfig",
-    "DATASET_PRESETS",
-    "EXPERIMENT_PRESETS",
-    "SCALE_PRESETS",
-    "get_preset_config",
-    "list_presets",
-    # 模型
+    "FLRoundResult",
+    "FLRunner",
+    "FLServer",
+    "LoadBalancedCappedSelector",
+    "LocalTrainer",
+    # 调度器
+    "PhysicsTimeModel",
+    # 时间模型
+    "SlotTimeModel",
+    "SmoothCappedSelector",
+    "TimeBreakdown",
+    "TimeModel",
+    "TimingCachePool",
+    "TimingMetrics",
     "get_model",
+    "get_preset_config",
     "list_models",
+    "list_presets",
     "register_model",
 ]

@@ -85,7 +85,7 @@ def get_contact_statistics(sim) -> dict[str, Any]:
                 })
 
         durations = [c["duration_slots"] for c in gs_contacts]
-        contacted_sats = sorted(set(c["sat_id"] for c in gs_contacts))
+        contacted_sats = sorted({c["sat_id"] for c in gs_contacts})
         per_gs[gs_id] = {
             "gs_name": gs_network.names[gs_id] if gs_id < len(gs_network.names) else f"GS-{gs_id}",
             "lat": float(gs_network[gs_id].lat_deg) if hasattr(gs_network, '__getitem__') else 0.0,
@@ -103,7 +103,7 @@ def get_contact_statistics(sim) -> dict[str, Any]:
     for sat_id in range(n_sats):
         row = mat[sat_id]
         contact_slots = np.sum(row >= 0)
-        contacted_gs = sorted(set(int(row[ts]) for ts in range(n_slots) if row[ts] >= 0))
+        contacted_gs = sorted({int(row[ts]) for ts in range(n_slots) if row[ts] >= 0})
         # 卫星平均接触窗口时长
         in_contact = (row >= 0)
         padded = np.concatenate([[False], in_contact, [False]])
@@ -372,7 +372,7 @@ def plot_time_breakdown(
     bottom = np.zeros(len(rounds))
     colors = ["#3498db", "#2ecc71", "#e74c3c", "#f39c12", "#9b59b6"]
     labels_raw = ["Wait Dist", "Download", "Train", "Wait Return", "Upload"]
-    labels = [t(l, lang) for l in labels_raw]
+    labels = [t(lbl, lang) for lbl in labels_raw]
     data = [wait_dist, download, train, wait_return, upload]
 
     for d, color, label in zip(data, colors, labels):
@@ -445,7 +445,7 @@ def plot_ground_station_map(
             xytext=(8, 8),
             fontsize=7,
             fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+            bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.8},
         )
 
     # 显示卫星轨迹（可选）
@@ -549,7 +549,7 @@ def save_experiment_report(
 
             # 时空信息图
             exp_config = exp.get("config", {})
-            time_info = [
+            [
                 f"GS={exp.get('gs_count', '?')}, "
                 f"Sats={exp_config.get('num_satellites', '?')}, "
                 f"Rounds={len(spacefl_hist)}, "
