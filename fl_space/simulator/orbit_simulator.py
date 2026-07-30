@@ -16,12 +16,13 @@
 
 from datetime import datetime, timezone
 import time as _time
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 
 from fl_space.environment import (
     CelestialBody,
+    GroundStation,
     GroundStationNetwork,
     create_default_network,
     create_extended_network,
@@ -93,7 +94,9 @@ class OrbitSimulator:
         constellation_config: Optional[ConstellationConfig] = None,
         distribution: str = "uniform",  # "walker" | "cluster" | "uniform"
         # 地面站
-        ground_station_network: Optional[GroundStationNetwork] = None,
+        ground_station_network: Optional[
+            Union[GroundStationNetwork, list[GroundStation]]
+        ] = None,
         use_extended_gs: bool = False,
         # 时间参数
         timeslot_duration_min: float = 1.0,
@@ -188,7 +191,10 @@ class OrbitSimulator:
 
         # ---- 地面站 ----
         if ground_station_network is not None:
-            self.ground_network = ground_station_network
+            if isinstance(ground_station_network, GroundStationNetwork):
+                self.ground_network = ground_station_network
+            else:
+                self.ground_network = GroundStationNetwork(ground_station_network)
         elif use_extended_gs:
             self.ground_network = create_extended_network(num_ground_stations)
         else:
@@ -321,7 +327,7 @@ class OrbitSimulator:
                 "avg_duration_s": 0.0,
             }
         total_dur = sum(w.duration_s for w in windows)
-        unique_links = len(set((w.satellite_a, w.satellite_b) for w in windows))
+        unique_links = len({(w.satellite_a, w.satellite_b) for w in windows})
         return {
             "total_windows": len(windows),
             "total_duration_s": total_dur,
@@ -347,11 +353,11 @@ class OrbitSimulator:
         base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
         ts_start = base_dt + timedelta(minutes=timeslot * self.timeslot_duration_min)
         ts_end = base_dt + timedelta(minutes=(timeslot + 1) * self.timeslot_duration_min)
-        active = []
-        for w in self.isl_windows:
-            if w.start_utc < ts_end and w.end_utc > ts_start:
-                active.append(w)
-        return active
+        return [
+            w
+            for w in self.isl_windows
+            if w.start_utc < ts_end and w.end_utc > ts_start
+        ]
 
     def isl_peers_at(self, sat_name: str, timeslot: int) -> list[str]:
         """查询指定时隙中与某卫星有 ISL 连接的相邻卫星。

@@ -37,6 +37,7 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
+from fl_space.fedleo.conformance import get_implementation_profile
 from fl_space.fedleo.metrics import compute_data_balance_entropy
 from fl_space.fedleo.scheduler import FedLEOConfig, FedLEOScheduler
 
@@ -421,6 +422,12 @@ def run_fedleo_experiment(
         elapsed_sec=round(elapsed, 1),
         extra={"data_balance": compute_data_balance_entropy(data_sizes)},
     )
+    result.extra["implementation_profile"] = get_implementation_profile()
+    result.extra["model_complexity"] = {
+        "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
+        "total_parameters": sum(p.numel() for p in model.parameters()),
+        "model_class": type(model).__name__,
+    }
 
     if verbose:
         print(f"\nFedLEO 完成: "
@@ -768,6 +775,7 @@ def run_fedleo_vs_baseline(
                 "total_offloaded": fedleo_result.total_offloaded,
                 "elapsed_sec": fedleo_result.elapsed_sec,
                 "history": fedleo_result.history,
+                "extra": fedleo_result.extra,
             },
         }
         if baseline_result:

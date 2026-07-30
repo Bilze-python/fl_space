@@ -230,8 +230,8 @@ def cmd_tune_seed(args: argparse.Namespace) -> int:
 
 def cmd_tune_dataset(args: argparse.Namespace) -> int:
     val = args.value.lower()
-    if val not in ("mnist", "fashion_mnist", "cifar10"):
-        print(f"错误: 未知数据集 '{val}'，可选: mnist, fashion_mnist, cifar10")
+    if val not in ("mnist", "fashion_mnist", "cifar10", "femnist"):
+        print(f"错误: 未知数据集 '{val}'，可选: mnist, fashion_mnist, cifar10, femnist")
         return 1
     s = load_session()
     s["tune"]["dataset"] = val
@@ -1079,6 +1079,11 @@ def cmd_run_quick_test(args: argparse.Namespace) -> int:
 
 def cmd_run_fedleo(args: argparse.Namespace) -> int:
     """运行 FedLEO 去中心化卸载实验。"""
+    if args.implementation_info:
+        from fl_space.fedleo.conformance import format_implementation_profile
+
+        print(format_implementation_profile())
+        return 0
     if not _check_torch():
         print("错误: FedLEO 实验需要 PyTorch 和 torchvision。请运行: pip install fl-space[full]")
         return 1
@@ -1708,7 +1713,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_fedleo.add_argument("--epochs", type=int, default=2, help="本地epoch")
     p_fedleo.add_argument("--batch-size", type=int, default=32, help="batch size")
     p_fedleo.add_argument("--lr", type=float, default=0.01, help="学习率")
-    p_fedleo.add_argument("--dataset", choices=["mnist", "fashion_mnist", "cifar10"], default="mnist", help="数据集")
+    p_fedleo.add_argument("--dataset", choices=["mnist", "fashion_mnist", "cifar10", "femnist"], default="mnist", help="数据集")
     p_fedleo.add_argument("--data-dir", type=str, default="./data", help="数据目录")
     p_fedleo.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="计算设备")
     p_fedleo.add_argument("--offload-every", type=int, default=5, help="每N轮执行一次卸载")
@@ -1728,6 +1733,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_fedleo.add_argument("--output", "-o", type=str, default="fedleo_output", help="输出目录")
     p_fedleo.add_argument("--no-baseline", action="store_true", help="不运行FedAvg基线")
     p_fedleo.add_argument("--quiet", "-q", action="store_true", help="安静模式")
+    p_fedleo.add_argument(
+        "--implementation-info",
+        action="store_true",
+        help="显示论文符合度、近似项和外部后端评估后退出",
+    )
     p_fedleo.set_defaults(func=cmd_run_fedleo)
 
     # run validate-algorithms

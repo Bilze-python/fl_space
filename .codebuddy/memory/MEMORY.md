@@ -230,3 +230,18 @@
 - 3卫星/1GS/5轮完整流水线正常
 - 基线FL 5轮达93.57%，SpaceFL(1GS)受轨道约束仅6%接触率（预期行为）
 
+## FEMNIST writer-level 数据集集成 (2026-07-22)
+- **新增**: `fl_space/fl/femnist_loader.py` — FEMNIST writer-level 数据加载器（LEAF benchmark）
+- **数据源**: HuggingFace `flwrlabs/femnist`（814K 样本, 3597 writers, 62类, 28×28 灰度）
+  - 字段: `image` (PIL), `writer_id` (str), `character` (int 0-61)
+  - 使用 hf-mirror.com 镜像加速国内下载
+- **切分方式**: 按 writer 80/20 train/test（LEAF 默认），1 writer = 1 client
+- **缓存**: `data/femnist_cache.pkl` (664MB), pickle 序列化，自动构建/复用
+- **集成点**:
+  - `config.py` DATASET_PRESETS: `femnist` → MLP(784→128→64→62)
+  - `runner.py` prepare_data: femnist 分支 + `_partition_femnist_writers()` 方法
+  - `cli.py` tune dataset: 白名单加入 femnist
+  - `control_panel.py` 调参面板 + FL训练菜单: 加入 femnist 选项
+- **异构特性**: 每个 writer 有 17-23 个不同类别（类别均衡但 feature 漂移大），比 MNIST shard 更接近论文语义
+- **测试**: 6项全部通过 — 加载(189s/5writers)、模型创建(112K params)、CLI集成、非法数据集拒绝、字符映射、DATASET_PRESETS
+

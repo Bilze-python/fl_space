@@ -18,6 +18,7 @@ FedLEO — 面向 LEO 星座的去中心化联邦学习框架
 """
 
 from fl_space.fedleo.aggregator import FedLEOAggregator
+from fl_space.fedleo.conformance import get_implementation_profile
 from fl_space.fedleo.metrics import (
     FedLEOMetrics,
     compute_system_delay,
@@ -36,5 +37,6 @@ __all__ = [
     "OffloadPlan",
     "compute_system_delay",
     "compute_weight_divergence",
+    "get_implementation_profile",
 ]
 

@@ -277,6 +277,28 @@ class FLRunner:
                 data_dir, train=False, download=True, transform=transform_test,
             )
             self._dataset_model_kwargs = {}
+        elif dataset_name == "femnist":
+            # FEMNIST writer-level (LEAF benchmark)
+            # 使用项目内置 loader，自动下载/缓存
+            from fl_space.fl.femnist_loader import get_femnist_split
+
+            # max_writers 由 num_clients 决定（每 writer = 1 client）
+            max_writers = self.config.num_clients
+            # samples_per_writer 对齐论文 200~350
+            samples_per_writer = (
+                max_samples_per_client if max_samples_per_client > 0 else 300
+            )
+            train_ds, test_ds, writer_ids = get_femnist_split(
+                data_dir=data_dir,
+                max_writers=max_writers,
+                samples_per_writer=samples_per_writer,
+                download=True,
+            )
+            self._dataset_model_kwargs = {}
+            # 保存 writer_ids 用于自定义 partition
+            self._femnist_writer_ids = writer_ids
+            self._femnist_train_ds = train_ds
+
         elif dataset_name in ("imagefolder", "custom"):
             train_dir = f"{data_dir}/train"
             test_dir = f"{data_dir}/test"
@@ -310,18 +332,25 @@ class FLRunner:
 
         # 分配数据到客户端
         n_clients = self.config.num_clients
-        client_data_indices = self._partition_data(
-            train_ds, n_clients, iid=iid, alpha=alpha,
-            classes_per_client=classes_per_client,
-            partition_strategy=partition_strategy,
-            class_probability=class_probability,
-            preference_mode=preference_mode,
-            preferred_clients_per_class=preferred_clients_per_class,
-        )
+        if dataset_name == "femnist":
+            # FEMNIST: 按 writer 划分 (1 writer = 1 client)，已经是天然 non-IID
+            client_data_indices = self._partition_femnist_writers(
+                train_ds, n_clients
+            )
+        else:
+            client_data_indices = self._partition_data(
+                train_ds, n_clients, iid=iid, alpha=alpha,
+                classes_per_client=classes_per_client,
+                partition_strategy=partition_strategy,
+                class_probability=class_probability,
+                preference_mode=preference_mode,
+                preferred_clients_per_class=preferred_clients_per_class,
+            )
 
         # ── 样本数截断（模拟太空 FL 小数据集）──
         targets = np.array([train_ds[i][1] for i in range(len(train_ds))])
-        if max_samples_per_client > 0:
+        if max_samples_per_client > 0 and dataset_name != "femnist":
+            # FEMNIST 在 loader 中已经截断
             client_data_indices = self._cap_client_samples(
                 client_data_indices,
                 targets,
@@ -366,6 +395,36 @@ class FLRunner:
             num_workers=num_workers,
             pin_memory=(self.config.device == "cuda"),
         )
+
+    def _partition_femnist_writers(
+        self, dataset: Dataset, n_clients: int
+    ) -> list[list[int]]:
+        """FEMNIST writer-level partition: 1 writer = 1 client.
+
+        这是最自然的 non-IID 划分，每个 writer 的笔迹风格独特，
+        类别分布相对均衡但 feature 漂移大（论文 FEMNIST 语义）。
+
+        Parameters
+        ----------
+        dataset : FEMNISTWriterDataset
+            已按 max_writers 截断的数据集，含 writer_to_indices 字典。
+        n_clients : int
+            客户端数 (应与 max_writers 一致)。
+        """
+        writer_to_indices = getattr(dataset, "writer_to_indices", None)
+        if not writer_to_indices:
+            raise ValueError("FEMNIST 数据集未提供 writer_to_indices 映射")
+
+        writer_ids = sorted(writer_to_indices.keys())[:n_clients]
+        client_indices: list[list[int]] = []
+        for wid in writer_ids:
+            client_indices.append(list(writer_to_indices[wid]))
+
+        # 若 writer 数 < n_clients，剩余客户端分空 (后续 selector 会跳过)
+        while len(client_indices) < n_clients:
+            client_indices.append([])
+
+        return client_indices
 
     def _partition_data(
         self,

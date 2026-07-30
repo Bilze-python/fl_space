@@ -29,3 +29,24 @@ fedleo_output/
 tmp/
 *.zip
 *.docx
+*.tar.gz
+*.png
+
+# 临时分析/验证脚本
+_master_*.py
+_pr2_*.py
+_verify_*.py
+_quick_*.py
+_run_*.py
+_smoke_*.py
+docx_outline_utf8.txt
+tmp_page_*.png
+
+# 实验输出目录
+fedleo_smoke_test/
+fedleo_vs_baseline/
+lins_result/
+docs/generated_report_assets/
+
+# 文献PDF（大型二进制文件）
+文献/*.pdf

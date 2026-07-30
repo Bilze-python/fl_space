@@ -11,6 +11,9 @@ def _history(data: object) -> list[dict]:
     if isinstance(data, list):
         return [x for x in data if isinstance(x, dict)]
     if isinstance(data, dict):
+        fedleo = data.get("fedleo")
+        if isinstance(fedleo, dict) and isinstance(fedleo.get("history"), list):
+            return [x for x in fedleo["history"] if isinstance(x, dict)]
         value = data.get("history", data.get("records", []))
         if isinstance(value, dict):
             value = list(value.values())
@@ -22,12 +25,22 @@ def main() -> int:
     p = argparse.ArgumentParser(description="从实验结果生成指定可视化图表")
     p.add_argument("result", help="结果 JSON 文件或包含结果文件的目录")
     p.add_argument("--output", "-o", default=None, help="图表输出目录，默认写回结果目录")
-    p.add_argument("--plots", default="accuracy,time,summary", help="逗号分隔: accuracy,time,summary")
+    p.add_argument(
+        "--plots",
+        default="accuracy,time,offload,summary",
+        help="逗号分隔: accuracy,time,offload,summary",
+    )
     args = p.parse_args()
 
     root = Path(args.result)
     if root.is_dir():
-        candidates = [root / "experiment_results.json", root / "result.json", root / "history.json"]
+        candidates = [
+            root / "comparison_summary.json",
+            root / "fedleo_offload.json",
+            root / "experiment_results.json",
+            root / "result.json",
+            root / "history.json",
+        ]
         source = next((x for x in candidates if x.exists()), None)
         if source is None:
             jsons = sorted(root.glob("*.json"))
@@ -57,7 +70,6 @@ def main() -> int:
     plots = {x.strip().lower() for x in args.plots.split(",") if x.strip()}
     rounds = [x.get("round", i) for i, x in enumerate(hist)]
     accuracy = [x.get("accuracy") for x in hist]
-    loss = [x.get("loss") for x in hist]
     made = []
 
     if "accuracy" in plots and any(x is not None for x in accuracy):
@@ -80,6 +92,64 @@ def main() -> int:
             fig.savefig(out / "time_breakdown.png", dpi=150, bbox_inches="tight")
             plt.close(fig)
             made.append(out / "time_breakdown.png")
+        else:
+            fedleo_keys = (
+                "offload_delay",
+                "train_delay",
+                "intra_agg_delay",
+                "inter_agg_delay",
+            )
+            fedleo_totals = {
+                key: sum(float(x.get(key, 0) or 0) for x in hist) for key in fedleo_keys
+            }
+            if any(fedleo_totals.values()):
+                fig, ax = plt.subplots(figsize=(8, 4.5))
+                labels = ["Offload", "Train", "Intra-plane", "Inter-plane"]
+                colors = ["#d97706", "#1976d2", "#00897b", "#6d4c41"]
+                ax.bar(labels, list(fedleo_totals.values()), color=colors)
+                ax.set(ylabel="Timeslots", title="FedLEO Delay Breakdown")
+                path = out / "time_breakdown.png"
+                fig.savefig(path, dpi=150, bbox_inches="tight")
+                plt.close(fig)
+                made.append(path)
+
+    if "offload" in plots:
+        offloaded = [float(x.get("total_offloaded_samples", 0) or 0) for x in hist]
+        balance = [x.get("data_balance_entropy") for x in hist]
+        divergence = [x.get("weight_divergence") for x in hist]
+        if any(offloaded) or any(x is not None for x in balance + divergence):
+            fig, left = plt.subplots(figsize=(8, 4.5))
+            left.bar(
+                rounds,
+                offloaded,
+                color="#d97706",
+                alpha=0.45,
+                label="Offloaded samples",
+            )
+            left.set(
+                xlabel="Round",
+                ylabel="Offloaded samples",
+                title="FedLEO Offloading and Data Quality",
+            )
+            right = left.twinx()
+            if any(x is not None for x in balance):
+                right.plot(rounds, balance, color="#00897b", linewidth=2, label="Data balance")
+            if any(x is not None for x in divergence):
+                right.plot(
+                    rounds,
+                    divergence,
+                    color="#c62828",
+                    linewidth=2,
+                    label="Weight divergence",
+                )
+            right.set_ylabel("Normalized metric")
+            handles1, labels1 = left.get_legend_handles_labels()
+            handles2, labels2 = right.get_legend_handles_labels()
+            left.legend(handles1 + handles2, labels1 + labels2, loc="best")
+            path = out / "fedleo_offloading.png"
+            fig.savefig(path, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            made.append(path)
 
     if "summary" in plots:
         fig, ax = plt.subplots(figsize=(6, 4))

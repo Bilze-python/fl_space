@@ -152,11 +152,17 @@ class ContactMatrix:
         Optional[Tuple[int, int]]
             (timeslot, gs_id) 或 None
         """
-        for ts in range(after_timeslot + 1, self.num_timeslots):
-            gs_id = self._simple[sat_id, ts]
-            if gs_id >= 0:
-                return (ts, int(gs_id))
-        return None
+        start = after_timeslot + 1
+        if start >= self.num_timeslots:
+            return None
+
+        contact_mask = self._simple[sat_id, start:] >= 0
+        if not np.any(contact_mask):
+            return None
+
+        offset = int(np.argmax(contact_mask))
+        timeslot = start + offset
+        return (timeslot, int(self._simple[sat_id, timeslot]))
 
     def get_satellites_in_contact(self, timeslot: int) -> list[int]:
         """
@@ -166,7 +172,7 @@ class ContactMatrix:
         -------
         List[int]
         """
-        return [sat_id for sat_id in range(self.num_satellites) if self._simple[sat_id, timeslot] >= 0]
+        return np.flatnonzero(self._simple[:, timeslot] >= 0).tolist()
 
     def get_contact_detail(
         self, sat_id: int, timeslot: int, gs_names: Optional[list[str]] = None
@@ -212,20 +218,12 @@ class ContactMatrix:
 
     def compute_statistics(self) -> dict:
         """计算接触统计。"""
-        total_contacts = 0
-        sat_counts = []
-        gs_counts = [0] * max(1, self._simple.max() + 1)
+        in_contact = self._simple >= 0
+        sat_counts = np.count_nonzero(in_contact, axis=1).tolist()
+        total_contacts = int(np.count_nonzero(in_contact))
 
-        for sat_id in range(self.num_satellites):
-            count = 0
-            for ts in range(self.num_timeslots):
-                gs_id = self._simple[sat_id, ts]
-                if gs_id >= 0:
-                    count += 1
-                    if gs_id < len(gs_counts):
-                        gs_counts[gs_id] += 1
-            sat_counts.append(count)
-            total_contacts += count
+        contact_gs_ids = self._simple[in_contact]
+        gs_counts = np.bincount(contact_gs_ids, minlength=1).tolist()
 
         total_slots = self.num_satellites * self.num_timeslots
         return {

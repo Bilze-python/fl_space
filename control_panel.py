@@ -213,23 +213,21 @@ def menu_viz():
             ("c", "Start 3D orbit server (opens in browser)", "启动3D轨道服务器（浏览器打开）"),
         ])
         if c == "a":
-            print("\n  可选结果: accuracy=准确率, time=时间分解, summary=实验摘要")
-            print("  输入逗号分隔，例如: accuracy,time,summary")
-            plots = ask("本次运行输出哪些图", "accuracy,summary")
+            print("\n  可选结果: accuracy=准确率, time=时间分解, offload=FedLEO卸载, summary=实验摘要")
+            print("  输入逗号分隔，例如: accuracy,time,offload,summary")
+            plots = ask("本次运行输出哪些图", "accuracy,offload,summary")
             path = os.path.join(PROJECT_DIR, ".fls_visuals.json")
             with open(path, "w", encoding="utf-8") as f:
                 json.dump({"plots": plots}, f, ensure_ascii=False, indent=2)
             print(f"  [成功] 已挂载可视化选择: {plots}")
             pause()
         elif c == "b":
-            menu_config()
-        elif c == "c":
             result = ask("结果 JSON 或结果文件夹路径")
-            plots = ask("生成哪些图 (accuracy,time,summary)", "accuracy,time,summary")
+            plots = ask("生成哪些图 (accuracy,time,offload,summary)", "accuracy,time,offload,summary")
             run_feedback([sys.executable, "scripts/generate_result_visuals.py", result, "--plots", plots],
                          "历史结果图表已生成")
             pause()
-        elif c == "d":
+        elif c == "c":
             port = ask("端口", "8700")
             print(f"  [提示] 服务启动后，请在浏览器打开 http://127.0.0.1:{port}")
             print("  [提示] 保持此窗口运行；按 Ctrl+C 停止服务器。")
@@ -283,7 +281,7 @@ def menu_fl():
             lr = ask("Learning Rate", "0.01")
             eps = ask("Local Epochs", "2")
             bs = ask("Batch Size", "32")
-            ds = ask("Dataset (mnist/cifar10)", "mnist")
+            ds = ask("Dataset (mnist/cifar10/femnist)", "mnist")
             dev = ask("Device (cpu/cuda)", "cpu")
             run(f"python -m fl_space.cli mount algo {algo}")
             run(f"python -m fl_space.cli mount sats {sats}")
@@ -377,7 +375,7 @@ def menu_tune():
         "d": ("batch", "int", ">=1", "例如 32"),
         "e": ("mu", "float", ">=0", "例如 0.01"),
         "f": ("seed", "int", "整数", "例如 42"),
-        "g": ("dataset", "enum", "mnist|fashion_mnist|cifar10", "输入其中一个名称"),
+        "g": ("dataset", "enum", "mnist|fashion_mnist|cifar10|femnist", "输入其中一个名称"),
         "h": ("scale", "enum", "small|medium|large", "输入其中一个名称"),
         "i": ("early-stop", "float", "0~1", "例如 0.90"),
         "j": ("workers", "int", ">=1", "例如 1"),
@@ -394,7 +392,7 @@ def menu_tune():
             ("d", "Batch size [int, >=1]", "Batch大小 [整数, >=1]"),
             ("e", "FedProx mu [float, >=0]", "FedProx mu [浮点数, >=0]"),
             ("f", "Random seed [int]", "随机种子 [整数]"),
-            ("g", "Dataset [enum]", "数据集 [枚举]"),
+            ("g", "Dataset [mnist/fashion/cifar/femnist]", "数据集 [mnist/fashion/cifar/femnist]"),
             ("h", "Scale [small|medium|large]", "规模 [small|medium|large]"),
             ("i", "Early stop [float, 0~1]", "早停阈值 [浮点数, 0~1]"),
             ("j", "Workers [int, >=1]", "训练线程 [整数, >=1]"),

@@ -174,6 +174,11 @@ DATASET_PRESETS: dict[str, dict[str, Any]] = {
         "model_kwargs": {"num_classes": 10, "in_channels": 3},
         "description": "CIFAR-10 (32×32 彩色, 10类)",
     },
+    "femnist": {
+        "model": "mlp",
+        "model_kwargs": {"input_dim": 784, "hidden_dims": [128, 64], "num_classes": 62},
+        "description": "FEMNIST writer-level (LEAF, 62类, 28×28 灰度, 极端 non-IID)",
+    },
     "imagefolder": {
         "model": "simplecnn",
         "model_kwargs": {"num_classes": 2, "in_channels": 3},
