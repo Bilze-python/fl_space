@@ -27,7 +27,7 @@ import numpy as np
 try:
     import torch
     import torch.nn as nn
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Subset
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -184,6 +184,9 @@ class FedLEOScheduler:
         # 当前数据分布（卸载会修改）
         current_data_sizes = list(initial_data_sizes)
         current_train_loaders = dict(train_loaders)
+        offload_dataset, client_indices = self._extract_offload_memberships(
+            current_train_loaders
+        )
 
         # ── 基线评估 ──
         if cfg.verbose:
@@ -228,9 +231,17 @@ class FedLEOScheduler:
 
                 # 应用卸载到数据分布
                 if offload_plan and offload_plan.actions:
-                    for action in offload_plan.actions:
-                        current_data_sizes[action.from_sat] -= action.offload_samples
-                        current_data_sizes[action.to_sat] += action.offload_samples
+                    current_train_loaders = self._apply_offload_plan(
+                        current_train_loaders=current_train_loaders,
+                        shared_dataset=offload_dataset,
+                        client_indices=client_indices,
+                        plan=offload_plan,
+                        round_num=round_num,
+                    )
+                    current_data_sizes = [
+                        len(client_indices.get(sat_id, []))
+                        for sat_id in range(cfg.num_satellites)
+                    ]
                     offload_delay = sum(
                         a.comm_cost_slots for a in offload_plan.actions
                     )
@@ -336,6 +347,91 @@ class FedLEOScheduler:
 
         return self.history
 
+    def _extract_offload_memberships(
+        self,
+        train_loaders: dict[int, DataLoader],
+    ) -> tuple[Any | None, dict[int, list[int]]]:
+        """Extract mutable sample memberships from loaders backed by one dataset."""
+        if not self.config.enable_offloading:
+            return None, {}
+
+        shared_dataset: Any | None = None
+        memberships: dict[int, list[int]] = {
+            sat_id: [] for sat_id in range(self.config.num_satellites)
+        }
+        for sat_id, loader in train_loaders.items():
+            dataset = loader.dataset
+            if not isinstance(dataset, Subset):
+                raise ValueError(
+                    "FedLEO offloading requires DataLoaders backed by torch Subset objects"
+                )
+            if shared_dataset is None:
+                shared_dataset = dataset.dataset
+            elif dataset.dataset is not shared_dataset:
+                raise ValueError(
+                    "FedLEO offloading requires every satellite Subset to share one dataset"
+                )
+            memberships[sat_id] = [int(index) for index in dataset.indices]
+
+        return shared_dataset, memberships
+
+    def _apply_offload_plan(
+        self,
+        current_train_loaders: dict[int, DataLoader],
+        shared_dataset: Any | None,
+        client_indices: dict[int, list[int]],
+        plan: OffloadPlan,
+        round_num: int,
+    ) -> dict[int, DataLoader]:
+        """Move the planned samples and rebuild affected satellite loaders."""
+        if shared_dataset is None:
+            raise ValueError("FedLEO offloading cannot move samples without a shared dataset")
+
+        affected: set[int] = set()
+        for action in plan.actions:
+            source = client_indices[action.from_sat]
+            if action.offload_samples > len(source):
+                raise ValueError(
+                    f"Offload plan requests {action.offload_samples} samples from satellite "
+                    f"{action.from_sat}, which only has {len(source)}"
+                )
+            permutation = self._rng.permutation(len(source))
+            selected_positions = {
+                int(position) for position in permutation[: action.offload_samples]
+            }
+            moved = [
+                sample_index
+                for position, sample_index in enumerate(source)
+                if position in selected_positions
+            ]
+            client_indices[action.from_sat] = [
+                sample_index
+                for position, sample_index in enumerate(source)
+                if position not in selected_positions
+            ]
+            client_indices[action.to_sat].extend(moved)
+            affected.update((action.from_sat, action.to_sat))
+
+        rebuilt = dict(current_train_loaders)
+        for sat_id in affected:
+            indices = client_indices[sat_id]
+            if not indices:
+                rebuilt.pop(sat_id, None)
+                continue
+            generator = torch.Generator()
+            generator.manual_seed(
+                self.config.seed + round_num * self.config.num_satellites + sat_id
+            )
+            rebuilt[sat_id] = DataLoader(
+                Subset(shared_dataset, indices),
+                batch_size=self.config.batch_size,
+                shuffle=True,
+                drop_last=False,
+                generator=generator,
+            )
+
+        return rebuilt
+
     # ── 内部方法 ────────────────────────────────────────────
 
     def _local_train(
@@ -423,4 +519,5 @@ class FedLEOScheduler:
             train_loss=round(avg_loss, 6),
             weight_divergence=round(weight_div, 6),
             data_balance_entropy=round(balance, 6),
+            extra={"data_sizes": list(data_sizes)},
         )

@@ -1,0 +1,4 @@
+accuracy,data_balance_entropy,data_sizes,inter_agg_delay,intra_agg_delay,num_offload_actions,offload_delay,round,total_delay,total_offloaded_samples,train_delay,train_loss,weight_divergence
+0.049,0.965232,"[146, 86, 86, 114, 111, 192, 57, 226, 96, 182, 186, 64]",0.0,0.0,0,0.0,0,0.0,0,0.0,2.318432,0.0
+0.0776,0.965232,"[146, 86, 86, 114, 111, 192, 57, 226, 96, 182, 186, 64]",1,1,0,0.0,1,3.0,0,1,5.181162893772125,0.0
+0.11,0.965232,"[146, 86, 86, 114, 111, 192, 57, 226, 96, 182, 186, 64]",1,1,0,0.0,2,3.0,0,1,5.129656404256821,0.0

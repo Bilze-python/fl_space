@@ -1,0 +1,40 @@
+{
+  "experiment": "FedLEO vs FedAvg Baseline",
+  "timestamp": "2026-08-08 19:45:48",
+  "config": {
+    "num_planes": 3,
+    "sats_per_plane": 5,
+    "total_satellites": 15,
+    "num_rounds": 30,
+    "local_epochs": 2,
+    "batch_size": 32,
+    "learning_rate": 0.01,
+    "dataset": "mnist",
+    "device": "cpu",
+    "seed": 42
+  },
+  "results": {
+    "fedleo": {
+      "final_accuracy": 0.9054,
+      "peak_accuracy": 0.9054,
+      "total_offloaded_samples": 0,
+      "total_delay_slots": 120.0,
+      "elapsed_sec": 638.4
+    },
+    "baseline": {
+      "final_accuracy": 0.4849,
+      "peak_accuracy": 0.4849,
+      "elapsed_sec": 10.5
+    }
+  },
+  "generated_files": [
+    "accuracy_comparison.png",
+    "delay_comparison.png",
+    "bar_comparison.png",
+    "offloading_stats.png",
+    "comparison_summary.json",
+    "fedleo_history.csv",
+    "baseline_history.csv"
+  ],
+  "elapsed_total_sec": 648.8
+}

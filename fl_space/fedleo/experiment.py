@@ -202,7 +202,7 @@ def _write_history_csv(path: str, history: list[dict[str, Any]]) -> None:
 
 
 def _create_model(dataset_name: str) -> torch.nn.Module:
-    """创建 MLP 模型（784→128→64→10）。"""
+    """创建论文 MNIST 实验使用的单隐藏层 MLP（784→128→10）。"""
     import torch.nn as nn
 
     class MLP(nn.Module):
@@ -212,9 +212,7 @@ def _create_model(dataset_name: str) -> torch.nn.Module:
                 nn.Flatten(),
                 nn.Linear(784, 128),
                 nn.ReLU(),
-                nn.Linear(128, 64),
-                nn.ReLU(),
-                nn.Linear(64, 10),
+                nn.Linear(128, 10),
             )
 
         def forward(self, x):
@@ -291,6 +289,10 @@ def run_fedleo_experiment(
         print(f"{'='*60}")
     total_sats = num_planes * sats_per_plane
     t_start = _time.time()
+
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
     # 1. 准备数据
     if verbose:

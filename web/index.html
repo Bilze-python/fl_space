@@ -1,220 +1,281 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SpaceFL — 太空联邦学习 3D 可视化</title>
-<script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-<link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', sans-serif; background: #0a0a1a; color: #e0e0e0; overflow: hidden; }
-  #cesiumContainer { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
-  #panel {
-    position: absolute; top: 10px; right: 10px; z-index: 10;
-    background: rgba(10, 10, 30, 0.85); padding: 16px; border-radius: 8px;
-    border: 1px solid rgba(100, 200, 255, 0.3); min-width: 260px;
-    backdrop-filter: blur(8px); font-size: 13px;
-  }
-  #panel h2 { color: #64c8ff; font-size: 16px; margin-bottom: 12px; }
-  #panel .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-  #panel .val { color: #4caf50; font-weight: bold; }
-  #panel .isl-on { color: #4caf50; } #panel .isl-off { color: #888; }
-  input, button, select {
-    background: rgba(20, 20, 50, 0.9); color: #e0e0e0; border: 1px solid rgba(100, 200, 255, 0.4);
-    padding: 6px 10px; border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box;
-  }
-  button { cursor: pointer; margin-top: 8px; background: rgba(30, 100, 180, 0.7); }
-  button:hover { background: rgba(40, 130, 220, 0.8); }
-  #log { max-height: 120px; overflow-y: auto; font-size: 11px; color: #aaa; margin-top: 10px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpaceFL 智能实验平台</title>
+  <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-<div id="cesiumContainer"></div>
-<div id="panel">
-  <h2>🚀 SpaceFL LEO 3D</h2>
-  <div class="row"><span>时隙:</span><span class="val" id="ts">0</span></div>
-  <div class="row"><span>ISL:</span><span class="val isl-off" id="isl-st">禁用</span></div>
-  <div class="row"><span>卫星:</span><span class="val" id="sat-n">0</span></div>
-  <div class="row"><span>GS:</span><span class="val" id="gs-n">0</span></div>
-  <div class="row"><span>活跃链路:</span><span class="val" id="link-n">0</span></div>
-  <hr style="border-color:rgba(100,200,255,0.1);margin:10px 0;">
-  <input type="range" id="slider" min="0" max="100" value="0" step="1">
-  <div style="display:flex;gap:6px;margin-top:6px;">
-    <button id="btn-play" style="flex:1;">▶ 播放</button>
-    <button id="btn-pause" style="flex:1;">⏸ 暂停</button>
-    <button id="btn-load" style="flex:1;">📡 加载</button>
+  <div id="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">SF</div>
+        <div>
+          <strong>SpaceFL</strong>
+          <span>智能实验平台</span>
+        </div>
+      </div>
+      <nav id="main-nav">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>总览</button>
+        <button class="nav-item" data-view="config"><span class="nav-icon">⌘</span>实验配置</button>
+        <button class="nav-item" data-view="experiments"><span class="nav-icon">≋</span>实验档案</button>
+        <button class="nav-item" data-view="orbit"><span class="nav-icon">◎</span>轨道视图</button>
+        <button class="nav-item" data-view="library"><span class="nav-icon">▤</span>文献库</button>
+        <button class="nav-item" data-view="ai"><span class="nav-icon">✦</span>AI 解读</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="system-state"><span class="state-dot"></span><span>本地服务在线</span></div>
+        <small>轻量级离散仿真</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="view-eyebrow">SPACE FEDERATED LEARNING</p>
+          <h1 id="view-title">实验总览</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="sync-state" id="sync-state">正在同步本地数据</div>
+          <button class="button primary" id="quick-run-button">运行 FedLEO 验证</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-overview">
+        <div class="metric-grid">
+          <article class="metric-panel">
+            <span>实验档案</span>
+            <strong id="metric-experiments">--</strong>
+            <small>本地可复核结果</small>
+          </article>
+          <article class="metric-panel">
+            <span>验证通过</span>
+            <strong id="metric-passed">--</strong>
+            <small>严格验收门槛</small>
+          </article>
+          <article class="metric-panel accent">
+            <span>平均准确率增益</span>
+            <strong id="metric-accuracy">--</strong>
+            <small>FedLEO 卸载组</small>
+          </article>
+          <article class="metric-panel">
+            <span>当前算法</span>
+            <strong id="metric-algorithm">--</strong>
+            <small>与终端 Session 同步</small>
+          </article>
+        </div>
+
+        <div class="overview-grid">
+          <section class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">LATEST VALIDATION</p>
+                <h2>FedLEO 卸载效果</h2>
+              </div>
+              <button class="icon-button" title="刷新数据" id="refresh-overview">↻</button>
+            </div>
+            <canvas id="overview-chart"></canvas>
+            <div class="chart-legend">
+              <span><i class="legend-line on"></i>卸载开启</span>
+              <span><i class="legend-line off"></i>卸载关闭</span>
+            </div>
+          </section>
+
+          <section class="panel boundary-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">IMPLEMENTATION BOUNDARY</p>
+                <h2>实现边界</h2>
+              </div>
+              <span class="status-badge amber">研究原型</span>
+            </div>
+            <div class="boundary-group">
+              <h3>当前支持</h3>
+              <ul id="supported-list"></ul>
+            </div>
+            <div class="boundary-group muted">
+              <h3>尚未覆盖</h3>
+              <ul id="limitations-list"></ul>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">RECENT RUNS</p>
+              <h2>最近实验</h2>
+            </div>
+            <button class="text-button" data-route="experiments">查看全部</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>实验</th><th>数据集</th><th>轮次</th><th>最终准确率</th><th>增益</th><th>状态</th></tr>
+              </thead>
+              <tbody id="recent-experiments"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="view-config">
+        <div class="config-layout">
+          <aside class="config-nav">
+            <button class="config-tab active" data-config-tab="training">训练设置</button>
+            <button class="config-tab" data-config-tab="topology">星座与链路</button>
+            <button class="config-tab" data-config-tab="fedleo">FedLEO 验证</button>
+          </aside>
+          <div class="panel config-panel">
+            <form id="session-form">
+              <div class="config-section active" data-config-section="training">
+                <div class="section-heading">
+                  <div><p class="panel-kicker">TRAINING</p><h2>训练设置</h2></div>
+                  <span class="field-note">保存后终端命令会读取同一份 Session</span>
+                </div>
+                <div class="form-grid">
+                  <label>算法<select name="mount.algo"><option>fedavg</option><option>fedprox</option><option>fedbuff</option><option>fedleo</option></select></label>
+                  <label>数据集<select name="tune.dataset"><option>mnist</option><option>fashion_mnist</option><option>cifar10</option><option>femnist</option></select></label>
+                  <label>训练轮次<input type="number" min="1" max="1000" name="tune.rounds"></label>
+                  <label>本地 Epoch<input type="number" min="1" max="100" name="tune.epochs"></label>
+                  <label>学习率<input type="number" min="0.0001" step="0.001" name="tune.lr"></label>
+                  <label>Batch Size<input type="number" min="1" name="tune.batch_size"></label>
+                  <label>随机种子<input type="number" name="tune.seed"></label>
+                  <label class="toggle-field"><span>Non-IID 数据</span><input type="checkbox" name="tune.non_iid"></label>
+                </div>
+              </div>
+              <div class="config-section" data-config-section="topology">
+                <div class="section-heading">
+                  <div><p class="panel-kicker">CONSTELLATION</p><h2>星座与链路</h2></div>
+                </div>
+                <div class="form-grid">
+                  <label>卫星数量<input type="number" min="1" max="100" name="mount.sats"></label>
+                  <label>地面站数量<input type="number" min="1" max="30" name="mount.stations"></label>
+                  <label>轨道高度 km<input type="number" min="100" max="2000" name="mount.altitude"></label>
+                  <label>轨道倾角 °<input type="number" min="0" max="180" name="mount.inclination"></label>
+                  <label>仿真时长 h<input type="number" min="0.1" step="0.5" name="mount.sim_hours"></label>
+                  <label>时间槽 min<input type="number" min="0.1" step="0.5" name="mount.timeslot_min"></label>
+                  <label>轨道后端<select name="mount.backend"><option>kepler</option><option>skyfield</option></select></label>
+                  <label>ISL 模式<select name="mount.isl"><option>disabled</option><option>wgs84</option></select></label>
+                </div>
+              </div>
+              <div class="config-section" data-config-section="fedleo">
+                <div class="section-heading">
+                  <div><p class="panel-kicker">FEDLEO ABLATION</p><h2>卸载开关验证</h2></div>
+                  <span class="status-badge green">≤ 30 分钟</span>
+                </div>
+                <div class="experiment-callout">
+                  <strong>同数据、同初始化、同分层聚合路径</strong>
+                  <p>网页任务只切换真实样本卸载开关，自动核验样本守恒、均衡度和准确率。</p>
+                </div>
+                <div class="form-grid compact">
+                  <label>验证轮次<input type="number" min="2" max="30" value="10" id="validation-rounds"></label>
+                  <label>验证种子<input type="number" value="20260810" id="validation-seed"></label>
+                </div>
+                <button type="button" class="button primary wide" id="run-validation-button">启动本地验证实验</button>
+                <div id="job-monitor" class="job-monitor hidden"></div>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="button secondary" id="reset-session">恢复默认</button>
+                <button type="submit" class="button primary">保存到终端 Session</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-experiments">
+        <div class="experiments-layout">
+          <section class="panel experiment-list-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">ARCHIVE</p><h2>实验档案</h2></div>
+              <button class="icon-button" title="刷新" id="refresh-experiments">↻</button>
+            </div>
+            <div id="experiment-list" class="experiment-list"></div>
+          </section>
+          <section class="panel experiment-detail-panel" id="experiment-detail">
+            <div class="empty-state">选择一个实验查看逐轮曲线与卸载记录</div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view orbit-view" id="view-orbit">
+        <div class="orbit-toolbar">
+          <div>
+            <span class="status-badge green" id="orbit-status">待加载</span>
+            <strong id="orbit-time">--</strong>
+          </div>
+          <div class="orbit-actions">
+            <button class="icon-button" id="orbit-play" title="播放">▶</button>
+            <button class="icon-button" id="orbit-pause" title="暂停">Ⅱ</button>
+            <button class="button secondary" id="orbit-load">重新生成轨道</button>
+          </div>
+        </div>
+        <canvas id="orbit-canvas"></canvas>
+        <div class="orbit-bottom">
+          <input type="range" id="orbit-slider" min="0" max="1" value="0">
+          <div class="orbit-stats">
+            <span><b id="orbit-sats">0</b> 卫星</span>
+            <span><b id="orbit-gs">0</b> 地面站</span>
+            <span><b id="orbit-links">0</b> 活跃链路</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-library">
+        <div class="library-layout">
+          <section class="panel library-list-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">RESEARCH LIBRARY</p><h2>文献与设计文档</h2></div>
+            </div>
+            <input class="search-input" id="library-search" placeholder="搜索 FedLEO、设计方案或文件名">
+            <div id="library-list" class="library-list"></div>
+          </section>
+          <section class="panel reader-panel" id="reader-panel">
+            <div class="empty-state">选择文档开始阅读</div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-ai">
+        <div class="ai-layout">
+          <section class="panel ai-context-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">READ-ONLY ANALYST</p><h2>分析上下文</h2></div>
+              <span class="status-badge amber" id="ai-provider-status">检测中</span>
+            </div>
+            <label>选择实验
+              <select id="ai-experiment-select"></select>
+            </label>
+            <div class="ai-guardrails">
+              <strong>只读分析模式</strong>
+              <p>模型只能读取选中实验的配置、摘要与末段曲线，不会修改代码、参数或结果文件。</p>
+            </div>
+            <div class="suggestion-list">
+              <button data-ai-question="这组实验是否真正触发了 FedLEO 卸载？证据是什么？">检查卸载是否生效</button>
+              <button data-ai-question="分析这组实验的对照是否公平，并指出不能下的结论。">检查对照公平性</button>
+              <button data-ai-question="用三点总结准确率、数据均衡度和时延结果。">生成结果摘要</button>
+            </div>
+          </section>
+          <section class="panel ai-chat-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">DEEPSEEK CHAT</p><h2>实验解读</h2></div>
+            </div>
+            <div id="ai-messages" class="ai-messages">
+              <div class="ai-message assistant">选择一份实验档案，然后询问它能证明什么、不能证明什么。</div>
+            </div>
+            <form id="ai-form" class="ai-compose">
+              <textarea id="ai-question" rows="3" placeholder="例如：为什么这组结果不能证明论文中的时延下降？"></textarea>
+              <button class="button primary" type="submit">发送分析请求</button>
+            </form>
+          </section>
+        </div>
+      </section>
+    </main>
   </div>
-  <input id="api-url" value="http://127.0.0.1:8700" placeholder="API 地址" style="margin-top:8px;font-size:11px;">
-  <div id="log"></div>
-</div>
-<script>
-// ── Init ──
-Cesium.Ion.defaultAccessToken = '';
-const viewer = new Cesium.Viewer('cesiumContainer', {
-  animation: false, timeline: false, baseLayerPicker: false,
-  fullscreenButton: false, geocoder: false, homeButton: false,
-  sceneModePicker: false, navigationHelpButton: false,
-  imageryProvider: Cesium.TileMapServiceImageryProvider.fromUrl(
-    Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-  ),
-});
-viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0a2a');
-viewer.scene.backgroundColor = Cesium.Color.BLACK;
 
-const satEntities = new Map();
-const gsEntities = new Map();
-const linkEntities = [];
-let frameData = null;
-let currentTs = 0;
-let maxTs = 100;
-let playing = false;
-let playTimer = null;
-
-function log(msg) {
-  const el = document.getElementById('log');
-  el.innerHTML += msg + '<br>';
-  el.scrollTop = el.scrollHeight;
-}
-
-// ── Load API data ──
-async function loadData() {
-  const base = document.getElementById('api-url').value;
-  log('加载轨道数据...');
-  const resp = await fetch(base + '/api/orbit_data');
-  frameData = await resp.json();
-  maxTs = frameData.timeslots.length - 1;
-  document.getElementById('slider').max = maxTs;
-  document.getElementById('sat-n').textContent = frameData.satellites;
-  document.getElementById('gs-n').textContent = frameData.ground_stations.length;
-
-  // Draw ground stations
-  for (const gs of frameData.ground_stations) {
-    viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat, 0),
-      point: { pixelSize: 10, color: Cesium.Color.LIME,
-               outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-      label: { text: gs.name, font: '11px sans-serif', fillColor: Cesium.Color.LIME,
-               showBackground: true, backgroundColor: new Cesium.Color(0,0,0,0.5),
-               pixelOffset: new Cesium.Cartesian2(8,-8) },
-    });
-  }
-
-  // Draw satellite trajectory lines
-  for (let s = 0; s < frameData.satellites; s++) {
-    const positions = [];
-    for (let t = 0; t <= maxTs; t++) {
-      const d = frameData.timeslots[t].positions[s];
-      positions.push(d.lon, d.lat, d.alt_km * 1000);
-    }
-    viewer.entities.add({
-      polyline: {
-        positions: Cesium.Cartesian3.fromDegreesArrayHeights(positions),
-        width: 1, material: Cesium.Color.fromHsl(s / frameData.satellites, 0.8, 0.5, 0.5),
-      }
-    });
-  }
-
-  document.getElementById('slider').value = 0;
-  updateFrame(0);
-  log(`加载完成: ${frameData.satellites} 卫星, ${maxTs+1} 时隙`);
-}
-
-function updateFrame(ts) {
-  if (!frameData) return;
-  currentTs = ts;
-  document.getElementById('ts').textContent = ts;
-  document.getElementById('slider').value = ts;
-
-  const slot = frameData.timeslots[ts];
-  if (!slot) return;
-
-  // Update satellites
-  for (let s = 0; s < frameData.satellites; s++) {
-    const p = slot.positions[s];
-    const name = 'SAT-' + String(s).padStart(2, '0');
-    let ent = satEntities.get(name);
-    if (!ent) {
-      ent = viewer.entities.add({
-        name: name,
-        position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt_km * 1000),
-        point: { pixelSize: 6, color: Cesium.Color.CYAN,
-                 outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-        label: { text: name, font: '10px sans-serif', pixelOffset: new Cesium.Cartesian2(0,-8),
-                 fillColor: Cesium.Color.WHITE, showBackground: true,
-                 backgroundColor: new Cesium.Color(0,0,0,0.6) },
-      });
-      satEntities.set(name, ent);
-    } else {
-      ent.position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt_km * 1000);
-    }
-  }
-
-  // Remove old links
-  for (const ent of linkEntities) viewer.entities.remove(ent);
-  linkEntities.length = 0;
-
-  // Draw GS-SAT links
-  for (const link of slot.contacts || []) {
-    const gs = frameData.ground_stations[link.gs_id];
-    const sat = slot.positions[link.sat_id];
-    const ent = viewer.entities.add({
-      polyline: {
-        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
-          gs.lon, gs.lat, 0, sat.lon, sat.lat, sat.alt_km * 1000
-        ]),
-        width: 2, material: Cesium.Color.fromCssColorString('#4caf5066'),
-      }
-    });
-    linkEntities.push(ent);
-  }
-
-  // Draw ISL links
-  for (const link of slot.isl_links || []) {
-    const a = slot.positions[link.a_id];
-    const b = slot.positions[link.b_id];
-    const ent = viewer.entities.add({
-      polyline: {
-        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
-          a.lon, a.lat, a.alt_km * 1000, b.lon, b.lat, b.alt_km * 1000
-        ]),
-        width: 1.5, material: Cesium.Color.fromCssColorString('#ff980066'),
-      }
-    });
-    linkEntities.push(ent);
-  }
-
-  document.getElementById('link-n').textContent =
-    (slot.contacts?.length || 0) + (slot.isl_links?.length || 0);
-  document.getElementById('isl-st').textContent =
-    (slot.isl_links?.length > 0) ? '活跃' : '无';
-  document.getElementById('isl-st').className =
-    (slot.isl_links?.length > 0) ? 'val isl-on' : 'val isl-off';
-}
-
-// ── Controls ──
-document.getElementById('slider').addEventListener('input', e => {
-  updateFrame(parseInt(e.target.value));
-});
-
-document.getElementById('btn-play').addEventListener('click', () => {
-  playing = true;
-  function step() {
-    if (!playing) return;
-    let ts = currentTs + 1;
-    if (ts > maxTs) ts = 0;
-    updateFrame(ts);
-    playTimer = setTimeout(step, 200);
-  }
-  step();
-});
-
-document.getElementById('btn-pause').addEventListener('click', () => {
-  playing = false;
-  if (playTimer) clearTimeout(playTimer);
-});
-
-document.getElementById('btn-load').addEventListener('click', loadData);
-</script>
+  <div id="toast-stack"></div>
+  <script src="/assets/app.js"></script>
 </body>
 </html>
