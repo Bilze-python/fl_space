@@ -398,6 +398,13 @@ async function loadOrbit() {
 }
 
 function drawOrbit() {
+  // 调用2D轨道绘制模块
+  if (window.draw2DOrbit && state.orbit) {
+    window.draw2DOrbit("orbit-canvas-2d", state.orbit);
+    return;
+  }
+
+  // 降级到旧版本绘制
   const canvas = $("#orbit-canvas");
   if (!canvas || !state.orbit) return;
   resizeCanvas(canvas);
