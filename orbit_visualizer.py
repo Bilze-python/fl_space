@@ -46,11 +46,11 @@ class OrbitVisualizer:
         """加载轨道数据"""
         with open(path, 'r', encoding='utf-8') as f:
             self.orbit_data = json.load(f)
-        print(f"✓ 已加载轨道数据:")
-        print(f"  卫星数: {self.orbit_data['satellites']}")
-        print(f"  地面站数: {len(self.orbit_data['ground_stations'])}")
-        print(f"  时隙数: {len(self.orbit_data['timeslots'])}")
-        print(f"  ISL: {'已启用' if self.orbit_data.get('isl_enabled') else '未启用'}")
+        print(f"Loaded orbit data:")
+        print(f"  Satellites: {self.orbit_data['satellites']}")
+        print(f"  Ground Stations: {len(self.orbit_data['ground_stations'])}")
+        print(f"  Timeslots: {len(self.orbit_data['timeslots'])}")
+        print(f"  ISL: {'Enabled' if self.orbit_data.get('isl_enabled') else 'Disabled'}")
 
     def create_figure_with_cartopy(self):
         """使用Cartopy创建地球地图"""
@@ -245,9 +245,9 @@ class OrbitVisualizer:
         )
 
         if save_path:
-            print(f"正在保存动画到 {save_path}...")
+            print(f"Saving animation to {save_path}...")
             anim.save(save_path, writer='pillow', fps=2)
-            print("✓ 动画已保存")
+            print("Animation saved successfully")
         else:
             plt.show()
 
@@ -275,18 +275,18 @@ def main():
 
     # 使用最新的轨道数据
     orbit_file = sorted(orbit_files)[-1]
-    print(f"\n使用轨道数据: {orbit_file}")
+    print(f"\nUsing orbit data: {orbit_file}")
 
     # 创建可视化
     viz = OrbitVisualizer(orbit_file)
 
     # 显示选项
-    print("\n选择操作:")
-    print("1. 显示静态图 (单个时隙)")
-    print("2. 显示动画 (所有时隙)")
-    print("3. 保存动画为GIF")
+    print("\nOptions:")
+    print("1. Show static plot (single timeslot)")
+    print("2. Show animation (all timeslots)")
+    print("3. Save animation as GIF")
 
-    choice = input("\n请选择 (1/2/3): ").strip()
+    choice = input("\nSelect (1/2/3): ").strip()
 
     if choice == '1':
         slot = input(f"输入时隙编号 (0-{len(viz.orbit_data['timeslots'])-1}): ")

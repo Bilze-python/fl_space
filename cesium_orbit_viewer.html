@@ -1,0 +1,233 @@
+"""
+SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
+参考: https://github.com/Flowm/satvis
+
+使用说明:
+1. 安装依赖: npm install cesium satellite.js
+2. 运行: python -m http.server 8000
+3. 访问: http://localhost:8000/cesium_orbit_viewer.html
+"""
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpaceFL 轨道可视化</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a1929; color: white; }
+        #cesiumContainer { width: 100vw; height: 100vh; }
+        .controls {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px;
+            max-width: 300px;
+        }
+        .controls h3 { margin-bottom: 15px; color: #4fd18b; }
+        .controls button {
+            width: 100%; padding: 10px; margin: 5px 0;
+            background: #4fd18b; border: none; border-radius: 5px;
+            color: black; font-weight: bold; cursor: pointer;
+        }
+        .controls button:hover { background: #3fb573; }
+        .stats {
+            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
+            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
+        }
+        .stats div { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div class="controls">
+        <h3>🛰️ SpaceFL 轨道控制</h3>
+        <button onclick="loadOrbitData()">加载轨道数据</button>
+        <button onclick="playAnimation()">播放动画</button>
+        <button onclick="pauseAnimation()">暂停</button>
+        <button onclick="resetView()">重置视角</button>
+    </div>
+
+    <div class="stats">
+        <div>卫星数: <span id="satCount">0</span></div>
+        <div>地面站: <span id="gsCount">0</span></div>
+        <div>活跃连接: <span id="linkCount">0</span></div>
+        <div>时隙: <span id="currentSlot">0</span> / <span id="totalSlots">0</span></div>
+    </div>
+
+    <script>
+        // 初始化Cesium
+        Cesium.Ion.defaultAccessToken = 'YOUR_CESIUM_ION_TOKEN'; // 需要注册获取免费token
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: Cesium.createWorldTerrain(),
+            animation: false,
+            timeline: true,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            fullscreenButton: false
+        });
+
+        viewer.scene.globe.enableLighting = true;
+
+        let orbitData = null;
+        let currentSlot = 0;
+        let animationTimer = null;
+        let satelliteEntities = [];
+        let gsEntities = [];
+        let linkEntities = [];
+
+        // 加载SpaceFL轨道数据
+        async function loadOrbitData() {
+            try {
+                const response = await fetch('http://127.0.0.1:8700/api/orbit_data?sats=10&gs=5&sim_hours=2');
+                orbitData = await response.json();
+
+                // 更新统计
+                document.getElementById('satCount').textContent = orbitData.satellites;
+                document.getElementById('gsCount').textContent = orbitData.ground_stations.length;
+                document.getElementById('totalSlots').textContent = orbitData.timeslots.length;
+
+                // 创建地面站
+                createGroundStations();
+
+                // 显示第一个时隙
+                updateSlot(0);
+
+                alert('轨道数据加载成功！');
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+
+        // 创建地面站标记
+        function createGroundStations() {
+            orbitData.ground_stations.forEach((gs, i) => {
+                const entity = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat),
+                    point: {
+                        pixelSize: 15,
+                        color: Cesium.Color.RED,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: `GS${i}`,
+                        font: '14px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -20)
+                    }
+                });
+                gsEntities.push(entity);
+            });
+        }
+
+        // 更新时隙显示
+        function updateSlot(slotIndex) {
+            if (!orbitData) return;
+
+            currentSlot = slotIndex;
+            const slot = orbitData.timeslots[slotIndex];
+
+            // 清除旧的卫星和连接
+            satelliteEntities.forEach(e => viewer.entities.remove(e));
+            linkEntities.forEach(e => viewer.entities.remove(e));
+            satelliteEntities = [];
+            linkEntities = [];
+
+            // 绘制卫星
+            slot.positions.forEach((sat, i) => {
+                const hasContact = slot.contacts.some(c => c.sat_id === i);
+                const color = hasContact ? Cesium.Color.LIME : Cesium.Color.CYAN;
+
+                const entity = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 500000), // 500km高度
+                    point: {
+                        pixelSize: 12,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: `S${i}`,
+                        font: '12px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.TOP,
+                        pixelOffset: new Cesium.Cartesian2(0, 15)
+                    }
+                });
+                satelliteEntities.push(entity);
+            });
+
+            // 绘制连接线
+            slot.contacts.forEach(contact => {
+                const sat = slot.positions[contact.sat_id];
+                const gs = orbitData.ground_stations[contact.gs_id];
+
+                const entity = viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            sat.lon, sat.lat, 500000,
+                            gs.lon, gs.lat, 0
+                        ]),
+                        width: 2,
+                        material: Cesium.Color.YELLOW.withAlpha(0.6)
+                    }
+                });
+                linkEntities.push(entity);
+            });
+
+            // 更新统计
+            document.getElementById('currentSlot').textContent = slotIndex;
+            document.getElementById('linkCount').textContent = slot.contacts.length;
+        }
+
+        // 播放动画
+        function playAnimation() {
+            if (!orbitData) {
+                alert('请先加载轨道数据');
+                return;
+            }
+
+            if (animationTimer) clearInterval(animationTimer);
+
+            animationTimer = setInterval(() => {
+                currentSlot = (currentSlot + 1) % orbitData.timeslots.length;
+                updateSlot(currentSlot);
+            }, 500); // 每0.5秒一帧
+        }
+
+        // 暂停动画
+        function pauseAnimation() {
+            if (animationTimer) {
+                clearInterval(animationTimer);
+                animationTimer = null;
+            }
+        }
+
+        // 重置视角
+        function resetView() {
+            viewer.camera.flyHome(1);
+        }
+
+        // 自动加载数据
+        setTimeout(() => {
+            if (confirm('是否自动加载轨道数据？')) {
+                loadOrbitData();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
