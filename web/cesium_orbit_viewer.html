@@ -3,276 +3,651 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpaceFL 轨道可视化</title>
-    <!-- 使用unpkg CDN，更稳定 -->
-    <script src="https://unpkg.com/cesium@1.114.0/Build/Cesium/Cesium.js"></script>
-    <link href="https://unpkg.com/cesium@1.114.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <title>SpaceFL 3D 轨道视图</title>
+    <script>
+        window.CESIUM_BASE_URL = "/cesium/";
+    </script>
+    <script src="/cesium/Cesium.js"></script>
+    <link rel="stylesheet" href="/cesium/Widgets/widgets.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: #0a1929; color: white; }
-        #cesiumContainer { width: 100vw; height: 100vh; }
-        .controls {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px;
-            max-width: 300px;
+        :root {
+            color-scheme: dark;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: #02060b;
+            color: #eef6ff;
         }
-        .controls h3 { margin-bottom: 15px; color: #4fd18b; }
-        .controls button {
-            width: 100%; padding: 10px; margin: 5px 0;
-            background: #4fd18b; border: none; border-radius: 5px;
-            color: black; font-weight: bold; cursor: pointer;
+
+        * { box-sizing: border-box; }
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
         }
-        .controls button:hover { background: #3fb573; }
-        .stats {
-            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
+        button, select, input { font: inherit; }
+
+        .panel {
+            position: absolute;
+            z-index: 10;
+            border: 1px solid rgba(116, 153, 183, 0.36);
+            border-radius: 8px;
+            background: rgba(5, 12, 20, 0.9);
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.36);
+            backdrop-filter: blur(12px);
         }
-        .stats div { margin: 5px 0; }
+        .control-panel {
+            top: 16px;
+            left: 16px;
+            width: min(340px, calc(100vw - 32px));
+            padding: 16px;
+        }
+        .status-panel {
+            right: 16px;
+            bottom: 16px;
+            width: min(330px, calc(100vw - 32px));
+            padding: 14px 16px;
+        }
+        .eyebrow {
+            margin: 0 0 4px;
+            color: #67d5a4;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        h1 {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.25;
+        }
+        .subtle {
+            margin: 6px 0 14px;
+            color: #9eb3c5;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .toolbar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        button, select {
+            min-height: 36px;
+            border: 1px solid #48647b;
+            border-radius: 6px;
+            background: #122334;
+            color: #eef6ff;
+        }
+        button { cursor: pointer; }
+        button:hover {
+            border-color: #65cfa0;
+            background: #183146;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.46;
+        }
+        .primary {
+            border-color: #4bc28c;
+            background: #12613f;
+        }
+        .primary:hover { background: #17764d; }
+        .field {
+            display: grid;
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .field label {
+            color: #afc1d0;
+            font-size: 12px;
+        }
+        select {
+            width: 100%;
+            padding: 0 10px;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: #4bc28c;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .metric {
+            min-width: 0;
+            border-left: 2px solid #31556f;
+            padding-left: 8px;
+        }
+        .metric strong {
+            display: block;
+            overflow: hidden;
+            color: #f6fbff;
+            font-size: 16px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .metric span {
+            color: #849bad;
+            font-size: 11px;
+        }
+        .status-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 7px 0;
+            color: #aabcca;
+            font-size: 12px;
+        }
+        .status-value {
+            max-width: 205px;
+            color: #eef6ff;
+            font-weight: 600;
+            text-align: right;
+        }
+        .status-value.ok { color: #69d8a6; }
+        .status-value.warn { color: #ffd27b; }
+        .status-value.error { color: #ff8f8f; }
+        .notice {
+            display: none;
+            margin-top: 12px;
+            border-left: 3px solid #ffd27b;
+            padding: 8px 10px;
+            background: rgba(116, 74, 13, 0.24);
+            color: #ffe1a7;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .notice.show { display: block; }
+
+        @media (max-width: 720px) {
+            .control-panel {
+                right: 12px;
+                left: 12px;
+                width: auto;
+            }
+            .status-panel {
+                right: 12px;
+                bottom: 12px;
+                left: 12px;
+                width: auto;
+            }
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
     </style>
 </head>
 <body>
     <div id="cesiumContainer"></div>
 
-    <div class="controls">
-        <h3>🛰️ SpaceFL 轨道控制</h3>
-        <button onclick="loadOrbitData()">加载轨道数据</button>
-        <button onclick="playAnimation()">播放动画</button>
-        <button onclick="pauseAnimation()">暂停</button>
-        <button onclick="resetView()">重置视角</button>
-    </div>
+    <section class="panel control-panel" aria-label="轨道控制">
+        <p class="eyebrow">SpaceFL</p>
+        <h1>3D 卫星轨道视图</h1>
+        <p class="subtle">本地地球纹理与星空优先加载，轨道和地面站来自当前后端模型。</p>
+        <div class="toolbar">
+            <button id="loadButton" class="primary" type="button">加载数据</button>
+            <button id="playButton" type="button" disabled>播放</button>
+            <button id="pauseButton" type="button" disabled>暂停</button>
+        </div>
+        <div class="field">
+            <label for="slotSlider">时隙 <span id="slotText">0 / 0</span></label>
+            <input id="slotSlider" type="range" min="0" max="0" value="0" disabled>
+        </div>
+        <div class="field">
+            <label for="stationSelect">地面站定位与经纬度核对</label>
+            <select id="stationSelect" disabled>
+                <option value="">数据加载后可选择</option>
+            </select>
+        </div>
+        <div class="metrics">
+            <div class="metric"><strong id="satCount">0</strong><span>卫星</span></div>
+            <div class="metric"><strong id="stationCount">0</strong><span>地面站</span></div>
+            <div class="metric"><strong id="linkCount">0</strong><span>链路</span></div>
+            <div class="metric"><strong id="simTime">--:--</strong><span>UTC</span></div>
+        </div>
+        <div id="notice" class="notice" role="status"></div>
+    </section>
 
-    <div class="stats">
-        <div>卫星数: <span id="satCount">0</span></div>
-        <div>地面站: <span id="gsCount">0</span></div>
-        <div>活跃连接: <span id="linkCount">0</span></div>
-        <div>时隙: <span id="currentSlot">0</span> / <span id="totalSlots">0</span></div>
-    </div>
+    <aside class="panel status-panel" aria-label="资源状态">
+        <div class="status-row">
+            <span>地球影像</span>
+            <strong id="imageryStatus" class="status-value">正在初始化</strong>
+        </div>
+        <div class="status-row">
+            <span>大气层</span>
+            <strong id="atmosphereStatus" class="status-value">正在初始化</strong>
+        </div>
+        <div class="status-row">
+            <span>海洋效果</span>
+            <strong id="oceanStatus" class="status-value">基础海洋纹理</strong>
+        </div>
+        <div class="status-row">
+            <span>坐标校验</span>
+            <strong id="coordinateStatus" class="status-value">等待数据</strong>
+        </div>
+    </aside>
 
     <script>
-        // 初始化Cesium - 使用Bing Maps真实地球影像
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5N2U2MjcwOS00ZjJlLTQzYjYtYWM0ZC1mMmFhYTMyYzVhMzciLCJpZCI6ODQsInNjb3BlcyI6WyJhc3IiLCJnYyJdLCJpYXQiOjE1NTMxNDA4Nzh9.lCLJpAJJD-7H1CjvLBwOjbDRrQS8qPBfSc6_JWPqmVR3wnVdClH2u1r7dDsF5U8lT5ZfEh6UKdZRXzVEXgJJZQ';
+        const EARTH_ALTITUDE_METERS = 18000000;
+        const LOCAL_IMAGERY_URL = "/cesium/Assets/Textures/NaturalEarthII";
+        const LOCAL_SKYBOX_URL = "/cesium/Assets/Textures/SkyBox";
+        const API_URL = "/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2&isl_enabled=true";
 
-        const viewer = new Cesium.Viewer('cesiumContainer', {
+        const elements = {
+            loadButton: document.getElementById("loadButton"),
+            playButton: document.getElementById("playButton"),
+            pauseButton: document.getElementById("pauseButton"),
+            slotSlider: document.getElementById("slotSlider"),
+            slotText: document.getElementById("slotText"),
+            stationSelect: document.getElementById("stationSelect"),
+            satCount: document.getElementById("satCount"),
+            stationCount: document.getElementById("stationCount"),
+            linkCount: document.getElementById("linkCount"),
+            simTime: document.getElementById("simTime"),
+            notice: document.getElementById("notice"),
+            imageryStatus: document.getElementById("imageryStatus"),
+            atmosphereStatus: document.getElementById("atmosphereStatus"),
+            oceanStatus: document.getElementById("oceanStatus"),
+            coordinateStatus: document.getElementById("coordinateStatus")
+        };
+
+        function setStatus(element, text, level = "") {
+            element.textContent = text;
+            element.className = `status-value ${level}`.trim();
+        }
+
+        function showNotice(message = "") {
+            elements.notice.textContent = message;
+            elements.notice.classList.toggle("show", Boolean(message));
+        }
+
+        const localImageryProvider = Cesium.TileMapServiceImageryProvider.fromUrl(
+            LOCAL_IMAGERY_URL,
+            {
+                fileExtension: "jpg",
+                maximumLevel: 2,
+                credit: "Natural Earth II"
+            }
+        );
+
+        const viewer = new Cesium.Viewer("cesiumContainer", {
+            animation: false,
+            timeline: false,
             baseLayerPicker: false,
             geocoder: false,
-            homeButton: true,
-            sceneModePicker: true,
+            homeButton: false,
+            sceneModePicker: false,
             navigationHelpButton: false,
-            animation: false,
-            timeline: true,
             fullscreenButton: true,
-            // 使用Bing Maps卫星影像
-            imageryProvider: new Cesium.BingMapsImageryProvider({
-                url: 'https://dev.virtualearth.net',
-                key: 'AjXbINh-pTwLzaJYx-jBp6VHnJj0xE5XT7gfbXvfPqaZVUqBhNn7JrqhQmNYnB8u',
-                mapStyle: Cesium.BingMapsStyle.AERIAL_WITH_LABELS
+            infoBox: true,
+            selectionIndicator: true,
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+            baseLayer: Cesium.ImageryLayer.fromProviderAsync(localImageryProvider),
+            skyAtmosphere: new Cesium.SkyAtmosphere(),
+            skyBox: new Cesium.SkyBox({
+                sources: {
+                    positiveX: `${LOCAL_SKYBOX_URL}/tycho2t3_80_px.jpg`,
+                    negativeX: `${LOCAL_SKYBOX_URL}/tycho2t3_80_mx.jpg`,
+                    positiveY: `${LOCAL_SKYBOX_URL}/tycho2t3_80_py.jpg`,
+                    negativeY: `${LOCAL_SKYBOX_URL}/tycho2t3_80_my.jpg`,
+                    positiveZ: `${LOCAL_SKYBOX_URL}/tycho2t3_80_pz.jpg`,
+                    negativeZ: `${LOCAL_SKYBOX_URL}/tycho2t3_80_mz.jpg`
+                }
             })
         });
 
-        // 启用光照和大气效果
-        viewer.scene.globe.enableLighting = true;
-        viewer.scene.skyAtmosphere.show = true;
+        const scene = viewer.scene;
+        scene.backgroundColor = Cesium.Color.BLACK;
+        scene.globe.baseColor = Cesium.Color.fromCssColorString("#0b2438");
+        scene.globe.enableLighting = true;
+        scene.globe.dynamicAtmosphereLighting = true;
+        scene.globe.dynamicAtmosphereLightingFromSun = true;
+        scene.globe.showGroundAtmosphere = true;
+        scene.globe.showWaterEffect = true;
+        scene.globe.depthTestAgainstTerrain = false;
+        scene.highDynamicRange = true;
+        scene.fog.enabled = true;
+        scene.fog.density = 0.0002;
+        scene.sun.show = true;
+        scene.moon.show = true;
 
-        let orbitData = null;
-        let currentSlot = 0;
-        let animationTimer = null;
-        let satelliteEntities = [];
-        let gsEntities = [];
-        let linkEntities = [];
+        if (scene.skyAtmosphere) {
+            scene.skyAtmosphere.show = true;
+            scene.skyAtmosphere.atmosphereLightIntensity = 18;
+            scene.skyAtmosphere.brightnessShift = 0.05;
+            setStatus(elements.atmosphereStatus, "已启用蓝色光晕", "ok");
+        } else {
+            setStatus(elements.atmosphereStatus, "当前设备不支持", "warn");
+        }
 
-        // 加载SpaceFL轨道数据
-        async function loadOrbitData() {
-            try {
-                // 使用相对路径，从同一服务器加载
-                const response = await fetch('/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2&isl_enabled=false');
-                orbitData = await response.json();
-
-                // 更新统计
-                document.getElementById('satCount').textContent = orbitData.satellites;
-                document.getElementById('gsCount').textContent = orbitData.ground_stations.length;
-                document.getElementById('totalSlots').textContent = orbitData.timeslots.length;
-
-                // 创建地面站
-                createGroundStations();
-
-                // 显示第一个时隙
-                updateSlot(0);
-
-                alert('轨道数据加载成功！');
-            } catch (error) {
-                alert('加载失败: ' + error.message);
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(105, 23, 24000000),
+            orientation: {
+                heading: 0,
+                pitch: Cesium.Math.toRadians(-90),
+                roll: 0
             }
+        });
+
+        const state = {
+            orbitData: null,
+            currentSlot: 0,
+            timer: null,
+            stationEntities: [],
+            satelliteEntities: [],
+            linkEntities: [],
+            trajectoryEntities: []
+        };
+
+        function validateCoordinate(item, label) {
+            const lon = Number(item.lon);
+            const lat = Number(item.lat);
+            if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+                throw new Error(`${label} 的经纬度不是有效数字`);
+            }
+            if (lon < -180 || lon > 180) {
+                throw new Error(`${label} 经度 ${lon} 超出 [-180, 180]`);
+            }
+            if (lat < -90 || lat > 90) {
+                throw new Error(`${label} 纬度 ${lat} 超出 [-90, 90]`);
+            }
+            return { lon, lat };
         }
 
-        // 创建地面站标记
-        function createGroundStations() {
-            orbitData.ground_stations.forEach((gs, i) => {
-                const entity = viewer.entities.add({
-                    position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat, 10),
-                    billboard: {
-                        image: createGroundStationIcon(),
-                        scale: 0.5,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
-                    },
-                    label: {
-                        text: `GS${i}`,
-                        font: '14px sans-serif',
-                        fillColor: Cesium.Color.WHITE,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 2,
-                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        verticalOrigin: Cesium.VerticalOrigin.TOP,
-                        pixelOffset: new Cesium.Cartesian2(0, 10)
-                    }
-                });
-                gsEntities.push(entity);
-            });
+        function clearEntities(entities) {
+            for (const entity of entities) {
+                viewer.entities.remove(entity);
+            }
+            entities.length = 0;
         }
 
-        // 创建地面站图标
-        function createGroundStationIcon() {
-            const canvas = document.createElement('canvas');
+        function createStationIcon() {
+            const canvas = document.createElement("canvas");
+            canvas.width = 72;
+            canvas.height = 72;
+            const context = canvas.getContext("2d");
+            context.strokeStyle = "#ffb45b";
+            context.fillStyle = "#ff775f";
+            context.lineWidth = 5;
+            context.beginPath();
+            context.arc(36, 29, 17, Math.PI * 0.95, Math.PI * 1.85);
+            context.stroke();
+            context.beginPath();
+            context.moveTo(35, 31);
+            context.lineTo(25, 54);
+            context.lineTo(47, 54);
+            context.closePath();
+            context.fill();
+            context.fillRect(19, 55, 34, 7);
+            return canvas.toDataURL("image/png");
+        }
+
+        function createSatelliteIcon(active) {
+            const canvas = document.createElement("canvas");
             canvas.width = 64;
             canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-
-            // 绘制天线
-            ctx.fillStyle = '#ff4444';
-            ctx.beginPath();
-            ctx.moveTo(32, 10);
-            ctx.lineTo(20, 50);
-            ctx.lineTo(44, 50);
-            ctx.closePath();
-            ctx.fill();
-
-            // 绘制基座
-            ctx.fillRect(25, 50, 14, 10);
-
-            return canvas;
+            const context = canvas.getContext("2d");
+            const color = active ? "#62e6a7" : "#67c7ff";
+            context.fillStyle = color;
+            context.strokeStyle = "#edf8ff";
+            context.lineWidth = 2;
+            context.fillRect(25, 23, 14, 18);
+            context.fillRect(5, 25, 16, 14);
+            context.fillRect(43, 25, 16, 14);
+            context.strokeRect(25, 23, 14, 18);
+            context.beginPath();
+            context.moveTo(32, 13);
+            context.lineTo(32, 23);
+            context.stroke();
+            return canvas.toDataURL("image/png");
         }
 
-        // 创建卫星图标
-        function createSatelliteIcon(active) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 48;
-            canvas.height = 48;
-            const ctx = canvas.getContext('2d');
+        const stationIcon = createStationIcon();
+        const inactiveSatelliteIcon = createSatelliteIcon(false);
+        const activeSatelliteIcon = createSatelliteIcon(true);
 
-            ctx.fillStyle = active ? '#00ff88' : '#3498db';
+        function renderGroundStations() {
+            clearEntities(state.stationEntities);
+            elements.stationSelect.innerHTML = '<option value="">选择一个地面站</option>';
 
-            // 卫星主体
-            ctx.fillRect(18, 18, 12, 12);
-
-            // 太阳能板
-            ctx.fillRect(5, 20, 10, 8);
-            ctx.fillRect(33, 20, 10, 8);
-
-            // 天线
-            ctx.beginPath();
-            ctx.moveTo(24, 10);
-            ctx.lineTo(24, 18);
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            return canvas;
-        }
-
-        // 更新时隙显示
-        function updateSlot(slotIndex) {
-            if (!orbitData) return;
-
-            currentSlot = slotIndex;
-            const slot = orbitData.timeslots[slotIndex];
-
-            // 清除旧的卫星和连接
-            satelliteEntities.forEach(e => viewer.entities.remove(e));
-            linkEntities.forEach(e => viewer.entities.remove(e));
-            satelliteEntities = [];
-            linkEntities = [];
-
-            // 绘制卫星
-            slot.positions.forEach((sat, i) => {
-                const hasContact = slot.contacts.some(c => c.sat_id === i);
-
+            state.orbitData.ground_stations.forEach((station, index) => {
+                const { lon, lat } = validateCoordinate(station, station.name || `GS-${index}`);
+                const altitudeMeters = Number(station.alt_km || 0) * 1000;
                 const entity = viewer.entities.add({
-                    position: Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 500000), // 500km高度
+                    id: `ground-station-${station.id ?? index}`,
+                    name: station.name || `GS-${index}`,
+                    description: [
+                        `<p><strong>经度：</strong>${lon.toFixed(4)}°</p>`,
+                        `<p><strong>纬度：</strong>${lat.toFixed(4)}°</p>`,
+                        `<p><strong>海拔：</strong>${(altitudeMeters / 1000).toFixed(3)} km</p>`
+                    ].join(""),
+                    position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeMeters),
                     billboard: {
-                        image: createSatelliteIcon(hasContact),
-                        scale: 0.6,
-                        verticalOrigin: Cesium.VerticalOrigin.CENTER
+                        image: stationIcon,
+                        width: 34,
+                        height: 34,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
                     },
                     label: {
-                        text: `S${i}`,
-                        font: '12px sans-serif',
+                        text: station.name || `GS-${index}`,
+                        font: "13px Segoe UI",
                         fillColor: Cesium.Color.WHITE,
                         outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 2,
+                        outlineWidth: 3,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.TOP,
-                        pixelOffset: new Cesium.Cartesian2(0, 20)
+                        pixelOffset: new Cesium.Cartesian2(0, 8),
+                        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 16000000),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
                     }
                 });
-                satelliteEntities.push(entity);
+                state.stationEntities.push(entity);
+
+                const option = document.createElement("option");
+                option.value = String(index);
+                option.textContent = `${station.name}  ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+                elements.stationSelect.appendChild(option);
             });
+        }
 
-            // 绘制连接线
-            slot.contacts.forEach(contact => {
-                const sat = slot.positions[contact.sat_id];
-                const gs = orbitData.ground_stations[contact.gs_id];
+        function renderTrajectories() {
+            clearEntities(state.trajectoryEntities);
+            const satelliteCount = state.orbitData.satellites;
 
-                const entity = viewer.entities.add({
+            for (let satelliteId = 0; satelliteId < satelliteCount; satelliteId += 1) {
+                const coordinates = [];
+                for (const slot of state.orbitData.timeslots) {
+                    const satellite = slot.positions[satelliteId];
+                    if (!satellite) continue;
+                    const { lon, lat } = validateCoordinate(satellite, `SAT-${satelliteId}`);
+                    coordinates.push(lon, lat, Number(satellite.alt_km || 0) * 1000);
+                }
+                const hue = satelliteId / Math.max(1, satelliteCount);
+                state.trajectoryEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(coordinates),
+                        width: 1.2,
+                        material: Cesium.Color.fromHsl(hue, 0.74, 0.58, 0.32),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+        }
+
+        function renderSlot(slotIndex) {
+            if (!state.orbitData) return;
+            const normalizedIndex = Math.max(
+                0,
+                Math.min(Number(slotIndex), state.orbitData.timeslots.length - 1)
+            );
+            state.currentSlot = normalizedIndex;
+            const slot = state.orbitData.timeslots[normalizedIndex];
+            clearEntities(state.satelliteEntities);
+            clearEntities(state.linkEntities);
+
+            const activeSatellites = new Set((slot.contacts || []).map((contact) => contact.sat_id));
+            for (const satellite of slot.positions) {
+                const { lon, lat } = validateCoordinate(satellite, `SAT-${satellite.sat_id}`);
+                const altitudeMeters = Number(satellite.alt_km || 0) * 1000;
+                const active = activeSatellites.has(satellite.sat_id);
+                state.satelliteEntities.push(viewer.entities.add({
+                    id: `satellite-${satellite.sat_id}`,
+                    name: `SAT-${String(satellite.sat_id).padStart(2, "0")}`,
+                    position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeMeters),
+                    billboard: {
+                        image: active ? activeSatelliteIcon : inactiveSatelliteIcon,
+                        width: 30,
+                        height: 30,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: `S${satellite.sat_id}`,
+                        font: "12px Segoe UI",
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 3,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, 20),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                }));
+            }
+
+            for (const contact of slot.contacts || []) {
+                const satellite = slot.positions[contact.sat_id];
+                const station = state.orbitData.ground_stations[contact.gs_id];
+                if (!satellite || !station) continue;
+                state.linkEntities.push(viewer.entities.add({
                     polyline: {
                         positions: Cesium.Cartesian3.fromDegreesArrayHeights([
-                            sat.lon, sat.lat, 500000,
-                            gs.lon, gs.lat, 0
+                            station.lon, station.lat, Number(station.alt_km || 0) * 1000,
+                            satellite.lon, satellite.lat, Number(satellite.alt_km || 0) * 1000
                         ]),
                         width: 2,
-                        material: Cesium.Color.YELLOW.withAlpha(0.6)
+                        material: Cesium.Color.fromCssColorString("#ffd166").withAlpha(0.78),
+                        arcType: Cesium.ArcType.NONE
                     }
+                }));
+            }
+
+            for (const link of slot.isl_links || []) {
+                const first = slot.positions[link.a_id];
+                const second = slot.positions[link.b_id];
+                if (!first || !second) continue;
+                state.linkEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            first.lon, first.lat, Number(first.alt_km || 0) * 1000,
+                            second.lon, second.lat, Number(second.alt_km || 0) * 1000
+                        ]),
+                        width: 1.4,
+                        material: Cesium.Color.fromCssColorString("#ff7d68").withAlpha(0.64),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+
+            elements.slotSlider.value = String(normalizedIndex);
+            elements.slotText.textContent = `${normalizedIndex + 1} / ${state.orbitData.timeslots.length}`;
+            elements.linkCount.textContent = String(
+                (slot.contacts || []).length + (slot.isl_links || []).length
+            );
+            elements.simTime.textContent = new Date(slot.time).toISOString().slice(11, 16);
+        }
+
+        async function loadOrbitData() {
+            elements.loadButton.disabled = true;
+            elements.loadButton.textContent = "加载中";
+            showNotice("");
+            try {
+                const response = await fetch(API_URL, { cache: "no-store" });
+                if (!response.ok) throw new Error(`轨道接口返回 HTTP ${response.status}`);
+                const data = await response.json();
+                if (!Array.isArray(data.ground_stations) || !Array.isArray(data.timeslots)) {
+                    throw new Error("轨道接口返回的数据结构不完整");
+                }
+                for (const [index, station] of data.ground_stations.entries()) {
+                    validateCoordinate(station, station.name || `GS-${index}`);
+                }
+                for (const [slotIndex, slot] of data.timeslots.entries()) {
+                    for (const satellite of slot.positions || []) {
+                        validateCoordinate(satellite, `时隙 ${slotIndex} 卫星 ${satellite.sat_id}`);
+                    }
+                }
+
+                state.orbitData = data;
+                elements.satCount.textContent = String(data.satellites);
+                elements.stationCount.textContent = String(data.ground_stations.length);
+                elements.slotSlider.max = String(Math.max(0, data.timeslots.length - 1));
+                elements.slotSlider.disabled = false;
+                elements.stationSelect.disabled = false;
+                elements.playButton.disabled = false;
+                elements.pauseButton.disabled = false;
+                renderGroundStations();
+                renderTrajectories();
+                renderSlot(0);
+                setStatus(elements.coordinateStatus, `${data.ground_stations.length} 个基站全部有效`, "ok");
+            } catch (error) {
+                console.error(error);
+                setStatus(elements.coordinateStatus, "数据校验失败", "error");
+                showNotice(`轨道数据加载失败：${error.message}`);
+            } finally {
+                elements.loadButton.disabled = false;
+                elements.loadButton.textContent = "重新加载";
+            }
+        }
+
+        function play() {
+            if (!state.orbitData || state.timer) return;
+            state.timer = window.setInterval(() => {
+                renderSlot((state.currentSlot + 1) % state.orbitData.timeslots.length);
+            }, 420);
+        }
+
+        function pause() {
+            if (!state.timer) return;
+            window.clearInterval(state.timer);
+            state.timer = null;
+        }
+
+        elements.loadButton.addEventListener("click", loadOrbitData);
+        elements.playButton.addEventListener("click", play);
+        elements.pauseButton.addEventListener("click", pause);
+        elements.slotSlider.addEventListener("input", (event) => {
+            pause();
+            renderSlot(Number(event.target.value));
+        });
+        elements.stationSelect.addEventListener("change", () => {
+            const stationIndex = Number(elements.stationSelect.value);
+            if (!Number.isInteger(stationIndex) || stationIndex < 0) return;
+            const station = state.orbitData.ground_stations[stationIndex];
+            viewer.selectedEntity = state.stationEntities[stationIndex];
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(station.lon, station.lat, 2500000),
+                duration: 1.2
+            });
+        });
+
+        localImageryProvider
+            .then((provider) => {
+                provider.errorEvent.addEventListener((error) => {
+                    console.error("Natural Earth imagery error", error);
+                    setStatus(elements.imageryStatus, "部分瓦片加载失败", "warn");
+                    showNotice("本地地球影像有瓦片加载失败，已保留基础地球颜色。");
                 });
-                linkEntities.push(entity);
+                setStatus(elements.imageryStatus, "Natural Earth II 本地纹理", "ok");
+            })
+            .catch((error) => {
+                console.error("Imagery initialization error", error);
+                setStatus(elements.imageryStatus, "已回退基础地球颜色", "warn");
+                showNotice("本地地球纹理未能初始化，已自动回退到基础地球颜色。");
             });
 
-            // 更新统计
-            document.getElementById('currentSlot').textContent = slotIndex;
-            document.getElementById('linkCount').textContent = slot.contacts.length;
-        }
-
-        // 播放动画
-        function playAnimation() {
-            if (!orbitData) {
-                alert('请先加载轨道数据');
-                return;
-            }
-
-            if (animationTimer) clearInterval(animationTimer);
-
-            animationTimer = setInterval(() => {
-                currentSlot = (currentSlot + 1) % orbitData.timeslots.length;
-                updateSlot(currentSlot);
-            }, 500); // 每0.5秒一帧
-        }
-
-        // 暂停动画
-        function pauseAnimation() {
-            if (animationTimer) {
-                clearInterval(animationTimer);
-                animationTimer = null;
-            }
-        }
-
-        // 重置视角
-        function resetView() {
-            viewer.camera.flyHome(1);
-        }
-
-        // 自动加载数据
-        setTimeout(() => {
-            if (confirm('是否自动加载轨道数据？')) {
-                loadOrbitData();
-            }
-        }, 1000);
+        setStatus(elements.oceanStatus, "Natural Earth 海洋 + 光照", "ok");
+        loadOrbitData();
     </script>
 </body>
 </html>

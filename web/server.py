@@ -24,6 +24,7 @@ import uvicorn
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = Path(__file__).resolve().parent
+CESIUM_DIR = PROJECT_DIR / "node_modules" / "cesium" / "Build" / "Cesium"
 SESSION_FILE = PROJECT_DIR / ".fls_session.json"
 VALIDATION_SCRIPT = PROJECT_DIR / "scripts" / "validate_fedleo_offloading.py"
 
@@ -402,6 +403,7 @@ def build_orbit_data(
             "name": station.name,
             "lat": station.lat_deg,
             "lon": station.lon_deg,
+            "alt_km": station.altitude_km,
         }
         for index, station in enumerate(sim.ground_network)
     ]
@@ -466,6 +468,11 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
+    if not CESIUM_DIR.exists():
+        raise RuntimeError(
+            "Cesium local assets are missing. Run `npm install` in the project directory."
+        )
+    app.mount("/cesium", StaticFiles(directory=CESIUM_DIR), name="cesium")
 
     @app.get("/cesium_orbit_viewer.html")
     async def cesium_viewer():
