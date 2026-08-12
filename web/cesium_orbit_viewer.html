@@ -49,19 +49,32 @@
     </div>
 
     <script>
-        // 初始化Cesium - 使用师兄的token
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzl1NilslnR5cCI6IkpXVCJ9.eyJ';
+        // 初始化Cesium - 使用真实地球影像
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5N2U2MjcwOS00ZjJlLTQzYjYtYWM0ZC1mMmFhYTMyYzVhMzciLCJpZCI6ODQsInNjb3BlcyI6WyJhc3IiLCJnYyJdLCJpYXQiOjE1NTMxNDA4Nzh9.lCLJpAJJD-7H1CjvLBwOjbDRrQS8qPBfSc6_JWPqmVR3wnVdClH2u1r7dDsF5U8lT5ZfEh6UKdZRXzVEXgJJZQ';
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             baseLayerPicker: false,
             geocoder: false,
-            homeButton: false,
-            sceneModePicker: false,
+            homeButton: true,
+            sceneModePicker: true,
             navigationHelpButton: false,
             animation: false,
             timeline: true,
-            fullscreenButton: false,
-            imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 }) // 使用Cesium默认地球影像
+            fullscreenButton: true,
+            imageryProvider: new Cesium.TileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            }),
+            skyBox: new Cesium.SkyBox({
+                sources: {
+                    positiveX: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_px.jpg',
+                    negativeX: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_mx.jpg',
+                    positiveY: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_py.jpg',
+                    negativeY: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_my.jpg',
+                    positiveZ: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_pz.jpg',
+                    negativeZ: 'https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Assets/Textures/SkyBox/tycho2t3_80_mz.jpg'
+                }
+            }),
+            skyAtmosphere: new Cesium.SkyAtmosphere()
         });
 
         viewer.scene.globe.enableLighting = true;
