@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "cesium": "^1.144.0",
+    "satellite.js": "^7.1.0"
+  }
+}
