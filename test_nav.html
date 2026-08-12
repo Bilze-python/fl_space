@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>导航测试</title>
+<style>
+.nav-item { padding: 10px; margin: 5px; cursor: pointer; background: #ddd; }
+.nav-item.active { background: #4CAF50; color: white; }
+.view { display: none; padding: 20px; border: 1px solid #ccc; }
+.view.active { display: block; }
+</style>
+</head>
+<body>
+<h1>简单导航测试</h1>
+
+<div style="display: flex; gap: 20px;">
+  <div style="width: 200px;">
+    <h3>导航</h3>
+    <div class="nav-item active" data-view="overview">总览</div>
+    <div class="nav-item" data-view="experiments">实验档案</div>
+    <div class="nav-item" data-view="orbit">轨道视图</div>
+  </div>
+  
+  <div style="flex: 1;">
+    <h3>内容区</h3>
+    <div class="view active" id="view-overview">这是总览页面</div>
+    <div class="view" id="view-experiments">这是实验档案页面</div>
+    <div class="view" id="view-orbit">这是轨道视图页面</div>
+  </div>
+</div>
+
+<script>
+function setView(name) {
+  console.log('Switching to:', name);
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.view === name);
+  });
+  document.querySelectorAll('.view').forEach(view => {
+    view.classList.toggle('active', view.id === 'view-' + name);
+  });
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const view = item.dataset.view;
+    console.log('Clicked:', view);
+    setView(view);
+  });
+});
+
+console.log('Navigation test ready');
+</script>
+</body>
+</html>

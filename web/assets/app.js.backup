@@ -398,11 +398,10 @@ async function loadOrbit() {
 }
 
 function drawOrbit() {
-  // 使用2D视图
-  if (window.draw2DOrbit && state.orbit) {
-    window.draw2DOrbit("orbit-canvas-2d", state.orbit);
-  }
-}
+  const canvas = $("#orbit-canvas");
+  if (!canvas || !state.orbit) return;
+  resizeCanvas(canvas);
+  const ctx = canvas.getContext("2d");
   const w = canvas.width, h = canvas.height;
   const ratio = window.devicePixelRatio || 1;
   ctx.clearRect(0, 0, w, h);

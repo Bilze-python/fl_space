@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-08-12T12:02:25.081086",
+  "algorithm": "FedProxSat (adaptive μ)",
+  "dataset": "mnist",
+  "distribution": "non-IID (2 classes per satellite, sliding window)",
+  "satellites": 10,
+  "altitudes_km": "350-800 heterogeneous",
+  "inclination": 53.0,
+  "ground_stations": 2,
+  "selector": "CappedSelector(max_count=2)",
+  "mu": 0.01,
+  "adaptive_mu": true,
+  "mu_min": 0.001,
+  "mu_max": 1.0,
+  "oscillation_threshold": 0.1,
+  "stability_threshold": 0.03,
+  "local_epochs": 5,
+  "batch_size": 32,
+  "learning_rate": 0.01,
+  "max_rounds": 300,
+  "early_stop_acc": 0.9,
+  "device": "cpu",
+  "seed": 42,
+  "orbit_stats": {
+    "contact_rate": 0.04870039682539683,
+    "total_contacts": 4909,
+    "sim_duration_h": 168.0,
+    "timeslot_min": 1.0
+  }
+}
