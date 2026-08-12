@@ -1,13 +1,3 @@
-"""
-SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
-参考: https://github.com/Flowm/satvis
-
-使用说明:
-1. 安装依赖: npm install cesium satellite.js
-2. 运行: python -m http.server 8000
-3. 访问: http://localhost:8000/cesium_orbit_viewer.html
-"""
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -59,19 +49,19 @@ SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
     </div>
 
     <script>
-        // 初始化Cesium
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzl1NilslnR5cCI6IkpXVCJ9.eyJ'; // 你师兄提供的token
+        // 初始化Cesium - 使用师兄的token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzl1NilslnR5cCI6IkpXVCJ9.eyJ';
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain(),
-            animation: false,
-            timeline: true,
             baseLayerPicker: false,
             geocoder: false,
             homeButton: false,
             sceneModePicker: false,
             navigationHelpButton: false,
-            fullscreenButton: false
+            animation: false,
+            timeline: true,
+            fullscreenButton: false,
+            imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 }) // 使用Cesium默认地球影像
         });
 
         viewer.scene.globe.enableLighting = true;
@@ -111,12 +101,11 @@ SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
         function createGroundStations() {
             orbitData.ground_stations.forEach((gs, i) => {
                 const entity = viewer.entities.add({
-                    position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat),
-                    point: {
-                        pixelSize: 15,
-                        color: Cesium.Color.RED,
-                        outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 2
+                    position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat, 10),
+                    billboard: {
+                        image: createGroundStationIcon(),
+                        scale: 0.5,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
                     },
                     label: {
                         text: `GS${i}`,
@@ -125,12 +114,61 @@ SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
                         outlineColor: Cesium.Color.BLACK,
                         outlineWidth: 2,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -20)
+                        verticalOrigin: Cesium.VerticalOrigin.TOP,
+                        pixelOffset: new Cesium.Cartesian2(0, 10)
                     }
                 });
                 gsEntities.push(entity);
             });
+        }
+
+        // 创建地面站图标
+        function createGroundStationIcon() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            // 绘制天线
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.moveTo(32, 10);
+            ctx.lineTo(20, 50);
+            ctx.lineTo(44, 50);
+            ctx.closePath();
+            ctx.fill();
+
+            // 绘制基座
+            ctx.fillRect(25, 50, 14, 10);
+
+            return canvas;
+        }
+
+        // 创建卫星图标
+        function createSatelliteIcon(active) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 48;
+            canvas.height = 48;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = active ? '#00ff88' : '#3498db';
+
+            // 卫星主体
+            ctx.fillRect(18, 18, 12, 12);
+
+            // 太阳能板
+            ctx.fillRect(5, 20, 10, 8);
+            ctx.fillRect(33, 20, 10, 8);
+
+            // 天线
+            ctx.beginPath();
+            ctx.moveTo(24, 10);
+            ctx.lineTo(24, 18);
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            return canvas;
         }
 
         // 更新时隙显示
@@ -149,15 +187,13 @@ SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
             // 绘制卫星
             slot.positions.forEach((sat, i) => {
                 const hasContact = slot.contacts.some(c => c.sat_id === i);
-                const color = hasContact ? Cesium.Color.LIME : Cesium.Color.CYAN;
 
                 const entity = viewer.entities.add({
                     position: Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 500000), // 500km高度
-                    point: {
-                        pixelSize: 12,
-                        color: color,
-                        outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 2
+                    billboard: {
+                        image: createSatelliteIcon(hasContact),
+                        scale: 0.6,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER
                     },
                     label: {
                         text: `S${i}`,
@@ -167,7 +203,7 @@ SpaceFL 轨道可视化 - 基于Cesium.js的专业方案
                         outlineWidth: 2,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.TOP,
-                        pixelOffset: new Cesium.Cartesian2(0, 15)
+                        pixelOffset: new Cesium.Cartesian2(0, 20)
                     }
                 });
                 satelliteEntities.push(entity);
