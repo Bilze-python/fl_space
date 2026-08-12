@@ -39,7 +39,6 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fl_space.environment import CelestialBody, GroundStation, GroundStationNetwork
-from fl_space.viz.i18n import setup_cjk_font, t, tf
 from fl_space.fl.fedavg import (
     CappedSelector,
     FixedEpochTrainer,
@@ -51,6 +50,7 @@ from fl_space.fl.scheduler import CommunicationScheduler
 from fl_space.fl.server import FLConfig
 from fl_space.orbit import KeplerOrbit, create_circular_orbit
 from fl_space.simulator import OrbitSimulator
+from fl_space.viz.i18n import setup_cjk_font, t, tf
 
 # matplotlib
 try:

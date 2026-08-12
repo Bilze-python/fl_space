@@ -31,12 +31,11 @@ SpaceFL — FedAvg vs FedProx 对比实验
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
 import json
 import os
 import sys
 import time as _time
-from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 
@@ -48,9 +47,8 @@ from fl_space.fl.fedavg import (
     FixedEpochTrainer,
     StandardEvaluator,
     SyncWeightedAggregator,
-    create_fedavg_components,
 )
-from fl_space.fl.fedprox import ProximalTrainer, create_fedprox_components
+from fl_space.fl.fedprox import ProximalTrainer
 from fl_space.fl.runner import FLRunner
 from fl_space.fl.scheduler import CommunicationScheduler
 from fl_space.fl.server import FLConfig
@@ -96,7 +94,7 @@ def create_uniform_orbits(
     inclination_deg: float = 53.0,
     raan_deg: float = 0.0,
 ):
-    from fl_space.orbit import KeplerOrbit, create_circular_orbit
+    from fl_space.orbit import create_circular_orbit
 
     orbits = []
     for i in range(n_sats):
@@ -361,7 +359,7 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, "accuracy_comparison.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  [图表] accuracy_comparison.png")
+    print("  [图表] accuracy_comparison.png")
 
     # ── 3. 柱状图对比 ──
     fig, (ax3, ax4) = plt.subplots(1, 2, figsize=(14, 5))
@@ -411,7 +409,7 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, "summary_bars.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  [图表] summary_bars.png")
+    print("  [图表] summary_bars.png")
 
 
 # ── 主流程 ─────────────────────────────────────────────────────
@@ -489,7 +487,7 @@ def main():
     # FedAvg
     if not quiet:
         print(f"\n{'─' * 50}")
-        print(f"  [1/3] FedAvg")
+        print("  [1/3] FedAvg")
         print(f"{'─' * 50}")
 
     r_avg = run_one(
@@ -620,7 +618,7 @@ def main():
     # ── 6. 终端报告 ──
     if not quiet:
         print(f"\n{'=' * 70}")
-        print(f"  对比结果汇总")
+        print("  对比结果汇总")
         print(f"{'=' * 70}")
         print(f"  {'算法':<20} {'最终Acc':>8} {'最高Acc':>8} {'平均Acc':>8} {'标准差':>8} {'耗时':>8}")
         print(f"  {'─' * 60}")
@@ -638,14 +636,14 @@ def main():
                       f"({'提升' if gain >= 0 else '下降'} {abs(gain)*100:.2f}%)")
 
         print(f"\n  输出目录: {os.path.abspath(args.output)}/")
-        print(f"    summary.json              — 完整对比汇总")
-        print(f"    contact_stats.json        — 接触统计")
+        print("    summary.json              — 完整对比汇总")
+        print("    contact_stats.json        — 接触统计")
         for r in results:
             fname = r.name.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("=", "")
             print(f"    {fname}_history.json  — {r.name} 逐轮记录")
         if HAS_MPL:
-            print(f"    accuracy_comparison.png   — 准确率对比图")
-            print(f"    summary_bars.png          — 汇总柱状图")
+            print("    accuracy_comparison.png   — 准确率对比图")
+            print("    summary_bars.png          — 汇总柱状图")
         print(f"{'=' * 70}")
 
     return 0

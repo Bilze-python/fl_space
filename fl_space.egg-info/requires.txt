@@ -10,3 +10,7 @@ skyfield>=1.48
 
 [skyfield]
 skyfield>=1.48
+
+[web]
+fastapi>=0.110
+uvicorn[standard]>=0.29

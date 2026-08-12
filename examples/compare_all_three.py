@@ -26,12 +26,11 @@ SpaceFL 三算法对比实验 — FedAvg / FedProx / FedBuff
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
 import json
 import os
 import sys
 import time as _time
-from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 
@@ -44,7 +43,7 @@ from fl_space.fl.fedavg import (
     StandardEvaluator,
     SyncWeightedAggregator,
 )
-from fl_space.fl.fedbuff import AsyncTrainer, BufferAggregator, AsyncSelector
+from fl_space.fl.fedbuff import AsyncSelector, AsyncTrainer, BufferAggregator
 from fl_space.fl.fedprox import ProximalTrainer
 from fl_space.fl.runner import FLRunner
 from fl_space.fl.scheduler import CommunicationScheduler
@@ -406,7 +405,7 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     fig.savefig(os.path.join(output_dir, "summary_bars.png"), dpi=150)
     plt.close(fig)
 
-    print(f"  [图表] accuracy_comparison.png + summary_bars.png")
+    print("  [图表] accuracy_comparison.png + summary_bars.png")
 
 
 # ── 主流程 ─────────────────────────────────────────────────────
@@ -550,7 +549,7 @@ def main():
     # ── 终端报告 ──
     if not quiet:
         print(f"\n{'=' * 70}")
-        print(f"  三算法对比结果")
+        print("  三算法对比结果")
         print(f"{'=' * 70}")
         header = f"  {'算法':<12} {'最高Acc':>8} {'最终Acc':>8} {'最终时隙':>8} {'客户端更新':>10} {'陈旧度':>8}"
         print(header)

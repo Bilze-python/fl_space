@@ -1,14 +1,14 @@
 """
 快速验证脚本 — 测试所有模块的基本功能
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fl_space.environment import CelestialBody, GroundStationNetwork, create_default_network
-from fl_space.orbit import KeplerOrbit, ConstellationConfig, create_circular_orbit, generate_walker_phases, generate_cluster_phases
-from fl_space.simulator import OrbitSimulator, create_default_simulator, create_mars_simulator
-from fl_space.config.defaults import BODY_PRESETS, CONSTELLATION_PRESETS
+from fl_space.environment import CelestialBody, create_default_network
+from fl_space.orbit import create_circular_orbit, generate_cluster_phases, generate_walker_phases
+from fl_space.simulator import OrbitSimulator, create_mars_simulator
 
 print('=== 基础导入成功 ===')
 

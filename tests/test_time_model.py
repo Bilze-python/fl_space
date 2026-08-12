@@ -8,9 +8,8 @@
     4. 时间分解输出正确
     5. CLI --time-model 参数可用
 """
-import sys
 import os
-import json
+import sys
 import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,12 +33,12 @@ def test_model(
 ):
     """运行一次 FL 训练并返回结果和服务器引用。"""
     from fl_space.environment import CelestialBody, GroundStationNetwork
-    from fl_space.orbit import create_circular_orbit
-    from fl_space.simulator import OrbitSimulator
-    from fl_space.fl.scheduler import CommunicationScheduler
-    from fl_space.fl.server import FLConfig, FLServer
     from fl_space.fl.fedprox import create_fedprox_components
     from fl_space.fl.runner import FLRunner
+    from fl_space.fl.scheduler import CommunicationScheduler
+    from fl_space.fl.server import FLConfig
+    from fl_space.orbit import create_circular_orbit
+    from fl_space.simulator import OrbitSimulator
 
     print(f"\n{'=' * 60}")
     print(f"  测试: {label}")
@@ -150,7 +149,7 @@ if server1 is not None and history1:
     # 验证时间模型名称
     check("时间模型名称=solt", server1.time_model.name == "slot")
 
-    print(f"\n  结果摘要:")
+    print("\n  结果摘要:")
     for r in history1:
         bd = r.time_breakdown or {}
         print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
@@ -176,7 +175,7 @@ if server2 is not None and history2:
     check("训练完成", len(history2) > 0)
     check("训练时间>0", all(r.time_breakdown.get("train", 0) > 0 for r in history2))
 
-    print(f"\n  结果摘要:")
+    print("\n  结果摘要:")
     for r in history2:
         bd = r.time_breakdown or {}
         print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
@@ -203,7 +202,7 @@ if server3 is not None and history3:
     check("下载时间>0", any(r.time_breakdown.get("download", 0) > 0 for r in history3))
     check("上传时间>0", any(r.time_breakdown.get("upload", 0) > 0 for r in history3))
 
-    print(f"\n  结果摘要:")
+    print("\n  结果摘要:")
     for r in history3:
         bd = r.time_breakdown or {}
         print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
@@ -236,7 +235,7 @@ if server4 is not None and history4:
     check("时间模型名称=physics", server4.time_model.name == "physics")
     check("时间分解存在", all(r.time_breakdown is not None for r in history4))
 
-    print(f"\n  结果摘要:")
+    print("\n  结果摘要:")
     for r in history4:
         bd = r.time_breakdown or {}
         print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
@@ -252,7 +251,7 @@ print("\n" + "=" * 60)
 print(" 测试 5/5: TimeModel 工厂方法")
 print("=" * 60)
 
-from fl_space.fl.time_model import TimeModel, SlotTimeModel, PhysicsTimeModel, TimeBreakdown
+from fl_space.fl.time_model import PhysicsTimeModel, SlotTimeModel, TimeBreakdown, TimeModel
 
 # 内置创建
 tm_slot = TimeModel.create("slot", slots_per_epoch=2)

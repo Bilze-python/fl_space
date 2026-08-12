@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
+import shutil
 
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
-
+import matplotlib.pyplot as plt
+import numpy as np
 
 ROOT = Path(r"D:\fl_space")
 SOURCE_DOCX_PATH = ROOT / "SpaceFL_人机协作论文报告.docx"
@@ -320,7 +320,7 @@ def build_summary_figure(path: Path, grid_data: list[dict]) -> None:
         "12 组 FedAvg 网格对比，GS∈{2,4,6,8}，SAT∈{3,5,7}。",
         "",
         "关键结果：",
-        f"1. 接触率由 6.8% 提升至 24.2%，与 GS 基本线性相关。",
+        "1. 接触率由 6.8% 提升至 24.2%，与 GS 基本线性相关。",
         f"2. 最高准确率最佳为 GS={best_item['gs_count']}, SAT={best_item['sat_count']}，达到 {best_item['max_acc'] * 100:.2f}%。",
         f"3. 最终准确率最佳为 GS={best_final['gs_count']}, SAT={best_final['sat_count']}，达到 {best_final['final_acc'] * 100:.2f}%。",
         "4. 峰值与最终值存在明显落差，说明极端 non-IID 下仍有震荡。",

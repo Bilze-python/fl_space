@@ -39,8 +39,8 @@ def setup_cjk_font() -> None:
         return
 
     try:
-        import matplotlib.pyplot as plt
         import matplotlib.font_manager as fm
+        import matplotlib.pyplot as plt
     except ImportError:
         return
 

@@ -1,78 +1,47 @@
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
 *.egg-info/
 dist/
 build/
-*.egg
+
+# Virtual environments
 venv/
-.venv/
 env/
-.idea/
+ENV/
+
+# IDE
 .vscode/
+.idea/
 *.swp
 *.swo
-output/
-demo_output/
-experiment_output/
-results/
-.fls_session.json
+
+# OS
 .DS_Store
 Thumbs.db
-.ipynb_checkpoints/
-data/
-*.pth
-*.pt
-compare_output/
-compare_three_output/
-algorithm_validation_output/
-fedleo_output/
-tmp/
-*.zip
-*.docx
-*.tar.gz
-*.png
 
-# 临时分析/验证脚本
-_master_*.py
-_pr2_*.py
-_verify_*.py
-_quick_*.py
-_run_*.py
-_smoke_*.py
-docx_outline_utf8.txt
-tmp_page_*.png
+# Project specific
+.fls_session.json
+*.log
+.pytest_cache/
+.ruff_cache/
+.codebuddy/
 
-# 实验输出目录
-fedleo_smoke_test/
-fedleo_vs_baseline/
-lins_result/
-docs/generated_report_assets/
+# Experimental outputs (keep structure, ignore data)
+experiments/*/
+!experiments/.gitkeep
+reports/*/
+!reports/.gitkeep
 
-# 文献PDF（大型二进制文件）
-文献/*.pdf
-
-# 测试输出/重定向残留
-pytest_out.txt
-verify_out.txt
-tm_out.txt
-cli_out.txt
-cli_run.txt
-cli_test_report.txt
-smoke_out.txt
-demo_out.txt
-fedleo_out.txt
-ruff_out.txt
-ruff_chk.txt
-_git_installer.exe
-._*_out.txt
-
-# Web 服务日志与缓存
-web/*.log
-web/__pycache__/
-
-# 二进制文件（README 禁止提交）
+# Large data files
+*.bsp
 de421.bsp
-*.pkl
-
-# 本地 IDE 配置
-.claude/
+_git_installer.exe
+data/MNIST/raw/
+data/FashionMNIST/raw/
+data/CIFAR10/
+*.tar.gz
+*.zip

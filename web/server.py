@@ -77,6 +77,8 @@ def _load_session() -> dict[str, dict[str, Any]]:
 def _scan_experiments() -> list[dict[str, Any]]:
     candidates: list[Path] = []
     for pattern in (
+        "experiments/validation_results/*/validation_summary.json",
+        "experiments/test_outputs/*/comparison_summary.json",
         "fedleo_local_validation*/validation_summary.json",
         "fedleo_result_1/comparison_summary.json",
         "fedleo_test_output/comparison_summary.json",

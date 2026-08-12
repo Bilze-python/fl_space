@@ -389,33 +389,50 @@ async function loadOrbit() {
     $("#orbit-slider").value = 0;
     $("#orbit-sats").textContent = state.orbit.satellites;
     $("#orbit-gs").textContent = state.orbit.ground_stations.length;
+    const islInfo = $("#orbit-isl-info");
+    if (islInfo) {
+      islInfo.textContent = state.orbit.isl_enabled ? "ISL 已启用" : "";
+    }
     $("#orbit-status").textContent = "轨道已加载";
-    drawOrbit();
+    updateOrbitView();
   } catch (error) {
     $("#orbit-status").textContent = "生成失败";
     toast(error.message, "error");
   }
 }
 
+function updateOrbitView() {
+  if (!state.orbit || !state.orbit.timeslots) return;
+
+  const mode = document.querySelector('input[name="orbit-mode"]:checked')?.value || "2d";
+  const slot = state.orbit.timeslots[state.orbitSlot];
+
+  const canvas2d = $("#orbit-canvas-2d");
+  const canvas3d = $("#orbit-canvas-3d");
+
+  if (mode === "2d") {
+    if (canvas2d) canvas2d.classList.remove("hidden");
+    if (canvas3d) canvas3d.classList.add("hidden");
+    if (window.draw2DOrbit && canvas2d) {
+      window.draw2DOrbit("orbit-canvas-2d", state.orbit);
+    }
+  } else {
+    if (canvas2d) canvas2d.classList.add("hidden");
+    if (canvas3d) {
+      canvas3d.classList.remove("hidden");
+      canvas3d.innerHTML = "<div class='empty-state' style='padding:100px 20px'>3D 地球视图开发中<br><small>当前可使用 2D 平面视图查看轨道</small></div>";
+    }
+  }
+
+  $("#orbit-time").textContent = slot?.time?.substring(11, 19) || "--";
+  $("#orbit-links").textContent = slot?.contacts?.length || 0;
+  $("#orbit-slider").value = state.orbitSlot;
+}
+
 function drawOrbit() {
-  const canvas = $("#orbit-canvas");
-  if (!canvas || !state.orbit) return;
-  resizeCanvas(canvas);
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  const ratio = window.devicePixelRatio || 1;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#07090b"; ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = "#1d242a"; ctx.lineWidth = ratio;
-  for (let lon = -180; lon <= 180; lon += 30) {
-    const x = (lon + 180) / 360 * w;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
-  for (let lat = -90; lat <= 90; lat += 30) {
-    const y = (90 - lat) / 180 * h;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-  }
-  ctx.strokeStyle = "#2e3941"; ctx.lineWidth = 1.5 * ratio;
+  // 兼容旧调用，实际使用 updateOrbitView
+  updateOrbitView();
+}
   ctx.beginPath();
   const coast = [[-168,62],[-140,56],[-125,45],[-118,30],[-95,18],[-82,26],[-68,45],[-55,52],[-40,70],[10,70],[30,58],[55,55],[80,62],[110,50],[135,35],[150,5],[130,-15],[115,-35],[145,-42],[165,-45],[178,-20],[-175,-8],[-150,-18],[-120,-50],[-80,-52],[-70,-30],[-58,-12],[-45,2],[-18,12],[5,35],[-10,50],[-40,60],[-80,70],[-120,72],[-168,62]];
   coast.forEach(([lon,lat], index) => {

@@ -3,11 +3,11 @@
 SpaceFL 中控面板 — 一站式操作控制台
 用法: python control_panel.py [--lang en|zh]
 """
-import os
+from datetime import datetime
 import json
+import os
 import subprocess
 import sys
-from datetime import datetime
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "output")
@@ -147,7 +147,7 @@ def menu(title, items):
         label = zh if LANG == "zh" else en
         print(f"    {key}. {label}")
     print()
-    print(f"    x. {t('back')}" if LANG == "zh" else f"    x. {t('back')}")
+    print(f"    x. {t('back')}")
     print()
     choice = input(f"  {t('select')}: ").strip().lower()
     return choice
@@ -310,8 +310,7 @@ def confirm_and_train():
 
 def after_experiment(result_path=None):
     """Offer post-run visualization/template save and restore defaults."""
-    if result_path and os.path.exists(result_path):
-        if confirm("是否根据本次结果生成已挂载的图表", "y"):
+    if result_path and os.path.exists(result_path) and confirm("是否根据本次结果生成已挂载的图表", "y"):
             plots = "accuracy,summary"
             visual_path = os.path.join(PROJECT_DIR, ".fls_visuals.json")
             if os.path.exists(visual_path):
@@ -497,7 +496,7 @@ def menu_info():
     header()
     print("  ====== SpaceFL System Info ======\n")
     run("python -m fl_space.cli info")
-    print(f"\n  Python: ", end="")
+    print("\n  Python: ", end="")
     run("python --version")
     print(f"\n  Project Dir: {PROJECT_DIR}")
     print(f"  Output Dir:  {OUTPUT_DIR}")
@@ -542,21 +541,32 @@ def main():
             cls()
             print(f"\n  {t('exit_msg')}\n")
             break
-        elif c == "1": menu_demos()
-        elif c == "2": menu_sim()
-        elif c == "3": menu_viz()
-        elif c == "4": menu_fl()
-        elif c == "5": menu_exp()
-        elif c == "6": menu_tune()
-        elif c == "7": menu_config()
-        elif c == "8": menu_viz()
-        elif c == "9": menu_templates()
-        elif c == "10": menu_info()
+        elif c == "1":
+            menu_demos()
+        elif c == "2":
+            menu_sim()
+        elif c == "3":
+            menu_viz()
+        elif c == "4":
+            menu_fl()
+        elif c == "5":
+            menu_exp()
+        elif c == "6":
+            menu_tune()
+        elif c == "7":
+            menu_config()
+        elif c == "8":
+            menu_viz()
+        elif c == "9":
+            menu_templates()
+        elif c == "10":
+            menu_info()
         elif c == "11":
             LANG = "zh" if LANG == "en" else "en"
         else:
             print(f"  {t('invalid')}")
-            import time; time.sleep(0.5)
+            import time
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     main()
