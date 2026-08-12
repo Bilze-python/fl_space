@@ -467,6 +467,11 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     )
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
 
+    @app.get("/cesium_orbit_viewer.html")
+    async def cesium_viewer():
+        """Cesium轨道可视化页面"""
+        return FileResponse(WEB_DIR / "cesium_orbit_viewer.html")
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return (WEB_DIR / "index.html").read_text(encoding="utf-8")
