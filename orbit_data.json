@@ -1,0 +1,32 @@
+{
+  "config": {
+    "num_satellites": 5,
+    "num_ground_stations": 3,
+    "sim_hours": 1.0,
+    "orbit_altitude_km": 500.0,
+    "orbit_inclination_deg": 53.0,
+    "backend": "kepler",
+    "distribution": "uniform",
+    "timeslot_duration_min": 1.0,
+    "body": "earth",
+    "isl_enabled": false,
+    "isl_buffer": 0.0,
+    "isl_step": 60.0
+  },
+  "stats": {
+    "total_contacts": 9,
+    "sat_contact_counts": [
+      0,
+      0,
+      0,
+      9,
+      0
+    ],
+    "gs_contact_counts": [
+      9
+    ],
+    "avg_contacts_per_sat": 1.8,
+    "contact_rate": 0.03
+  },
+  "contact_rate": 0.03
+}
