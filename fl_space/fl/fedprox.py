@@ -32,6 +32,7 @@ from fl_space.fl.core import (
     LocalTrainer,
 )
 from fl_space.fl.fedavg import (
+    EarliestReturnSelector,
     RandomSelector,
     StandardEvaluator,
     SyncWeightedAggregator,
@@ -119,7 +120,8 @@ class ProximalTrainer(LocalTrainer):
         data_size = len(train_loader.dataset)  # type: ignore
         total_loss = 0.0
 
-        for _epoch in range(self.local_epochs):
+        actual_epochs = max(1, int(kwargs.get("local_epochs_override", self.local_epochs)))
+        for _epoch in range(actual_epochs):
             epoch_loss = 0.0
             for data, target in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
@@ -146,7 +148,7 @@ class ProximalTrainer(LocalTrainer):
 
             total_loss += epoch_loss
 
-        avg_loss = total_loss / max(self.local_epochs, 1)
+        avg_loss = total_loss / actual_epochs
 
         local_weights = [
             param.data.clone() for param in local_model.parameters()
@@ -159,6 +161,7 @@ class ProximalTrainer(LocalTrainer):
             train_loss=avg_loss,
             round_num=round_num,
             base_version=round_num,
+            metadata={"actual_local_epochs": actual_epochs},
         )
 
 
@@ -300,6 +303,7 @@ def create_fedprox_components(
     mu: float = 0.01,
     device: str = "cpu",
     seed: int | None = None,
+    selection_strategy: str = "random",
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
     一键创建 FedProx 的四件套组件。
@@ -341,11 +345,14 @@ def create_fedprox_components(
             device="cuda",
         )
     """
-    selector = RandomSelector(
-        fraction=fraction,
-        min_clients=min_clients,
-        seed=seed,
-    )
+    if selection_strategy == "earliest_return":
+        selector = EarliestReturnSelector(fraction=fraction, min_clients=min_clients)
+    else:
+        selector = RandomSelector(
+            fraction=fraction,
+            min_clients=min_clients,
+            seed=seed,
+        )
     trainer = ProximalTrainer(
         local_epochs=local_epochs,
         batch_size=batch_size,

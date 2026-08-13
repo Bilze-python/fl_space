@@ -88,6 +88,12 @@ class FLConfig:
     staleness_weight: bool = False
     server_learning_rate: float = 1.0
     async_eval_every: int = 1
+    protocol_mode: str = "standard"  # standard | paper_approx
+    selection_strategy: str = "random"  # random | earliest_return
+    contact_adaptive_epochs: bool = False
+    max_contact_epochs: int = 50
+    fedbuff_mu: float = 0.0
+    max_staleness: int | None = None
     device: str = "cpu"
     seed: int | None = None
     # 时间模型配置
@@ -111,8 +117,30 @@ class FLConfig:
     preference_mode: str = "class_balanced"  # client_window | class_balanced
     preferred_clients_per_class: int = 1
     sample_cap_strategy: str = "preserve"  # preserve | balanced
+    satellite_data_profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     data_dir: str = "./data"
     limit_to_sim_window: bool = True
+
+    def __post_init__(self) -> None:
+        self.protocol_mode = str(self.protocol_mode).lower()
+        self.selection_strategy = str(self.selection_strategy).lower()
+        if self.protocol_mode not in {"standard", "paper_approx"}:
+            raise ValueError("protocol_mode must be 'standard' or 'paper_approx'")
+        if self.selection_strategy not in {"random", "earliest_return"}:
+            raise ValueError("selection_strategy must be 'random' or 'earliest_return'")
+        if self.protocol_mode == "paper_approx":
+            if self.algorithm.lower() in {"fedavg", "fedprox"}:
+                self.selection_strategy = "earliest_return"
+            if self.algorithm.lower() == "fedprox":
+                self.contact_adaptive_epochs = True
+            if self.algorithm.lower() == "fedbuff":
+                if self.fedbuff_mu <= 0:
+                    self.fedbuff_mu = self.mu
+                if self.max_staleness is None:
+                    self.max_staleness = 4
+        self.max_contact_epochs = max(1, int(self.max_contact_epochs))
+        if self.max_staleness is not None:
+            self.max_staleness = max(0, int(self.max_staleness))
 
     @classmethod
     def from_dict(cls, config: dict) -> FLConfig:
@@ -354,6 +382,7 @@ class FLServer:
         train_loaders: dict[int, Any],
         round_num: int,
         global_weights: list[Any] | None = None,
+        **trainer_kwargs: Any,
     ) -> ClientUpdate | None:
         """
         训练单个客户端。
@@ -386,6 +415,7 @@ class FLServer:
                 train_loader=train_loaders[client_id],
                 global_weights=global_weights,
                 round_num=round_num,
+                **trainer_kwargs,
             )
         except Exception as e:
             print(f"  [警告] 客户端 {client_id} 训练失败: {e}")
@@ -540,7 +570,37 @@ class FLServer:
 
             breakdown = TimeBreakdown()
             download_slots = self.time_model.compute_download_slots(model_size_bytes)
-            selected_ids = self.selector.select(self._clients, completed_rounds)
+            selection_scores: dict[int, int] = {}
+            if self.scheduler is not None:
+                upload_slots = self.time_model.compute_upload_slots(model_size_bytes)
+                for client in self._clients:
+                    first_contact = self._get_next_contact_for_client(
+                        client.client_id,
+                        round_start - 1,
+                        self._sim_time_limit,
+                    )
+                    if first_contact is None:
+                        continue
+                    candidate_samples = client_data_sizes.get(client.client_id, 100)
+                    candidate_train_slots = self.time_model.compute_train_slots(
+                        client.client_id,
+                        candidate_samples,
+                        self.config.local_epochs,
+                    )
+                    candidate_end = first_contact[0] + download_slots + candidate_train_slots
+                    return_contact = self._get_next_contact_for_client(
+                        client.client_id,
+                        candidate_end - 1,
+                        self._sim_time_limit,
+                    )
+                    if return_contact is not None:
+                        selection_scores[client.client_id] = return_contact[0] + upload_slots
+
+            selected_ids = self.selector.select(
+                self._clients,
+                completed_rounds,
+                completion_times=selection_scores,
+            )
             if not selected_ids:
                 # 有连接但选择器返回空（如 CappedSelector.min_clients 不满足）
                 current_ts += 1
@@ -568,12 +628,37 @@ class FLServer:
                     download_ts = contact[0]
 
                 n_samples = client_data_sizes.get(cid, 100)
+                actual_epochs = self.config.local_epochs
+                train_start_ts = download_ts + download_slots
+                if (
+                    self.config.algorithm.lower() == "fedprox"
+                    and self.config.contact_adaptive_epochs
+                    and self.scheduler is not None
+                ):
+                    next_contact = self._get_next_contact_window_start(
+                        cid,
+                        train_start_ts,
+                        self._sim_time_limit,
+                    )
+                    one_epoch_slots = max(
+                        1,
+                        self.time_model.compute_train_slots(cid, n_samples, 1),
+                    )
+                    if next_contact is not None:
+                        available_slots = max(1, next_contact[0] - train_start_ts)
+                        actual_epochs = max(
+                            1,
+                            min(
+                                self.config.max_contact_epochs,
+                                available_slots // one_epoch_slots,
+                            ),
+                        )
+
                 train_slots = self.time_model.compute_train_slots(
                     cid,
                     n_samples,
-                    self.config.local_epochs,
+                    actual_epochs,
                 )
-                train_start_ts = download_ts + download_slots
                 train_end_ts = train_start_ts + train_slots
                 upload_slots = self.time_model.compute_upload_slots(model_size_bytes)
 
@@ -599,6 +684,7 @@ class FLServer:
                     train_loaders,
                     completed_rounds,
                     global_weights=global_weights,
+                    local_epochs_override=actual_epochs,
                 )
                 if update is None:
                     round_complete = False
@@ -611,6 +697,7 @@ class FLServer:
                         "download_timeslot": download_ts,
                         "train_end_timeslot": train_end_ts,
                         "upload_timeslot": arrival_ts - upload_slots,
+                        "actual_local_epochs": actual_epochs,
                     }
                 )
                 updates.append(update)
@@ -622,6 +709,7 @@ class FLServer:
                     "train": train_slots,
                     "upload": upload_slots,
                     "arrive_at": arrival_ts,
+                    "local_epochs": actual_epochs,
                 }
                 self._events.append(
                     {
@@ -634,6 +722,7 @@ class FLServer:
                         "train_start_timeslot": train_start_ts,
                         "train_end_timeslot": train_end_ts,
                         "arrival_timeslot": arrival_ts,
+                        "actual_local_epochs": actual_epochs,
                     }
                 )
 
@@ -769,6 +858,31 @@ class FLServer:
             gs_id = sim.contact_matrix.get_first_contact(sat_id, ts)
             if gs_id >= 0:
                 return (ts, int(gs_id))
+        return None
+
+    def _get_next_contact_window_start(
+        self,
+        sat_id: int,
+        after_ts: int,
+        max_timeslot: int | None = None,
+    ) -> tuple[int, int] | None:
+        """Find the next disconnected-to-connected transition for one satellite."""
+        if self.scheduler is None:
+            return None
+        sim = self.scheduler._sim
+        stop_ts = int(getattr(sim, "num_timeslots", 0))
+        if max_timeslot is not None:
+            stop_ts = min(stop_ts, max_timeslot)
+        start_ts = max(0, after_ts + 1)
+        was_connected = (
+            sim.contact_matrix.get_first_contact(sat_id, max(0, start_ts - 1)) >= 0
+        )
+        for ts in range(start_ts, stop_ts):
+            gs_id = sim.contact_matrix.get_first_contact(sat_id, ts)
+            connected = gs_id >= 0
+            if connected and not was_connected:
+                return (ts, int(gs_id))
+            was_connected = connected
         return None
 
     def run_async(

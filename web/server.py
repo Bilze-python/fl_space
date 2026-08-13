@@ -75,6 +75,86 @@ def _load_session() -> dict[str, dict[str, Any]]:
     return session
 
 
+def _validate_satellite_profiles(
+    raw_profiles: Any,
+    satellite_count: int,
+) -> dict[str, dict[str, Any]]:
+    if raw_profiles in (None, ""):
+        return {}
+    if not isinstance(raw_profiles, dict):
+        raise HTTPException(status_code=422, detail="卫星数据画像必须是 JSON 对象")
+
+    profiles: dict[str, dict[str, Any]] = {}
+    for raw_id, raw_profile in raw_profiles.items():
+        try:
+            satellite_id = int(raw_id)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"无效卫星编号: {raw_id}") from exc
+        if not 0 <= satellite_id < satellite_count:
+            raise HTTPException(
+                status_code=422,
+                detail=f"卫星 {satellite_id} 超出当前星座范围 0..{satellite_count - 1}",
+            )
+        if not isinstance(raw_profile, dict):
+            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 画像格式无效")
+        try:
+            preferred_classes = sorted(
+                {int(value) for value in raw_profile.get("preferred_classes", [])}
+            )
+            probability = float(raw_profile.get("preference_probability", 0.8))
+            max_samples = int(raw_profile.get("max_samples", 0))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 画像含无效数值") from exc
+        if any(value < 0 for value in preferred_classes):
+            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 类别不得为负数")
+        if not 0 <= probability <= 1:
+            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 偏好概率应在 0..1")
+        if max_samples < 0:
+            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 样本上限不得为负数")
+        if preferred_classes or max_samples:
+            profiles[str(satellite_id)] = {
+                "preferred_classes": preferred_classes,
+                "preference_probability": probability,
+                "max_samples": max_samples,
+            }
+    return profiles
+
+
+def _validated_session_update(
+    current: dict[str, dict[str, Any]],
+    payload: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    result = {"tune": dict(current["tune"]), "mount": dict(current["mount"])}
+    for section in ("tune", "mount"):
+        update = payload.get(section)
+        if isinstance(update, dict):
+            result[section].update(update)
+
+    tune = result["tune"]
+    mount = result["mount"]
+    protocol = str(tune.get("protocol_mode", "standard")).lower()
+    if protocol not in {"standard", "paper_approx"}:
+        raise HTTPException(status_code=422, detail="协议模式仅支持 standard 或 paper_approx")
+    selection = str(tune.get("selection_strategy", "random")).lower()
+    if selection not in {"random", "earliest_return"}:
+        raise HTTPException(status_code=422, detail="卫星选择仅支持 random 或 earliest_return")
+    satellite_count = max(1, min(int(mount.get("sats", 5)), 100))
+    mount["sats"] = satellite_count
+    tune["protocol_mode"] = protocol
+    tune["selection_strategy"] = selection
+    tune["max_contact_epochs"] = max(1, min(int(tune.get("max_contact_epochs", 50)), 500))
+    tune["fedbuff_mu"] = max(0.0, float(tune.get("fedbuff_mu", 0.0)))
+    raw_max_staleness = tune.get("max_staleness")
+    tune["max_staleness"] = (
+        None if raw_max_staleness in (None, "") else max(0, int(raw_max_staleness))
+    )
+    tune["satellite_data_profiles"] = _validate_satellite_profiles(
+        tune.get("satellite_data_profiles", {}),
+        satellite_count,
+    )
+    return result
+
+
 def _scan_experiments() -> list[dict[str, Any]]:
     candidates: list[Path] = []
     for pattern in (
@@ -397,6 +477,26 @@ def build_orbit_data(
     if isl_enabled:
         sim.compute_isl()
 
+    trajectory_samples = 73
+    trajectories = []
+    for satellite_id in range(sats):
+        points = []
+        for sample_index in range(trajectory_samples):
+            time_min = sim.orbit_period_min * sample_index / (trajectory_samples - 1)
+            lat, lon = sim.orbits[satellite_id].position_at_time_deg(time_min)
+            earth_rotation_deg = time_min * 360 / (
+                sim.orbits[satellite_id].body.rotation_period_hours * 60
+            )
+            lon = (lon + earth_rotation_deg + 180) % 360 - 180
+            points.append(
+                {
+                    "lat": lat,
+                    "lon": lon,
+                    "alt_km": sim.orbit_altitude_km,
+                }
+            )
+        trajectories.append({"sat_id": satellite_id, "positions": points})
+
     stations = [
         {
             "id": index,
@@ -455,8 +555,123 @@ def build_orbit_data(
         "isl_enabled": isl_enabled,
         "timeslot_duration_min": timeslot_min,
         "sim_hours": sim_hours,
+        "projection_days": sim_hours / 24,
+        "orbit_period_min": sim.orbit_period_min,
+        "trajectories": trajectories,
         "timeslots": timeslots,
     }
+
+
+def build_experiment_orbit_data(
+    experiment_id: str,
+    projection_days: float = 1.0,
+    projection_step_min: float = 10.0,
+    satellites: int | None = None,
+    ground_stations: int | None = None,
+    isl_enabled: bool | None = None,
+) -> dict[str, Any]:
+    """Build a replayable orbit timeline from an archived experiment."""
+    detail = _experiment_detail(experiment_id)
+    raw = detail.get("raw", {})
+    config = raw.get("config", {})
+    session = _load_session()
+    mount = session.get("mount", {})
+
+    history = detail.get("history_on") or detail.get("history_off") or []
+    total_sats = config.get("total_sats")
+    if not total_sats:
+        total_sats = int(config.get("num_planes", 0)) * int(
+            config.get("sats_per_plane", 0)
+        )
+    sats = max(1, int(satellites or total_sats or mount.get("sats", 12)))
+    stations = max(
+        1,
+        int(
+            ground_stations
+            or config.get("num_ground_stations")
+            or mount.get("stations", 5)
+        ),
+    )
+    projection_days = min(max(float(projection_days), 1 / 24), 30.0)
+    timeslot_min = min(max(float(projection_step_min), 1.0), 180.0)
+    sim_hours = projection_days * 24
+    resolved_isl = (
+        bool(isl_enabled)
+        if isl_enabled is not None
+        else str(config.get("isl", mount.get("isl", "disabled"))).lower()
+        != "disabled"
+    )
+
+    orbit = build_orbit_data(
+        sim_hours=sim_hours,
+        sats=sats,
+        gs=stations,
+        altitude_km=float(config.get("altitude_km") or mount.get("altitude", 500)),
+        inclination_deg=float(
+            config.get("inclination_deg") or mount.get("inclination", 53)
+        ),
+        timeslot_min=timeslot_min,
+        isl_enabled=resolved_isl,
+        isl_buffer=float(mount.get("isl_buffer", 0)),
+        seed=int(config.get("seed") or detail.get("seed") or 42),
+    )
+
+    last_slot_index = max(1, len(orbit["timeslots"]) - 1)
+    last_history_index = max(0, len(history) - 1)
+    for index, slot in enumerate(orbit["timeslots"]):
+        history_index = round(index * last_history_index / last_slot_index)
+        row = history[history_index] if history else {}
+        slot["experiment"] = {
+            key: row.get(key)
+            for key in (
+                "round",
+                "accuracy",
+                "train_loss",
+                "weight_divergence",
+                "total_delay",
+                "total_offloaded_samples",
+                "num_offload_actions",
+                "data_balance_entropy",
+                "offload_actions",
+            )
+            if row.get(key) is not None
+        }
+
+    orbit["source"] = "experiment_archive"
+    orbit["projection"] = {
+        "days": projection_days,
+        "step_min": timeslot_min,
+        "frames": len(orbit["timeslots"]),
+        "profile": "stress" if projection_days >= 15 else "standard",
+    }
+    orbit["experiment"] = {
+        "id": detail["id"],
+        "name": detail["name"],
+        "kind": detail["kind"],
+        "dataset": detail.get("dataset"),
+        "rounds": detail.get("rounds"),
+        "seed": detail.get("seed"),
+        "created_at": detail.get("created_at"),
+        "status": detail.get("status"),
+    }
+    orbit["parameter_sources"] = {
+        "satellites": "projection.override" if satellites else (
+            "experiment.config" if total_sats else "session.mount"
+        ),
+        "timeslot": "projection",
+        "ground_stations": (
+            "projection.override" if ground_stations else (
+                "experiment.config"
+                if config.get("num_ground_stations")
+                else "session.mount"
+            )
+        ),
+        "altitude": "experiment.config" if config.get("altitude_km") else "session.mount",
+        "inclination": (
+            "experiment.config" if config.get("inclination_deg") else "session.mount"
+        ),
+    }
+    return orbit
 
 
 def create_app(**sim_kwargs: Any) -> FastAPI:
@@ -526,10 +741,7 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     async def put_session(
         payload: dict[str, dict[str, Any]] = Body(...),
     ) -> dict[str, Any]:
-        session = _load_session()
-        for section in ("tune", "mount"):
-            if section in payload and isinstance(payload[section], dict):
-                session[section].update(payload[section])
+        session = _validated_session_update(_load_session(), payload)
         _write_json(SESSION_FILE, session)
         return {"saved": True, "session": session}
 
@@ -546,6 +758,27 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     @app.get("/api/experiments/{experiment_id}")
     async def experiment_detail(experiment_id: str) -> dict[str, Any]:
         return _experiment_detail(experiment_id)
+
+    @app.get("/api/experiments/{experiment_id}/orbit_data")
+    async def experiment_orbit_data(
+        experiment_id: str,
+        projection_days: float = Query(default=1.0, ge=1 / 24, le=30),
+        projection_step_min: float = Query(default=10.0, ge=1, le=180),
+        satellites: int | None = Query(default=None, ge=1, le=72),
+        ground_stations: int | None = Query(default=None, ge=1, le=20),
+        isl_enabled: bool | None = Query(default=None),
+    ) -> dict[str, Any]:
+        try:
+            return build_experiment_orbit_data(
+                experiment_id,
+                projection_days=projection_days,
+                projection_step_min=projection_step_min,
+                satellites=satellites,
+                ground_stations=ground_stations,
+                isl_enabled=isl_enabled,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/api/experiments/fedleo-validation")
     async def create_validation(

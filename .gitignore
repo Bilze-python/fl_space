@@ -45,3 +45,8 @@ data/FashionMNIST/raw/
 data/CIFAR10/
 *.tar.gz
 *.zip
+
+# 临时提交辅助文件
+_commit_msg.txt
+_verify_msg.py
+_check_*.py

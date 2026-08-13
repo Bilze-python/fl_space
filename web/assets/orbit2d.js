@@ -59,6 +59,7 @@ function draw2DOrbit(canvasId, orbitData) {
   const positions = currentSlot.positions || [];
   const contacts = currentSlot.contacts || [];
   const islLinks = currentSlot.isl_links || [];
+  const offloadActions = currentSlot.experiment?.offload_actions || [];
 
   // 计算缩放比例（轨道高度到像素）
   const orbitRadius = Math.min(w, h) * 0.35;
@@ -70,13 +71,33 @@ function draw2DOrbit(canvasId, orbitData) {
     return { x, y };
   }
 
+  // Complete projected orbit per satellite, independent of replay duration.
+  (orbitData.trajectories || []).forEach((trajectory, index) => {
+    ctx.strokeStyle = `hsla(${(index * 47) % 360}, 72%, 67%, 0.28)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let previous = null;
+    for (const sample of trajectory.positions || []) {
+      const point = latLonToXY(sample.lat, sample.lon);
+      if (!previous || Math.abs(Number(sample.lon) - Number(previous.lon)) > 180) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+      previous = sample;
+    }
+    ctx.stroke();
+  });
+
   // 绘制卫星轨道圆
   ctx.strokeStyle = 'rgba(100, 150, 200, 0.3)';
   ctx.lineWidth = 1;
   ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, orbitRadius, 0, Math.PI * 2);
-  ctx.stroke();
+  if (!orbitData.trajectories?.length) {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, orbitRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.setLineDash([]);
 
   // 绘制地面站
@@ -126,6 +147,23 @@ function draw2DOrbit(canvasId, orbitData) {
       }
     });
   }
+
+  // Highlight archived FedLEO sample transfers for the current training round.
+  offloadActions.forEach(action => {
+    const from = positions.find(p => p.sat_id === Number(action.from_sat));
+    const to = positions.find(p => p.sat_id === Number(action.to_sat));
+    if (!from || !to) return;
+    const fromPos = latLonToXY(from.lat, from.lon);
+    const toPos = latLonToXY(to.lat, to.lon);
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.95)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([7, 4]);
+    ctx.beginPath();
+    ctx.moveTo(fromPos.x, fromPos.y);
+    ctx.lineTo(toPos.x, toPos.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
 
   // 绘制卫星
   positions.forEach(sat => {

@@ -9,6 +9,7 @@ const state = {
   orbitPlaying: false,
   orbitTimer: null,
   jobPoll: null,
+  satelliteProfiles: {},
 };
 
 const viewTitles = {
@@ -61,7 +62,7 @@ function setView(name) {
   $$(".view").forEach(view => view.classList.toggle("active", view.id === `view-${name}`));
   $("#view-eyebrow").textContent = viewTitles[name][0];
   $("#view-title").textContent = viewTitles[name][1];
-  if (name === "orbit" && !state.orbit) loadOrbit();
+  if (name === "orbit" && !state.orbit && !state.orbitLoading) loadOrbit();
   if (name === "library" && !state.library.length) loadLibrary();
   requestAnimationFrame(resizeCanvases);
 }
@@ -86,6 +87,7 @@ async function loadOverview() {
     populateSessionForm();
     renderExperimentList();
     populateAiExperiments();
+    populateOrbitExperiments();
     if (experiments.length) {
       const latest = experiments.find(item => item.kind === "fedleo_validation") || experiments[0];
       const detail = await api(`/api/experiments/${encodeURIComponent(latest.id)}`);
@@ -104,6 +106,16 @@ function populateAiExperiments() {
   select.innerHTML = state.experiments.map(item => `
     <option value="${item.id}">${item.name} · ${item.seed ?? "--"}</option>
   `).join("");
+}
+
+function populateOrbitExperiments() {
+  const select = $("#orbit-experiment-select");
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">当前 Session 参数</option>${state.experiments.map(item => `
+    <option value="${item.id}">${item.name} · ${formatDate(item.created_at)}</option>
+  `).join("")}`;
+  if ([...select.options].some(option => option.value === current)) select.value = current;
 }
 
 function renderRecentExperiments(experiments) {
@@ -178,6 +190,64 @@ function populateSessionForm() {
     if (input.type === "checkbox") input.checked = Boolean(state.session[section][key]);
     else input.value = state.session[section][key];
   });
+  state.satelliteProfiles = structuredClone(state.session.tune.satellite_data_profiles || {});
+  renderSatelliteProfiles();
+}
+
+function renderSatelliteProfiles() {
+  const body = $("#satellite-profile-rows");
+  if (!body) return;
+  const satelliteCount = Number($('[name="mount.sats"]')?.value || state.session?.mount?.sats || 1);
+  const entries = Object.entries(state.satelliteProfiles)
+    .filter(([id]) => Number(id) >= 0 && Number(id) < satelliteCount)
+    .sort((left, right) => Number(left[0]) - Number(right[0]));
+  body.innerHTML = entries.map(([id, profile]) => `
+    <tr data-satellite-id="${id}">
+      <td><strong>SAT-${String(Number(id) + 1).padStart(2, "0")}</strong><small>#${id}</small></td>
+      <td><input data-profile-field="preferred_classes" value="${(profile.preferred_classes || []).join(",")}" placeholder="0,3,7"></td>
+      <td><input type="number" min="0" max="1" step="0.05" data-profile-field="preference_probability" value="${profile.preference_probability ?? 0.8}"></td>
+      <td><input type="number" min="0" data-profile-field="max_samples" value="${profile.max_samples ?? 0}"></td>
+      <td><button type="button" class="icon-button remove-profile" title="移除卫星画像">×</button></td>
+    </tr>
+  `).join("");
+  $$(".remove-profile", body).forEach(button => button.addEventListener("click", () => {
+    const row = button.closest("tr");
+    delete state.satelliteProfiles[row.dataset.satelliteId];
+    renderSatelliteProfiles();
+  }));
+}
+
+function addSatelliteProfile() {
+  syncSatelliteProfilesFromRows();
+  const satelliteCount = Number($('[name="mount.sats"]')?.value || 1);
+  const nextId = [...Array(satelliteCount).keys()].find(id => !state.satelliteProfiles[String(id)]);
+  if (nextId == null) return toast("当前所有卫星都已配置", "error");
+  state.satelliteProfiles[String(nextId)] = {
+    preferred_classes: [], preference_probability: 0.8, max_samples: 0,
+  };
+  renderSatelliteProfiles();
+}
+
+function syncSatelliteProfilesFromRows() {
+  $$("#satellite-profile-rows tr").forEach(row => {
+    const read = field => row.querySelector(`[data-profile-field="${field}"]`).value;
+    const classes = read("preferred_classes").split(",")
+      .map(value => value.trim()).filter(Boolean).map(Number)
+      .filter(value => Number.isInteger(value) && value >= 0);
+    state.satelliteProfiles[row.dataset.satelliteId] = {
+      preferred_classes: [...new Set(classes)],
+      preference_probability: Number(read("preference_probability")),
+      max_samples: Number(read("max_samples")),
+    };
+  });
+}
+
+function applyProtocolPreset() {
+  if ($("#protocol-mode").value !== "paper_approx") return;
+  $('[name="tune.selection_strategy"]').value = "earliest_return";
+  $('[name="tune.contact_adaptive_epochs"]').checked = $('[name="mount.algo"]').value === "fedprox";
+  if (!Number($('[name="tune.fedbuff_mu"]').value)) $('[name="tune.fedbuff_mu"]').value = 0.01;
+  if ($('[name="tune.max_staleness"]').value === "") $('[name="tune.max_staleness"]').value = 4;
 }
 
 function collectSessionForm() {
@@ -186,9 +256,13 @@ function collectSessionForm() {
     const [section, key] = input.name.split(".");
     if (!key) return;
     let value = input.type === "checkbox" ? input.checked : input.value;
-    if (input.type === "number") value = Number(value);
+    if (input.type === "number") {
+      value = input.dataset.nullable === "true" && value === "" ? null : Number(value);
+    }
     data[section][key] = value;
   });
+  syncSatelliteProfilesFromRows();
+  data.tune.satellite_data_profiles = state.satelliteProfiles;
   return data;
 }
 
@@ -288,13 +362,24 @@ async function selectExperiment(id) {
         <div class="detail-metric"><span>真实卸载</span><strong>${on.total_offloaded ?? detail.offloaded ?? 0}</strong></div>
         <div class="detail-metric"><span>耗时</span><strong>${Number(raw.elapsed_sec || on.elapsed_sec || 0).toFixed(1)}s</strong></div>
       </div>
+      <div class="experiment-detail-actions">
+        <button class="button primary" id="replay-experiment" type="button">载入实时演示</button>
+      </div>
       <canvas id="detail-chart"></canvas>
       <div class="chart-legend"><span><i class="legend-line on"></i>卸载开启</span><span><i class="legend-line off"></i>卸载关闭/基线</span></div>
     `;
+    $("#replay-experiment").addEventListener("click", () => replayExperiment(id));
     drawAccuracyChart($("#detail-chart"), detail.history_on, detail.history_off);
   } catch (error) {
     $("#experiment-detail").innerHTML = `<div class="empty-state">${error.message}</div>`;
   }
+}
+
+function replayExperiment(id) {
+  const select = $("#orbit-experiment-select");
+  if (select) select.value = id;
+  setView("orbit");
+  loadOrbit(id, true);
 }
 
 async function loadLibrary(query = "") {
@@ -368,7 +453,8 @@ async function openDocument(path, type, element) {
   } catch (error) { toast(error.message, "error"); }
 }
 
-async function loadOrbit() {
+async function loadOrbit(experimentId = $("#orbit-experiment-select")?.value || "", autoplay = false) {
+  state.orbitLoading = true;
   const session = state.session || { mount: {} };
   const mount = session.mount || {};
   const params = new URLSearchParams({
@@ -383,7 +469,14 @@ async function loadOrbit() {
   });
   $("#orbit-status").textContent = "生成中";
   try {
-    state.orbit = await api(`/api/orbit_data?${params}`);
+    const profile = $("#orbit-projection-profile")?.value || "standard";
+    const projection = profile === "stress15"
+      ? "projection_days=15&projection_step_min=30&satellites=24&ground_stations=6&isl_enabled=true"
+      : "projection_days=1&projection_step_min=10";
+    const endpoint = experimentId
+      ? `/api/experiments/${encodeURIComponent(experimentId)}/orbit_data?${projection}`
+      : `/api/orbit_data?${params}`;
+    state.orbit = await api(endpoint);
     state.orbitSlot = 0;
     $("#orbit-slider").max = state.orbit.timeslots.length - 1;
     $("#orbit-slider").value = 0;
@@ -391,16 +484,24 @@ async function loadOrbit() {
     $("#orbit-gs").textContent = state.orbit.ground_stations.length;
     $("#orbit-status").textContent = "轨道已加载";
     drawOrbit();
+    syncCesiumSource(experimentId);
+    if (autoplay) playOrbit();
   } catch (error) {
     $("#orbit-status").textContent = "生成失败";
     toast(error.message, "error");
+  } finally {
+    state.orbitLoading = false;
   }
 }
 
 function drawOrbit() {
+  updateOrbitExperimentMetrics();
   // 调用2D轨道绘制模块
   if (window.draw2DOrbit && state.orbit) {
     window.draw2DOrbit("orbit-canvas-2d", state.orbit);
+    const slot = state.orbit.timeslots[state.orbitSlot];
+    $("#orbit-time").textContent = new Date(slot.time).toLocaleString("zh-CN");
+    $("#orbit-links").textContent = (slot.contacts?.length || 0) + (slot.isl_links?.length || 0);
     return;
   }
 
@@ -458,20 +559,67 @@ function drawOrbit() {
   $("#orbit-links").textContent = (slot.contacts?.length || 0) + (slot.isl_links?.length || 0);
 }
 
+function cesiumWindow() {
+  return $("#orbit-canvas-3d iframe")?.contentWindow || null;
+}
+
+function syncCesiumSlot(slot) {
+  const target = cesiumWindow();
+  if (target?.SpaceFLOrbitViewer) target.SpaceFLOrbitViewer.renderSlot(slot);
+}
+
+function updateOrbitExperimentMetrics() {
+  const slot = state.orbit?.timeslots?.[state.orbitSlot];
+  const metrics = slot?.experiment || {};
+  $("#orbit-round").textContent = metrics.round ?? "--";
+  $("#orbit-accuracy").textContent = metrics.accuracy == null ? "--" : formatPercent(metrics.accuracy);
+  $("#orbit-offloaded").textContent = metrics.total_offloaded_samples ?? "--";
+  $("#orbit-projection-days").textContent = state.orbit?.projection_days?.toFixed?.(1) ?? "--";
+  $("#orbit-frame").textContent = state.orbit ? `${state.orbitSlot + 1}/${state.orbit.timeslots.length}` : "--";
+  if (state.orbit?.experiment) {
+    $("#orbit-status").textContent = `存档 · ${state.orbit.experiment.dataset || "实验"}`;
+  }
+}
+
+function syncCesiumSource(experimentId = "") {
+  const container = $("#orbit-canvas-3d");
+  if (!container) return;
+  const profile = $("#orbit-projection-profile")?.value || "standard";
+  const query = experimentId
+    ? `?experiment_id=${encodeURIComponent(experimentId)}&projection=${encodeURIComponent(profile)}`
+    : "";
+  const src = `/cesium_orbit_viewer.html${query}`;
+  const frame = container.querySelector("iframe");
+  if (!frame || frame.getAttribute("src") !== src) {
+    container.innerHTML = `<iframe src="${src}" title="Cesium 3D 轨道演示"></iframe>`;
+  }
+}
+
+function setOrbitMode(mode) {
+  const is3d = mode === "3d";
+  $("#orbit-canvas-2d").classList.toggle("hidden", is3d);
+  $("#orbit-canvas-3d").classList.toggle("hidden", !is3d);
+  if (is3d) syncCesiumSource($("#orbit-experiment-select").value);
+  else drawOrbit();
+}
+
 function playOrbit() {
   state.orbitPlaying = true;
   clearInterval(state.orbitTimer);
+  cesiumWindow()?.SpaceFLOrbitViewer?.pause();
   state.orbitTimer = setInterval(() => {
     if (!state.orbit) return;
     state.orbitSlot = (state.orbitSlot + 1) % state.orbit.timeslots.length;
     $("#orbit-slider").value = state.orbitSlot;
     drawOrbit();
-  }, 260);
+    syncCesiumSlot(state.orbitSlot);
+  }, Number($("#orbit-playback-speed")?.value || 250));
 }
 
 function pauseOrbit() {
   state.orbitPlaying = false;
   clearInterval(state.orbitTimer);
+  cesiumWindow()?.SpaceFLOrbitViewer?.pause();
 }
 
 function resizeCanvases() {
@@ -496,6 +644,16 @@ function bindEvents() {
     $$(".config-section").forEach(section => section.classList.toggle("active", section.dataset.configSection === button.dataset.configTab));
   }));
   $("#session-form").addEventListener("submit", saveSession);
+  $("#add-satellite-profile").addEventListener("click", addSatelliteProfile);
+  $("#protocol-mode").addEventListener("change", applyProtocolPreset);
+  $('[name="mount.sats"]').addEventListener("change", () => {
+    syncSatelliteProfilesFromRows();
+    const count = Number($('[name="mount.sats"]').value || 1);
+    Object.keys(state.satelliteProfiles).forEach(id => {
+      if (Number(id) >= count) delete state.satelliteProfiles[id];
+    });
+    renderSatelliteProfiles();
+  });
   $("#reset-session").addEventListener("click", resetSession);
   $("#run-validation-button").addEventListener("click", runValidation);
   $("#quick-run-button").addEventListener("click", () => { setView("config"); $('[data-config-tab="fedleo"]').click(); });
@@ -508,9 +666,16 @@ function bindEvents() {
     askAi();
   }));
   $("#orbit-load").addEventListener("click", loadOrbit);
+  $("#orbit-experiment-select").addEventListener("change", event => loadOrbit(event.target.value));
+  $("#orbit-projection-profile").addEventListener("change", () => loadOrbit());
+  $$("[name='orbit-mode']").forEach(input => input.addEventListener("change", event => setOrbitMode(event.target.value)));
   $("#orbit-play").addEventListener("click", playOrbit);
   $("#orbit-pause").addEventListener("click", pauseOrbit);
-  $("#orbit-slider").addEventListener("input", event => { state.orbitSlot = Number(event.target.value); drawOrbit(); });
+  $("#orbit-slider").addEventListener("input", event => {
+    state.orbitSlot = Number(event.target.value);
+    drawOrbit();
+    syncCesiumSlot(state.orbitSlot);
+  });
   window.addEventListener("resize", () => { clearTimeout(window.__resizeTimer); window.__resizeTimer = setTimeout(resizeCanvases, 140); });
 }
 

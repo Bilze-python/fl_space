@@ -51,6 +51,13 @@ DEFAULT_SESSION: dict[str, dict[str, Any]] = {
         "data_dir": "./data",
         "device": "cpu",
         "buffer_size": 5,
+        "protocol_mode": "standard",
+        "selection_strategy": "random",
+        "contact_adaptive_epochs": False,
+        "max_contact_epochs": 50,
+        "fedbuff_mu": 0.0,
+        "max_staleness": None,
+        "satellite_data_profiles": {},
     },
     "mount": {
         "algo": "fedavg",
@@ -782,6 +789,7 @@ def cmd_run_train(args: argparse.Namespace) -> int:
     # Merge session and command-line values exactly once.
     effective = {
         "num_rounds": args.rounds if args.rounds is not None else t["rounds"],
+        "num_clients": int(m["sats"]),
         "local_epochs": args.epochs if args.epochs is not None else t["epochs"],
         "learning_rate": args.lr if args.lr is not None else t["lr"],
         "batch_size": args.batch_size if args.batch_size is not None else t["batch_size"],
@@ -806,6 +814,13 @@ def cmd_run_train(args: argparse.Namespace) -> int:
         "preferred_clients_per_class": t["preferred_clients_per_class"],
         "sample_cap_strategy": t["sample_cap_strategy"],
         "data_dir": t["data_dir"],
+        "protocol_mode": t.get("protocol_mode", "standard"),
+        "selection_strategy": t.get("selection_strategy", "random"),
+        "contact_adaptive_epochs": t.get("contact_adaptive_epochs", False),
+        "max_contact_epochs": t.get("max_contact_epochs", 50),
+        "fedbuff_mu": t.get("fedbuff_mu", 0.0),
+        "max_staleness": t.get("max_staleness"),
+        "satellite_data_profiles": t.get("satellite_data_profiles", {}),
     }
     device = args.device if args.device is not None else device
 
@@ -876,6 +891,7 @@ def cmd_run_train(args: argparse.Namespace) -> int:
         preference_mode=t.get("preference_mode", "class_balanced"),
         preferred_clients_per_class=t.get("preferred_clients_per_class", 1),
         sample_cap_strategy=t.get("sample_cap_strategy", "preserve"),
+        satellite_data_profiles=t.get("satellite_data_profiles", {}),
         verbose=not quiet,
     )
 

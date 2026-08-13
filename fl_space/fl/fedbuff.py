@@ -131,6 +131,7 @@ class AsyncTrainer(LocalTrainer):
         local_epochs: int = 5,
         batch_size: int = 32,
         learning_rate: float = 0.01,
+        mu: float = 0.0,
         device: str = "cpu",
     ):
         if not TORCH_AVAILABLE:
@@ -139,6 +140,7 @@ class AsyncTrainer(LocalTrainer):
         self.local_epochs = local_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.mu = max(0.0, float(mu))
         self.device = device
 
     def train(
@@ -169,19 +171,27 @@ class AsyncTrainer(LocalTrainer):
         data_size = len(train_loader.dataset)  # type: ignore
         total_loss = 0.0
 
-        for _epoch in range(self.local_epochs):
+        actual_epochs = max(1, int(kwargs.get("local_epochs_override", self.local_epochs)))
+        global_anchors = [weight.detach().clone().to(self.device) for weight in global_weights]
+        for _epoch in range(actual_epochs):
             epoch_loss = 0.0
             for data, target in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 optimizer.zero_grad()
                 output = local_model(data)
                 loss = criterion(output, target)
+                if self.mu > 0:
+                    proximal = sum(
+                        torch.sum((parameter - anchor) ** 2)
+                        for parameter, anchor in zip(local_model.parameters(), global_anchors)
+                    )
+                    loss = loss + (self.mu / 2.0) * proximal
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
             total_loss += epoch_loss
 
-        avg_loss = total_loss / max(self.local_epochs, 1)
+        avg_loss = total_loss / actual_epochs
 
         local_weights = [param.data.clone() for param in local_model.parameters()]
         model_delta = [
@@ -198,6 +208,7 @@ class AsyncTrainer(LocalTrainer):
             model_delta=model_delta,
             base_version=round_num,
             started_at=int(kwargs.get("started_at", 0)),
+            metadata={"actual_local_epochs": actual_epochs, "proximal_mu": self.mu},
         )
 
 
@@ -231,6 +242,7 @@ class BufferAggregator(Aggregator):
         buffer_size: int = 5,
         staleness_weight: bool = False,
         server_learning_rate: float = 1.0,
+        max_staleness: int | None = None,
     ):
         if buffer_size < 1:
             raise ValueError("buffer_size must be at least 1")
@@ -239,6 +251,7 @@ class BufferAggregator(Aggregator):
         self.buffer_size = buffer_size
         self.staleness_weight = staleness_weight
         self.server_learning_rate = server_learning_rate
+        self.max_staleness = None if max_staleness is None else max(0, int(max_staleness))
 
         # Do not cap the deque: arrivals beyond K belong to the next server update.
         self._buffer: deque[ClientUpdate] = deque()
@@ -248,6 +261,7 @@ class BufferAggregator(Aggregator):
         self._last_aggregate_count: int = 0
         self._last_batch: list[ClientUpdate] = []
         self._last_staleness: list[int] = []
+        self._dropped_stale: int = 0
 
         # 线程安全锁
         self._lock = threading.Lock()
@@ -280,6 +294,14 @@ class BufferAggregator(Aggregator):
         实际判断基于内部缓冲区大小。
         """
         with self._lock:
+            if self.max_staleness is not None:
+                retained: deque[ClientUpdate] = deque()
+                for update in self._buffer:
+                    if max(0, round_num - update.base_version) <= self.max_staleness:
+                        retained.append(update)
+                    else:
+                        self._dropped_stale += 1
+                self._buffer = retained
             return len(self._buffer) >= self.buffer_size
 
     def aggregate(
@@ -361,6 +383,7 @@ class BufferAggregator(Aggregator):
                 "last_aggregate_count": self._last_aggregate_count,
                 "last_client_ids": [u.client_id for u in self._last_batch],
                 "last_staleness": list(self._last_staleness),
+                "dropped_stale": self._dropped_stale,
             }
 
 
@@ -375,6 +398,8 @@ def create_fedbuff_components(
     buffer_size: int = 5,
     staleness_weight: bool = False,
     server_learning_rate: float = 1.0,
+    mu: float = 0.0,
+    max_staleness: int | None = None,
     device: str = "cpu",
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
@@ -417,12 +442,14 @@ def create_fedbuff_components(
         local_epochs=local_epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        mu=mu,
         device=device,
     )
     aggregator = BufferAggregator(
         buffer_size=buffer_size,
         staleness_weight=staleness_weight,
         server_learning_rate=server_learning_rate,
+        max_staleness=max_staleness,
     )
     evaluator = StandardEvaluator(device=device)
 

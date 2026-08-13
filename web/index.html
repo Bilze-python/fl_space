@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SpaceFL 智能实验平台</title>
-  <link rel="stylesheet" href="/assets/app.css">
-  <script src="/assets/orbit2d.js"></script>
+  <link rel="stylesheet" href="/assets/app.css?v=20260813-spacefl-paper-v1">
+  <script src="/assets/orbit2d.js?v=20260813-projection-v2"></script>
 </head>
 <body>
   <div id="app-shell">
@@ -137,6 +137,7 @@
                 </div>
                 <div class="form-grid">
                   <label>算法<select name="mount.algo"><option>fedavg</option><option>fedprox</option><option>fedbuff</option><option>fedleo</option></select></label>
+                  <label>协议模式<select name="tune.protocol_mode" id="protocol-mode"><option value="standard">标准实现</option><option value="paper_approx">论文近似</option></select></label>
                   <label>数据集<select name="tune.dataset"><option>mnist</option><option>fashion_mnist</option><option>cifar10</option><option>femnist</option></select></label>
                   <label>训练轮次<input type="number" min="1" max="1000" name="tune.rounds"></label>
                   <label>本地 Epoch<input type="number" min="1" max="100" name="tune.epochs"></label>
@@ -144,6 +145,23 @@
                   <label>Batch Size<input type="number" min="1" name="tune.batch_size"></label>
                   <label>随机种子<input type="number" name="tune.seed"></label>
                   <label class="toggle-field"><span>Non-IID 数据</span><input type="checkbox" name="tune.non_iid"></label>
+                  <label>卫星选择<select name="tune.selection_strategy"><option value="random">随机抽样</option><option value="earliest_return">最早返回 FLSchedule</option></select></label>
+                  <label class="toggle-field"><span>接触窗口动态 Epoch</span><input type="checkbox" name="tune.contact_adaptive_epochs"></label>
+                  <label>动态 Epoch 上限<input type="number" min="1" max="500" name="tune.max_contact_epochs"></label>
+                  <label>FedBuff 近端项 μ<input type="number" min="0" step="0.001" name="tune.fedbuff_mu"></label>
+                  <label>FedBuff 最大陈旧度<input type="number" min="0" name="tune.max_staleness" data-nullable="true" placeholder="留空表示不限"></label>
+                </div>
+                <div class="satellite-profile-editor">
+                  <div class="subsection-heading">
+                    <div><h3>单星数据偏好</h3><p>类别以逗号分隔；FEMNIST 保留 writer 身份，仅应用单星样本上限。</p></div>
+                    <button type="button" class="button secondary" id="add-satellite-profile">添加卫星</button>
+                  </div>
+                  <div class="profile-table-wrap">
+                    <table class="profile-table">
+                      <thead><tr><th>卫星</th><th>偏好类别</th><th>偏好概率</th><th>样本上限</th><th></th></tr></thead>
+                      <tbody id="satellite-profile-rows"></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
               <div class="config-section" data-config-section="topology">
@@ -208,6 +226,26 @@
             <strong id="orbit-time">--</strong>
           </div>
           <div class="orbit-actions">
+            <label class="orbit-source-field" for="orbit-experiment-select">
+              <span>演示数据</span>
+              <select id="orbit-experiment-select">
+                <option value="">当前 Session 参数</option>
+              </select>
+            </label>
+            <label class="orbit-compact-field" for="orbit-projection-profile">
+              <span>投影范围</span>
+              <select id="orbit-projection-profile">
+                <option value="standard">1 天标准投影</option>
+                <option value="stress15">15 天压力投影</option>
+              </select>
+            </label>
+            <label class="orbit-compact-field" for="orbit-playback-speed">
+              <span>速度</span>
+              <select id="orbit-playback-speed">
+                <option value="250">标准</option>
+                <option value="100">快速</option>
+              </select>
+            </label>
             <label class="view-mode-switch">
               <input type="radio" name="orbit-mode" value="2d" checked>
               <span>2D 平面</span>
@@ -222,13 +260,18 @@
           </div>
         </div>
         <canvas id="orbit-canvas-2d"></canvas>
-        <div id="orbit-canvas-3d" class="hidden"></div>
+        <div id="orbit-canvas-3d" class="hidden" aria-label="Cesium 3D 轨道演示"></div>
         <div class="orbit-bottom">
           <input type="range" id="orbit-slider" min="0" max="1" value="0">
           <div class="orbit-stats">
             <span><b id="orbit-sats">0</b> 卫星</span>
             <span><b id="orbit-gs">0</b> 地面站</span>
             <span><b id="orbit-links">0</b> 活跃链路</span>
+            <span><b id="orbit-round">--</b> 训练轮次</span>
+            <span><b id="orbit-accuracy">--</b> 准确率</span>
+            <span><b id="orbit-offloaded">--</b> 累计卸载</span>
+            <span><b id="orbit-projection-days">--</b> 投影天数</span>
+            <span><b id="orbit-frame">--</b> 投影帧</span>
             <span id="orbit-isl-info"></span>
           </div>
         </div>
@@ -287,6 +330,6 @@
   </div>
 
   <div id="toast-stack"></div>
-  <script src="/assets/app.js"></script>
+  <script src="/assets/app.js?v=20260813-spacefl-paper-v1"></script>
 </body>
 </html>

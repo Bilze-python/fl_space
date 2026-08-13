@@ -186,6 +186,12 @@
         <p class="eyebrow">SpaceFL</p>
         <h1>3D 卫星轨道视图</h1>
         <p class="subtle">本地地球纹理与星空优先加载，轨道和地面站来自当前后端模型。</p>
+        <div class="field">
+            <label for="experimentSelect">实验存档</label>
+            <select id="experimentSelect">
+                <option value="">当前 Session 参数</option>
+            </select>
+        </div>
         <div class="toolbar">
             <button id="loadButton" class="primary" type="button">加载数据</button>
             <button id="playButton" type="button" disabled>播放</button>
@@ -233,10 +239,11 @@
         const EARTH_ALTITUDE_METERS = 18000000;
         const LOCAL_IMAGERY_URL = "/cesium/Assets/Textures/NaturalEarthII";
         const LOCAL_SKYBOX_URL = "/cesium/Assets/Textures/SkyBox";
-        const API_URL = "/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2&isl_enabled=true";
+        const DEFAULT_API_URL = "/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2&isl_enabled=true";
 
         const elements = {
             loadButton: document.getElementById("loadButton"),
+            experimentSelect: document.getElementById("experimentSelect"),
             playButton: document.getElementById("playButton"),
             pauseButton: document.getElementById("pauseButton"),
             slotSlider: document.getElementById("slotSlider"),
@@ -252,6 +259,32 @@
             oceanStatus: document.getElementById("oceanStatus"),
             coordinateStatus: document.getElementById("coordinateStatus")
         };
+
+        function selectedExperimentId() {
+            return elements.experimentSelect.value || new URLSearchParams(window.location.search).get("experiment_id") || "";
+        }
+
+        function orbitApiUrl() {
+            const experimentId = selectedExperimentId();
+            const projection = new URLSearchParams(window.location.search).get("projection");
+            const query = projection === "stress15"
+                ? "projection_days=15&projection_step_min=30&satellites=24&ground_stations=6&isl_enabled=true"
+                : "projection_days=1&projection_step_min=10";
+            return experimentId
+                ? `/api/experiments/${encodeURIComponent(experimentId)}/orbit_data?${query}`
+                : DEFAULT_API_URL;
+        }
+
+        async function loadExperimentOptions() {
+            const response = await fetch("/api/experiments", { cache: "no-store" });
+            if (!response.ok) throw new Error(`实验存档接口返回 HTTP ${response.status}`);
+            const experiments = await response.json();
+            const requestedId = new URLSearchParams(window.location.search).get("experiment_id") || "";
+            elements.experimentSelect.innerHTML = `<option value="">当前 Session 参数</option>${experiments.map(item =>
+                `<option value="${item.id}">${item.name} · ${item.dataset || "--"} · Seed ${item.seed ?? "--"}</option>`
+            ).join("")}`;
+            elements.experimentSelect.value = requestedId;
+        }
 
         function setStatus(element, text, level = "") {
             element.textContent = text;
@@ -459,8 +492,9 @@
 
             for (let satelliteId = 0; satelliteId < satelliteCount; satelliteId += 1) {
                 const coordinates = [];
-                for (const slot of state.orbitData.timeslots) {
-                    const satellite = slot.positions[satelliteId];
+                const trajectory = state.orbitData.trajectories?.find(item => item.sat_id === satelliteId);
+                const samples = trajectory?.positions || state.orbitData.timeslots.map(slot => slot.positions[satelliteId]);
+                for (const satellite of samples) {
                     if (!satellite) continue;
                     const { lon, lat } = validateCoordinate(satellite, `SAT-${satelliteId}`);
                     coordinates.push(lon, lat, Number(satellite.alt_km || 0) * 1000);
@@ -550,6 +584,26 @@
                 }));
             }
 
+            for (const action of slot.experiment?.offload_actions || []) {
+                const first = slot.positions[Number(action.from_sat)];
+                const second = slot.positions[Number(action.to_sat)];
+                if (!first || !second) continue;
+                state.linkEntities.push(viewer.entities.add({
+                    name: `卸载 ${action.offload_samples || 0} 样本`,
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            first.lon, first.lat, Number(first.alt_km || 0) * 1000,
+                            second.lon, second.lat, Number(second.alt_km || 0) * 1000
+                        ]),
+                        width: 4,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.fromCssColorString("#ffd166")
+                        }),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+
             elements.slotSlider.value = String(normalizedIndex);
             elements.slotText.textContent = `${normalizedIndex + 1} / ${state.orbitData.timeslots.length}`;
             elements.linkCount.textContent = String(
@@ -563,7 +617,7 @@
             elements.loadButton.textContent = "加载中";
             showNotice("");
             try {
-                const response = await fetch(API_URL, { cache: "no-store" });
+                const response = await fetch(orbitApiUrl(), { cache: "no-store" });
                 if (!response.ok) throw new Error(`轨道接口返回 HTTP ${response.status}`);
                 const data = await response.json();
                 if (!Array.isArray(data.ground_stations) || !Array.isArray(data.timeslots)) {
@@ -579,6 +633,9 @@
                 }
 
                 state.orbitData = data;
+                if (data.experiment) {
+                    showNotice(`正在演示存档：${data.experiment.name} · ${data.experiment.dataset || "--"} · Seed ${data.experiment.seed ?? "--"}`);
+                }
                 elements.satCount.textContent = String(data.satellites);
                 elements.stationCount.textContent = String(data.ground_stations.length);
                 elements.slotSlider.max = String(Math.max(0, data.timeslots.length - 1));
@@ -613,7 +670,31 @@
             state.timer = null;
         }
 
+        window.SpaceFLOrbitViewer = {
+            renderSlot,
+            play,
+            pause,
+            getState: () => ({
+                currentSlot: state.currentSlot,
+                totalSlots: state.orbitData?.timeslots?.length || 0,
+                satellites: state.orbitData?.satellites || 0,
+                projectionDays: state.orbitData?.projection_days || 0,
+                trajectories: state.orbitData?.trajectories?.length || 0,
+                renderedTrajectories: state.trajectoryEntities.length,
+                trajectoryPoints: state.orbitData?.trajectories?.[0]?.positions?.length || 0
+            })
+        };
+
         elements.loadButton.addEventListener("click", loadOrbitData);
+        elements.experimentSelect.addEventListener("change", () => {
+            const experimentId = elements.experimentSelect.value;
+            const url = new URL(window.location.href);
+            if (experimentId) url.searchParams.set("experiment_id", experimentId);
+            else url.searchParams.delete("experiment_id");
+            window.history.replaceState({}, "", url);
+            pause();
+            loadOrbitData();
+        });
         elements.playButton.addEventListener("click", play);
         elements.pauseButton.addEventListener("click", pause);
         elements.slotSlider.addEventListener("input", (event) => {
@@ -647,7 +728,9 @@
             });
 
         setStatus(elements.oceanStatus, "Natural Earth 海洋 + 光照", "ok");
-        loadOrbitData();
+        loadExperimentOptions()
+            .catch((error) => showNotice(`实验存档加载失败：${error.message}`))
+            .finally(loadOrbitData);
     </script>
 </body>
 </html>

@@ -95,6 +95,43 @@ class RandomSelector(ClientSelector):
         return [c.client_id for c in selected]
 
 
+class EarliestReturnSelector(ClientSelector):
+    """Select the satellites expected to return their updates first.
+
+    ``completion_times`` is calculated by ``FLServer`` from the first model
+    download contact, estimated local training time, and the following upload
+    contact. This approximates the FLSchedule ordering used by FedAvgSat.
+    """
+
+    def __init__(self, fraction: float = 0.5, min_clients: int = 2):
+        self.fraction = fraction
+        self.min_clients = min_clients
+
+    def select(
+        self,
+        clients: list[ClientState],
+        round_num: int,
+        **kwargs: Any,
+    ) -> list[int]:
+        completion_times: dict[int, int] = kwargs.get("completion_times", {})
+        ranked = sorted(
+            (client for client in clients if client.client_id in completion_times),
+            key=lambda client: (completion_times[client.client_id], client.client_id),
+        )
+        if not ranked:
+            ranked = sorted(
+                (client for client in clients if client.is_connected),
+                key=lambda client: client.client_id,
+            )
+        if not ranked:
+            return []
+        n_select = min(
+            len(ranked),
+            max(self.min_clients, int(len(clients) * self.fraction)),
+        )
+        return [client.client_id for client in ranked[:n_select]]
+
+
 class CappedSelector(ClientSelector):
     """
     带数量上限的随机客户端选择器。
@@ -206,7 +243,8 @@ class FixedEpochTrainer(LocalTrainer):
         data_size = len(train_loader.dataset)  # type: ignore
         total_loss = 0.0
 
-        for _epoch in range(self.local_epochs):
+        actual_epochs = max(1, int(kwargs.get("local_epochs_override", self.local_epochs)))
+        for _epoch in range(actual_epochs):
             epoch_loss = 0.0
             for data, target in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
@@ -219,7 +257,7 @@ class FixedEpochTrainer(LocalTrainer):
 
             total_loss += epoch_loss
 
-        avg_loss = total_loss / max(self.local_epochs, 1)
+        avg_loss = total_loss / actual_epochs
 
         # 提取本地训练后的参数
         local_weights = [
@@ -233,6 +271,7 @@ class FixedEpochTrainer(LocalTrainer):
             train_loss=avg_loss,
             round_num=round_num,
             base_version=round_num,
+            metadata={"actual_local_epochs": actual_epochs},
         )
 
 
@@ -395,6 +434,7 @@ def create_fedavg_components(
     device: str = "cpu",
     seed: int | None = None,
     connected_only: bool = False,
+    selection_strategy: str = "random",
 ) -> tuple[ClientSelector, LocalTrainer, Aggregator, Evaluator]:
     """
     一键创建 FedAvg 的四件套组件。
@@ -431,12 +471,15 @@ def create_fedavg_components(
             device="cuda",
         )
     """
-    selector = RandomSelector(
-        fraction=fraction,
-        min_clients=min_clients,
-        seed=seed,
-        connected_only=connected_only,
-    )
+    if selection_strategy == "earliest_return":
+        selector = EarliestReturnSelector(fraction=fraction, min_clients=min_clients)
+    else:
+        selector = RandomSelector(
+            fraction=fraction,
+            min_clients=min_clients,
+            seed=seed,
+            connected_only=connected_only,
+        )
     trainer = FixedEpochTrainer(
         local_epochs=local_epochs,
         batch_size=batch_size,

@@ -124,6 +124,23 @@ td strong { color: var(--text); }
 .field-note { font-size: 11px; color: var(--muted); }
 .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 20px; }
 .form-grid.compact { margin-top: 20px; }
+.satellite-profile-editor { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.subsection-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.subsection-heading h3 { margin: 0; font-size: 15px; }
+.subsection-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.profile-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.profile-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+.profile-table th, .profile-table td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.profile-table th { color: var(--muted); font-size: 11px; font-weight: 600; }
+.profile-table td:first-child { width: 92px; }
+.profile-table th:nth-child(1) { width: 82px; }
+.profile-table th:nth-child(2) { width: 34%; }
+.profile-table th:nth-child(3) { width: 22%; }
+.profile-table th:nth-child(4) { width: 22%; }
+.profile-table th:nth-child(5) { width: 42px; }
+.profile-table td:first-child small { display: block; margin-top: 2px; color: var(--muted); }
+.profile-table input { width: 100%; min-width: 90px; }
+.profile-table tr:last-child td { border-bottom: 0; }
 label { display: grid; gap: 7px; color: #aab3bb; font-size: 12px; }
 input, select {
   width: 100%; border: 1px solid #343b43; background: #101419; color: var(--text);
@@ -149,6 +166,7 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); 
 .experiment-item strong { display: block; font-size: 12px; margin-bottom: 7px; }
 .experiment-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
 .experiment-detail-panel canvas { width: 100%; height: 300px; display: block; }
+.experiment-detail-actions { display: flex; justify-content: flex-end; margin: 14px 0 4px; }
 .detail-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 18px 0; }
 .detail-metric { padding: 13px; border: 1px solid var(--line); background: #101419; }
 .detail-metric span { display: block; color: var(--muted); font-size: 10px; margin-bottom: 7px; }
@@ -162,6 +180,13 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); 
 .orbit-toolbar { top: 18px; display: flex; justify-content: space-between; align-items: center; padding: 11px 13px; }
 .orbit-toolbar strong { margin-left: 10px; font-size: 12px; }
 .orbit-actions { display: flex; gap: 7px; }
+.orbit-source-field { display: grid; grid-template-columns: auto minmax(160px, 240px); align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
+.orbit-source-field select { height: 34px; padding: 6px 9px; font-size: 11px; }
+.orbit-compact-field { display: grid; grid-template-columns: auto minmax(100px, 135px); align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
+.orbit-compact-field select { height: 34px; padding: 6px 8px; font-size: 11px; }
+#orbit-canvas-2d, #orbit-canvas-3d { width: 100%; height: 100%; display: block; border: 0; }
+#orbit-canvas-3d iframe { width: 100%; height: 100%; border: 0; }
+#orbit-canvas-2d.hidden, #orbit-canvas-3d.hidden { display: none; }
 .orbit-bottom { bottom: 18px; padding: 12px 14px; }
 .orbit-bottom input { padding: 0; accent-color: var(--green); }
 .orbit-stats { display: flex; gap: 24px; color: var(--muted); font-size: 11px; margin-top: 10px; }
@@ -245,5 +270,9 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); 
   .ai-compose { grid-template-columns: 1fr; }
   .orbit-view { height: calc(100vh - 134px); }
   .orbit-toolbar { left: 10px; right: 10px; top: 10px; }
+  .orbit-toolbar { align-items: flex-start; gap: 8px; }
+  .orbit-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .orbit-source-field { grid-template-columns: 1fr; }
+  .orbit-compact-field { grid-template-columns: 1fr; }
   .orbit-bottom { left: 10px; right: 10px; bottom: 10px; }
 }

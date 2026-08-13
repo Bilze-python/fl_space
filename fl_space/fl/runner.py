@@ -162,6 +162,7 @@ class FLRunner:
                 learning_rate=config.learning_rate,
                 device=config.device,
                 seed=config.seed,
+                selection_strategy=config.selection_strategy,
             )
         elif algo == "fedprox":
             from fl_space.fl.fedprox import create_fedprox_components
@@ -174,6 +175,7 @@ class FLRunner:
                 mu=config.mu,
                 device=config.device,
                 seed=config.seed,
+                selection_strategy=config.selection_strategy,
             )
         elif algo == "fedbuff":
             from fl_space.fl.fedbuff import create_fedbuff_components
@@ -185,6 +187,8 @@ class FLRunner:
                 buffer_size=config.buffer_size,
                 staleness_weight=config.staleness_weight,
                 server_learning_rate=config.server_learning_rate,
+                mu=config.fedbuff_mu,
+                max_staleness=config.max_staleness,
                 device=config.device,
             )
         else:
@@ -207,6 +211,7 @@ class FLRunner:
         preference_mode: str = "class_balanced",
         preferred_clients_per_class: int = 1,
         sample_cap_strategy: str = "preserve",
+        satellite_data_profiles: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """
         加载数据集并分配到客户端。
@@ -332,10 +337,23 @@ class FLRunner:
 
         # 分配数据到客户端
         n_clients = self.config.num_clients
+        profiles = satellite_data_profiles or getattr(
+            self.config,
+            "satellite_data_profiles",
+            {},
+        )
         if dataset_name == "femnist":
             # FEMNIST: 按 writer 划分 (1 writer = 1 client)，已经是天然 non-IID
             client_data_indices = self._partition_femnist_writers(
                 train_ds, n_clients
+            )
+        elif profiles:
+            targets = np.array([train_ds[i][1] for i in range(len(train_ds))])
+            client_data_indices = self._partition_satellite_profiles(
+                targets=targets,
+                n_clients=n_clients,
+                profiles=profiles,
+                default_probability=class_probability,
             )
         else:
             client_data_indices = self._partition_data(
@@ -357,6 +375,11 @@ class FLRunner:
                 max_samples_per_client,
                 sample_cap_strategy,
             )
+        if profiles:
+            client_data_indices = self._cap_satellite_profiles(
+                client_data_indices,
+                profiles,
+            )
 
         self._client_label_distribution = self._build_label_distribution(
             client_data_indices,
@@ -368,6 +391,7 @@ class FLRunner:
             classes_present = sorted({train_ds[i][1] for i in indices})
             client_class_dist[cid] = (len(indices), classes_present)
         self._client_data_summary = client_class_dist
+        self._satellite_data_profiles = profiles
 
         # 创建 DataLoader
         self._train_loaders = {}
@@ -568,6 +592,83 @@ class FLRunner:
                 client_indices[cid].append(int(sample_idx))
         return client_indices
 
+    def _partition_satellite_profiles(
+        self,
+        *,
+        targets: np.ndarray,
+        n_clients: int,
+        profiles: dict[str, dict[str, Any]],
+        default_probability: float,
+    ) -> list[list[int]]:
+        """Partition samples with independently configurable satellite preferences."""
+        rng = np.random.default_rng(getattr(self.config, "seed", None))
+        classes = sorted(int(value) for value in np.unique(targets))
+        result = [[] for _ in range(n_clients)]
+
+        normalized: dict[int, tuple[set[int], float]] = {}
+        for raw_id, raw_profile in profiles.items():
+            try:
+                client_id = int(raw_id)
+            except (TypeError, ValueError):
+                continue
+            if not 0 <= client_id < n_clients or not isinstance(raw_profile, dict):
+                continue
+            preferred: set[int] = set()
+            for value in raw_profile.get("preferred_classes", []):
+                try:
+                    class_id = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if class_id in classes:
+                    preferred.add(class_id)
+            probability = float(
+                raw_profile.get("preference_probability", default_probability)
+            )
+            normalized[client_id] = (preferred, min(max(probability, 0.0), 1.0))
+
+        for class_id in classes:
+            class_indices = np.where(targets == class_id)[0]
+            rng.shuffle(class_indices)
+            preferred_clients = [
+                client_id
+                for client_id, (preferred, _probability) in normalized.items()
+                if class_id in preferred
+            ]
+            fallback_clients = [
+                client_id for client_id in range(n_clients)
+                if client_id not in preferred_clients
+            ] or list(range(n_clients))
+            class_preference_probability = (
+                sum(normalized[client_id][1] for client_id in preferred_clients)
+                / len(preferred_clients)
+                if preferred_clients
+                else 0.0
+            )
+            for sample_index in class_indices:
+                if preferred_clients and rng.random() < class_preference_probability:
+                    client_id = int(rng.choice(preferred_clients))
+                else:
+                    client_id = int(rng.choice(fallback_clients))
+                result[client_id].append(int(sample_index))
+        return result
+
+    @staticmethod
+    def _cap_satellite_profiles(
+        client_indices: list[list[int]],
+        profiles: dict[str, dict[str, Any]],
+    ) -> list[list[int]]:
+        """Apply optional per-satellite sample limits after preference routing."""
+        capped: list[list[int]] = []
+        for client_id, indices in enumerate(client_indices):
+            profile = profiles.get(str(client_id), profiles.get(client_id, {}))
+            raw_limit = profile.get("max_samples", 0) if isinstance(profile, dict) else 0
+            try:
+                limit = max(0, int(raw_limit))
+            except (TypeError, ValueError):
+                limit = 0
+            capped.append(indices[:limit] if limit else indices)
+        return capped
+
     def _cap_client_samples(
         self,
         client_indices: list[list[int]],
@@ -678,6 +779,7 @@ class FLRunner:
         preference_mode: str | None = None,
         preferred_clients_per_class: int | None = None,
         sample_cap_strategy: str | None = None,
+        satellite_data_profiles: dict[str, dict[str, Any]] | None = None,
         verbose: bool = True,
     ) -> list[FLRoundResult]:
         """
@@ -750,6 +852,11 @@ class FLRunner:
             sample_cap_strategy if sample_cap_strategy is not None
             else getattr(self.config, "sample_cap_strategy", "preserve")
         )
+        _satellite_data_profiles = (
+            satellite_data_profiles
+            if satellite_data_profiles is not None
+            else getattr(self.config, "satellite_data_profiles", {})
+        )
 
         if verbose:
             print("=== SpaceFL 实验 ===")
@@ -781,6 +888,7 @@ class FLRunner:
             preference_mode=_preference_mode,
             preferred_clients_per_class=_preferred_clients_per_class,
             sample_cap_strategy=_sample_cap_strategy,
+            satellite_data_profiles=_satellite_data_profiles,
         )
 
         # 2. 模型准备
