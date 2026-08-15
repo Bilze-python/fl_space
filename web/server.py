@@ -694,6 +694,15 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         """Cesium轨道可视化页面"""
         return FileResponse(WEB_DIR / "cesium_orbit_viewer.html")
 
+    @app.get("/orbit_2d_viewer.html")
+    async def orbit_2d_viewer():
+        """2D orbit viewer page"""
+        return FileResponse(WEB_DIR / "orbit_2d_viewer.html")
+
+    @app.get("/launcher.html")
+    async def launcher():
+        return FileResponse(WEB_DIR / "launcher.html")
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return (WEB_DIR / "index.html").read_text(encoding="utf-8")

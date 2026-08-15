@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpaceFL 快速启动台</title>
+  <link rel="stylesheet" href="/assets/launcher.css?v=20260815-v1">
+</head>
+<body>
+  <div class="launcher-shell">
+    <header class="launcher-header">
+      <a class="launcher-brand" href="/launcher.html" aria-label="SpaceFL 快速启动台">
+        <span class="brand-symbol" aria-hidden="true"><i></i><b>SF</b></span>
+        <span><strong>SpaceFL</strong><small>任务启动台</small></span>
+      </a>
+      <div class="header-center" aria-label="服务状态">
+        <span class="service-dot" id="service-dot"></span>
+        <span id="service-label">正在连接本地服务</span>
+        <span class="header-divider"></span>
+        <time id="local-time">--:--:--</time>
+      </div>
+      <nav class="header-actions" aria-label="快捷入口">
+        <a href="/" class="quiet-link">完整操作台</a>
+        <a href="/cesium_orbit_viewer.html" class="quiet-link">轨道视图</a>
+      </nav>
+    </header>
+
+    <main class="launcher-main">
+      <section class="launch-workbench" aria-labelledby="launch-heading">
+        <div class="section-title">
+          <div><span class="section-index">01 / 配置</span><h1 id="launch-heading">启动联邦学习任务</h1></div>
+          <button type="button" class="icon-action" id="reset-config" aria-label="恢复当前会话参数">↻</button>
+        </div>
+
+        <div class="preset-switch" role="group" aria-label="任务预设">
+          <button type="button" class="preset active" data-preset="quick" aria-pressed="true"><strong>快速试跑</strong><span>3 星 · 5 轮</span></button>
+          <button type="button" class="preset" data-preset="standard" aria-pressed="false"><strong>标准验证</strong><span>8 星 · 10 轮</span></button>
+          <button type="button" class="preset" data-preset="link" aria-pressed="false"><strong>链路压力</strong><span>16 星 · ISL</span></button>
+        </div>
+
+        <form id="launch-form">
+          <div class="field-grid">
+            <label class="field"><span>聚合算法</span><select id="algorithm" name="algorithm"><option value="fedavg">FedAvg</option><option value="fedprox">FedProx</option><option value="fedbuff">FedBuff</option><option value="fedleo">FedLEO</option></select></label>
+            <label class="field"><span>训练数据</span><select id="dataset" name="dataset"><option value="mnist">MNIST</option><option value="fashion_mnist">Fashion-MNIST</option><option value="cifar10">CIFAR-10</option><option value="femnist">FEMNIST</option></select></label>
+            <label class="field"><span>卫星节点</span><span class="number-control"><button type="button" data-step="sats" data-delta="-1" aria-label="减少卫星节点">−</button><input id="sats" name="sats" type="number" min="2" max="72" value="3"><button type="button" data-step="sats" data-delta="1" aria-label="增加卫星节点">+</button></span></label>
+            <label class="field"><span>通信轮次</span><span class="number-control"><button type="button" data-step="rounds" data-delta="-1" aria-label="减少通信轮次">−</button><input id="rounds" name="rounds" type="number" min="2" max="30" value="5"><button type="button" data-step="rounds" data-delta="1" aria-label="增加通信轮次">+</button></span></label>
+            <label class="field"><span>本地 Epoch</span><select id="epochs" name="epochs"><option value="1">1</option><option value="2" selected>2</option><option value="5">5</option><option value="10">10</option></select></label>
+            <label class="field"><span>随机种子</span><input id="seed" name="seed" type="number" value="20260815"></label>
+          </div>
+
+          <div class="switch-grid">
+            <label class="switch-row"><span><strong>Non-IID 数据</strong><small>模拟节点数据偏移</small></span><input id="non-iid" type="checkbox" checked><i aria-hidden="true"></i></label>
+            <label class="switch-row"><span><strong>星间链路 ISL</strong><small>启用跨轨数据转发</small></span><input id="isl" type="checkbox"><i aria-hidden="true"></i></label>
+          </div>
+
+          <div class="launch-summary">
+            <div class="readiness"><span class="ready-mark" aria-hidden="true">✓</span><span><strong id="ready-title">配置就绪</strong><small id="ready-detail">预计 3–5 分钟 · CPU 本地执行</small></span></div>
+            <button type="submit" class="launch-button" id="launch-button"><span class="launch-glyph" aria-hidden="true">▶</span><span><strong>启动任务</strong><small id="launch-caption">快速试跑 / FedAvg</small></span></button>
+          </div>
+        </form>
+      </section>
+
+      <section class="mission-view" aria-labelledby="mission-heading">
+        <div class="mission-head">
+          <div><span class="section-index">02 / 预检</span><h2 id="mission-heading">任务轨道</h2></div>
+          <div class="mission-state"><span id="mission-state-dot"></span><strong id="mission-state-text">待命</strong></div>
+        </div>
+        <div class="orbit-stage" id="orbit-stage">
+          <canvas id="orbit-canvas" aria-label="卫星任务轨道预览"></canvas>
+          <div class="earth-label"><span>EARTH / LEO</span><strong id="orbit-altitude">500 km</strong></div>
+          <div class="orbit-readout"><span>任务窗口</span><strong id="mission-window">00:05:00</strong></div>
+          <div class="stage-progress" id="stage-progress" aria-live="polite">
+            <div class="progress-head"><span id="progress-label">任务准备中</span><strong id="progress-value">0%</strong></div>
+            <div class="progress-track"><i id="progress-bar"></i></div>
+          </div>
+        </div>
+        <div class="telemetry" aria-label="任务摘要">
+          <div><span>参与节点</span><strong id="telemetry-sats">3</strong></div><div><span>通信轮次</span><strong id="telemetry-rounds">5</strong></div><div><span>链路模式</span><strong id="telemetry-isl">GS</strong></div><div><span>执行设备</span><strong>CPU</strong></div>
+        </div>
+        <div class="queue-panel">
+          <div class="queue-head"><span>最近任务</span><button type="button" id="refresh-jobs">刷新</button></div>
+          <div id="job-list" class="job-list"><div class="empty-job">暂无运行记录</div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/launcher.js?v=20260815-v1"></script>
+</body>
+</html>

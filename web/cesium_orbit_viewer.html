@@ -491,23 +491,34 @@
             const satelliteCount = state.orbitData.satellites;
 
             for (let satelliteId = 0; satelliteId < satelliteCount; satelliteId += 1) {
-                const coordinates = [];
                 const trajectory = state.orbitData.trajectories?.find(item => item.sat_id === satelliteId);
                 const samples = trajectory?.positions || state.orbitData.timeslots.map(slot => slot.positions[satelliteId]);
+                let coordinates = [];
+                let previousLongitude = null;
+                const flushSegment = () => {
+                    if (coordinates.length < 6) {
+                        coordinates = [];
+                        return;
+                    }
+                    const hue = satelliteId / Math.max(1, satelliteCount);
+                    state.trajectoryEntities.push(viewer.entities.add({
+                        polyline: {
+                            positions: Cesium.Cartesian3.fromDegreesArrayHeights(coordinates),
+                            width: 1.2,
+                            material: Cesium.Color.fromHsl(hue, 0.74, 0.58, 0.32),
+                            arcType: Cesium.ArcType.NONE
+                        }
+                    }));
+                    coordinates = [];
+                };
                 for (const satellite of samples) {
                     if (!satellite) continue;
                     const { lon, lat } = validateCoordinate(satellite, `SAT-${satelliteId}`);
+                    if (previousLongitude !== null && Math.abs(lon - previousLongitude) > 180) flushSegment();
                     coordinates.push(lon, lat, Number(satellite.alt_km || 0) * 1000);
+                    previousLongitude = lon;
                 }
-                const hue = satelliteId / Math.max(1, satelliteCount);
-                state.trajectoryEntities.push(viewer.entities.add({
-                    polyline: {
-                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(coordinates),
-                        width: 1.2,
-                        material: Cesium.Color.fromHsl(hue, 0.74, 0.58, 0.32),
-                        arcType: Cesium.ArcType.NONE
-                    }
-                }));
+                flushSegment();
             }
         }
 
@@ -658,15 +669,23 @@
         }
 
         function play() {
-            if (!state.orbitData || state.timer) return;
+            if (!state.orbitData?.timeslots?.length || state.timer) return;
             state.timer = window.setInterval(() => {
-                renderSlot((state.currentSlot + 1) % state.orbitData.timeslots.length);
+                if (!state.orbitData?.timeslots?.length) {
+                    pause();
+                    return;
+                }
+                const lastSlot = state.orbitData.timeslots.length - 1;
+                if (state.currentSlot >= lastSlot) {
+                    pause();
+                    return;
+                }
+                renderSlot(state.currentSlot + 1);
             }, 420);
         }
 
         function pause() {
-            if (!state.timer) return;
-            window.clearInterval(state.timer);
+            if (state.timer !== null) window.clearInterval(state.timer);
             state.timer = null;
         }
 

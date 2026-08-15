@@ -454,6 +454,7 @@ async function openDocument(path, type, element) {
 }
 
 async function loadOrbit(experimentId = $("#orbit-experiment-select")?.value || "", autoplay = false) {
+  pauseOrbit();
   state.orbitLoading = true;
   const session = state.session || { mount: {} };
   const mount = session.mount || {};
@@ -596,6 +597,7 @@ function syncCesiumSource(experimentId = "") {
 }
 
 function setOrbitMode(mode) {
+  pauseOrbit();
   const is3d = mode === "3d";
   $("#orbit-canvas-2d").classList.toggle("hidden", is3d);
   $("#orbit-canvas-3d").classList.toggle("hidden", !is3d);
@@ -604,12 +606,20 @@ function setOrbitMode(mode) {
 }
 
 function playOrbit() {
+  if (!state.orbit?.timeslots?.length || state.orbitLoading) return;
+  pauseOrbit();
   state.orbitPlaying = true;
-  clearInterval(state.orbitTimer);
-  cesiumWindow()?.SpaceFLOrbitViewer?.pause();
+  const lastSlot = state.orbit.timeslots.length - 1;
   state.orbitTimer = setInterval(() => {
-    if (!state.orbit) return;
-    state.orbitSlot = (state.orbitSlot + 1) % state.orbit.timeslots.length;
+    if (!state.orbit?.timeslots?.length) {
+      pauseOrbit();
+      return;
+    }
+    if (state.orbitSlot >= lastSlot) {
+      pauseOrbit();
+      return;
+    }
+    state.orbitSlot += 1;
     $("#orbit-slider").value = state.orbitSlot;
     drawOrbit();
     syncCesiumSlot(state.orbitSlot);
@@ -618,7 +628,8 @@ function playOrbit() {
 
 function pauseOrbit() {
   state.orbitPlaying = false;
-  clearInterval(state.orbitTimer);
+  if (state.orbitTimer != null) clearInterval(state.orbitTimer);
+  state.orbitTimer = null;
   cesiumWindow()?.SpaceFLOrbitViewer?.pause();
 }
 
@@ -672,6 +683,7 @@ function bindEvents() {
   $("#orbit-play").addEventListener("click", playOrbit);
   $("#orbit-pause").addEventListener("click", pauseOrbit);
   $("#orbit-slider").addEventListener("input", event => {
+    pauseOrbit();
     state.orbitSlot = Number(event.target.value);
     drawOrbit();
     syncCesiumSlot(state.orbitSlot);
