@@ -7,6 +7,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+node_modules/
 
 # Virtual environments
 venv/
@@ -25,6 +26,8 @@ Thumbs.db
 
 # Project specific
 .fls_session.json
+.literature_config.json
+.spacefl_ai_config.json
 *.log
 .pytest_cache/
 .ruff_cache/

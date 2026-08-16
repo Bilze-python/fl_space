@@ -1,143 +1,157 @@
-// Global Plate Carree (equirectangular) orbit view for the 2D mode.
+// Natural Earth map renderer for the primary 2D orbit view.
+// It receives the same replay data object that the Cesium viewer consumes.
 
-function draw2DOrbit(canvasId, orbitData) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const rect = canvas.getBoundingClientRect();
-  const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 960));
-  const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 540));
-  const ratio = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round(cssHeight * ratio);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const w = cssWidth;
-  const h = cssHeight;
-
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#08131b";
-  ctx.fillRect(0, 0, w, h);
-
-  const mapPoint = (lat, lon) => ({
-    x: ((Number(lon) + 180) / 360) * w,
-    y: ((90 - Number(lat)) / 180) * h,
-  });
-  const wrapped = (a, b) => Math.abs(Number(a) - Number(b)) > 180;
-
-  // Ocean, latitude/longitude grid and a restrained land silhouette keep the
-  // projection readable without relying on a remote tile provider.
-  ctx.fillStyle = "#0d3447";
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(155, 205, 220, 0.18)";
-  ctx.lineWidth = 1;
-  for (let lon = -180; lon <= 180; lon += 30) {
-    const x = mapPoint(0, lon).x;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
-  for (let lat = -90; lat <= 90; lat += 15) {
-    const y = mapPoint(lat, 0).y;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-  }
-  ctx.strokeStyle = "rgba(220, 240, 242, 0.45)";
-  ctx.lineWidth = 1.2;
-  [
-    [[-168, 72], [-150, 60], [-132, 52], [-124, 38], [-112, 28], [-96, 20], [-84, 27], [-76, 43], [-62, 50], [-52, 62], [-42, 70], [-70, 76], [-110, 78], [-145, 76]],
-    [[-82, 12], [-74, 4], [-68, -12], [-63, -28], [-58, -48], [-52, -55], [-44, -32], [-38, -8], [-48, 8], [-63, 17]],
-    [[-10, 36], [8, 44], [25, 60], [48, 68], [78, 66], [105, 58], [130, 48], [145, 33], [140, 12], [118, 3], [105, -7], [80, 8], [55, 18], [35, 30], [15, 28]],
-    [[-18, 30], [5, 35], [33, 28], [48, 12], [40, -8], [27, -30], [12, -35], [-4, -20], [-15, 2]],
-    [[112, -10], [132, -12], [153, -23], [166, -39], [145, -45], [123, -34]],
-  ].forEach((polygon) => {
-    ctx.beginPath();
-    polygon.forEach(([lon, lat], index) => {
-      const p = mapPoint(lat, lon);
-      if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-    });
-    ctx.closePath();
-    ctx.fillStyle = "#1c4a4d";
-    ctx.fill();
-    ctx.stroke();
-  });
-
-  if (!orbitData?.timeslots?.length) return;
-  const requestedSlot = typeof state !== "undefined" ? Number(state.orbitSlot) : 0;
-  const slotIndex = Math.max(0, Math.min(Number.isFinite(requestedSlot) ? requestedSlot : 0, orbitData.timeslots.length - 1));
-  const currentSlot = orbitData.timeslots[slotIndex] || orbitData.timeslots[0];
-  const positions = currentSlot.positions || [];
-  const contacts = currentSlot.contacts || [];
-  const islLinks = currentSlot.isl_links || [];
-  const offloadActions = currentSlot.experiment?.offload_actions || [];
-
-  // Draw complete sampled trajectories, breaking only at the date line.
-  (orbitData.trajectories || []).forEach((trajectory, index) => {
-    const samples = trajectory.positions || [];
-    ctx.strokeStyle = `hsla(${(index * 47) % 360}, 76%, 68%, 0.42)`;
-    ctx.lineWidth = 1.25;
-    ctx.beginPath();
-    let previous = null;
-    samples.forEach((sample) => {
-      if (sample == null) return;
-      const p = mapPoint(sample.lat, sample.lon);
-      if (!previous || wrapped(sample.lon, previous.lon)) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-      previous = sample;
-    });
-    ctx.stroke();
-  });
-
-  const drawConnection = (first, second, color, width, dash = []) => {
-    if (!first || !second || wrapped(first.lon, second.lon)) return;
-    const a = mapPoint(first.lat, first.lon);
-    const b = mapPoint(second.lat, second.lon);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.setLineDash(dash);
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.setLineDash([]);
+(() => {
+  const renderer = {
+    world: null,
+    loading: null,
+    orbit: null,
+    slot: 0,
+    svg: null,
+    projection: null,
+    path: null,
   };
-  const stationByIndex = orbitData.ground_stations || [];
-  contacts.forEach((contact) => {
-    const sat = positions.find((item) => item.sat_id === contact.sat_id);
-    drawConnection(sat, stationByIndex[contact.gs_id], "rgba(255, 209, 102, 0.58)", 1.2);
-  });
-  if (orbitData.isl_enabled) islLinks.forEach((link) => {
-    const a = positions.find((item) => item.sat_id === link.a_id);
-    const b = positions.find((item) => item.sat_id === link.b_id);
-    drawConnection(a, b, "rgba(100, 210, 255, 0.64)", 1.4);
-  });
-  offloadActions.forEach((action) => {
-    const a = positions.find((item) => item.sat_id === Number(action.from_sat));
-    const b = positions.find((item) => item.sat_id === Number(action.to_sat));
-    drawConnection(a, b, "rgba(255, 209, 102, 0.95)", 2.5, [7, 4]);
-  });
 
-  stationByIndex.forEach((station, index) => {
-    const p = mapPoint(station.lat, station.lon);
-    ctx.fillStyle = "#ff8b70";
-    ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
-    ctx.fillStyle = "#ffd4c8";
-    ctx.font = "10px monospace";
-    ctx.fillText(`GS${index}`, p.x + 6, p.y - 6);
-  });
-  positions.forEach((satellite) => {
-    const p = mapPoint(satellite.lat, satellite.lon);
-    const active = contacts.some((contact) => contact.sat_id === satellite.sat_id);
-    ctx.fillStyle = active ? "#67f59a" : "#73c9ff";
-    ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = active ? "#c8ffda" : "#d6f2ff";
-    ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.fillStyle = "#e9f3f5";
-    ctx.font = "10px monospace";
-    ctx.fillText(`S${satellite.sat_id}`, p.x + 7, p.y + 3);
-  });
+  function getSvg(id) {
+    const element = document.getElementById(id);
+    if (!element || typeof d3 === "undefined" || typeof topojson === "undefined") return null;
+    if (renderer.svg?.node() !== element) renderer.svg = d3.select(element);
+    return renderer.svg;
+  }
 
-  ctx.fillStyle = "rgba(240, 250, 252, 0.9)";
-  ctx.font = "12px monospace";
-  ctx.fillText(`时隙: ${slotIndex + 1}/${orbitData.timeslots.length}`, 12, 20);
-  ctx.fillText(`时间: ${currentSlot.time?.substring(11, 19) || "--"}`, 12, 39);
-  ctx.fillText(`卫星: ${positions.length}  连接: ${contacts.length + islLinks.length}`, 12, 58);
-}
+  async function loadWorld() {
+    if (renderer.world) return renderer.world;
+    if (!renderer.loading) {
+      renderer.loading = d3.json("/vendor/world-atlas/countries-110m.json")
+        .then((world) => {
+          renderer.world = world;
+          return world;
+        })
+        .catch((error) => {
+          console.error("Unable to load local Natural Earth map", error);
+          return null;
+        });
+    }
+    return renderer.loading;
+  }
 
-if (typeof window !== "undefined") {
-  window.draw2DOrbit = draw2DOrbit;
-}
+  function lineFeature(points) {
+    const segments = [];
+    let segment = [];
+    for (const point of points || []) {
+      if (!point) continue;
+      const previous = segment[segment.length - 1];
+      if (previous && Math.abs(point.lon - previous[0]) > 180) {
+        if (segment.length > 1) segments.push(segment);
+        segment = [];
+      }
+      segment.push([point.lon, point.lat]);
+    }
+    if (segment.length > 1) segments.push(segment);
+    return { type: "MultiLineString", coordinates: segments };
+  }
+
+  function resize() {
+    const svg = renderer.svg;
+    if (!svg) return false;
+    const node = svg.node();
+    const rect = node.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width || node.clientWidth || 960));
+    const height = Math.max(1, Math.round(rect.height || node.clientHeight || 540));
+    svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMidYMid meet");
+    renderer.projection = d3.geoNaturalEarth1().fitExtent([[18, 28], [width - 18, height - 28]], { type: "Sphere" });
+    renderer.path = d3.geoPath(renderer.projection);
+    return true;
+  }
+
+  function renderBase() {
+    const svg = renderer.svg;
+    if (!svg || !renderer.world || !renderer.path) return;
+    svg.selectAll(".map-base").remove();
+    const base = svg.append("g").attr("class", "map-base").attr("pointer-events", "none");
+    base.append("path").datum({ type: "Sphere" }).attr("class", "map-ocean").attr("d", renderer.path);
+    base.append("path").datum(d3.geoGraticule10()).attr("class", "map-graticule").attr("d", renderer.path);
+    base.append("g").selectAll("path")
+      .data(topojson.feature(renderer.world, renderer.world.objects.countries).features)
+      .join("path").attr("class", "map-country").attr("d", renderer.path);
+    base.append("path").datum({ type: "Sphere" }).attr("class", "map-border").attr("d", renderer.path);
+  }
+
+  function point(point) {
+    return renderer.projection([point.lon, point.lat]);
+  }
+
+  function drawLink(selection, source, target) {
+    if (!source || !target || Math.abs(source.lon - target.lon) > 180) {
+      selection.attr("display", "none");
+      return;
+    }
+    const a = point(source);
+    const b = point(target);
+    selection.attr("display", null).attr("x1", a[0]).attr("y1", a[1]).attr("x2", b[0]).attr("y2", b[1]);
+  }
+
+  function render() {
+    const svg = renderer.svg;
+    const orbit = renderer.orbit;
+    if (!svg || !orbit?.timeslots?.length || !renderer.projection) return;
+    svg.selectAll(".orbit-layer").remove();
+    const slot = orbit.timeslots[renderer.slot] || orbit.timeslots[0];
+    const positions = slot.positions || [];
+    const contacts = slot.contacts || [];
+    const satelliteById = new Map(positions.map((satellite) => [satellite.sat_id, satellite]));
+    const activeIds = new Set(contacts.map((contact) => contact.sat_id));
+    const layer = svg.append("g").attr("class", "orbit-layer");
+
+    layer.append("g").attr("class", "trajectory-group").selectAll("path")
+      .data(orbit.trajectories || []).join("path")
+      .attr("class", (trajectory) => `orbit-trail plane-${(trajectory.sat_id || 0) % 6}`)
+      .attr("d", (trajectory) => renderer.path(lineFeature(trajectory.positions)));
+
+    const links = layer.append("g").attr("class", "link-group");
+    links.selectAll("line.gsl").data(contacts).join("line").attr("class", "orbit-link gsl")
+      .each(function (contact) { drawLink(d3.select(this), satelliteById.get(contact.sat_id), orbit.ground_stations?.[contact.gs_id]); });
+    if (orbit.isl_enabled) {
+      links.selectAll("line.isl").data(slot.isl_links || []).join("line").attr("class", "orbit-link isl")
+        .each(function (link) { drawLink(d3.select(this), satelliteById.get(link.a_id), satelliteById.get(link.b_id)); });
+    }
+    links.selectAll("line.offload").data(slot.experiment?.offload_actions || []).join("line").attr("class", "orbit-link offload")
+      .each(function (action) { drawLink(d3.select(this), satelliteById.get(Number(action.from_sat)), satelliteById.get(Number(action.to_sat))); });
+
+    const stations = layer.append("g").attr("class", "station-group");
+    stations.selectAll("g").data(orbit.ground_stations || []).join("g").attr("class", "ground-station")
+      .each(function (station, index) {
+        const [x, y] = point(station);
+        d3.select(this).attr("transform", `translate(${x},${y})`)
+          .html(`<path d="M0 -7 L6 5 L-6 5 Z"></path><text y="17">GS${index + 1}</text>`);
+      });
+
+    const satellites = layer.append("g").attr("class", "satellite-group");
+    satellites.selectAll("g").data(positions).join("g").attr("class", "satellite-node")
+      .classed("active", (satellite) => activeIds.has(satellite.sat_id))
+      .each(function (satellite) {
+        const [x, y] = point(satellite);
+        d3.select(this).attr("transform", `translate(${x},${y})`)
+          .html(`<rect class="sat-body" x="-4" y="-4" width="8" height="8"></rect><rect class="sat-panel" x="-13" y="-1.5" width="7" height="3"></rect><rect class="sat-panel" x="6" y="-1.5" width="7" height="3"></rect><text y="-9">S${satellite.sat_id + 1}</text>`);
+      });
+  }
+
+  window.draw2DOrbit = (canvasId, orbit, requestedSlot = 0) => {
+    const svg = getSvg(canvasId);
+    if (!svg || !orbit) return;
+    renderer.orbit = orbit;
+    renderer.slot = Math.max(0, Math.min(Number(requestedSlot || 0), orbit.timeslots.length - 1));
+    resize();
+    if (renderer.world) {
+      renderBase();
+      render();
+      return;
+    }
+    loadWorld().then((world) => {
+      if (!world || renderer.orbit !== orbit) return;
+      resize();
+      renderBase();
+      render();
+    });
+  };
+})();

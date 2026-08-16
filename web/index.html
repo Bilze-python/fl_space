@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SpaceFL 智能实验平台</title>
   <link rel="stylesheet" href="/assets/app.css?v=20260813-spacefl-paper-v1">
-  <script src="/assets/orbit2d.js?v=20260813-projection-v3"></script>
+  <script src="/vendor/d3/d3.min.js"></script>
+  <script src="/vendor/topojson/topojson-client.min.js"></script>
+  <script src="/assets/orbit2d.js?v=20260815-natural-earth-v1"></script>
 </head>
 <body>
   <div id="app-shell">
@@ -248,7 +250,7 @@
             </label>
             <label class="view-mode-switch">
               <input type="radio" name="orbit-mode" value="2d" checked>
-              <span>2D 平面</span>
+              <span>2D 地图</span>
             </label>
             <label class="view-mode-switch">
               <input type="radio" name="orbit-mode" value="3d">
@@ -257,9 +259,10 @@
             <button class="icon-button" id="orbit-play" title="播放">▶</button>
             <button class="icon-button" id="orbit-pause" title="暂停">Ⅱ</button>
             <button class="button secondary" id="orbit-load">重新生成轨道</button>
+            <a class="button secondary orbit-map-link" href="/orbit_2d_viewer.html">打开 2D 地图演示</a>
           </div>
         </div>
-        <canvas id="orbit-canvas-2d"></canvas>
+        <svg id="orbit-canvas-2d" role="img" aria-label="Walker Star LEO constellation 2D map"></svg>
         <div id="orbit-canvas-3d" class="hidden" aria-label="Cesium 3D 轨道演示"></div>
         <div class="orbit-bottom">
           <input type="range" id="orbit-slider" min="0" max="1" value="0">
@@ -282,6 +285,15 @@
           <section class="panel library-list-panel">
             <div class="panel-head">
               <div><p class="panel-kicker">RESEARCH LIBRARY</p><h2>文献与设计文档</h2></div>
+            </div>
+            <div class="library-toolbar">
+              <button type="button" class="button secondary" id="library-import-button">导入文献</button>
+              <button type="button" class="button secondary" id="library-settings-button">默认目录</button>
+              <input id="library-import-input" type="file" accept=".md,.markdown,.pdf,.txt" multiple hidden>
+            </div>
+            <div class="library-path-editor hidden" id="library-path-editor">
+              <input class="form-control" id="library-default-path" type="text" placeholder="D:\\SpaceFL\\文献">
+              <button type="button" class="button primary" id="library-save-path">保存</button>
             </div>
             <input class="search-input" id="library-search" placeholder="搜索 FedLEO、设计方案或文件名">
             <div id="library-list" class="library-list"></div>
@@ -306,6 +318,12 @@
               <strong>只读分析模式</strong>
               <p>模型只能读取选中实验的配置、摘要与末段曲线，不会修改代码、参数或结果文件。</p>
             </div>
+            <div class="ai-provider-import">
+              <div class="ai-provider-import-head">
+                <div><strong>CC Switch</strong><small id="cc-switch-detail">未导入当前 Claude 供应商</small></div>
+                <button type="button" class="button secondary" id="cc-switch-import">导入设置</button>
+              </div>
+            </div>
             <div class="suggestion-list">
               <button data-ai-question="这组实验是否真正触发了 FedLEO 卸载？证据是什么？">检查卸载是否生效</button>
               <button data-ai-question="分析这组实验的对照是否公平，并指出不能下的结论。">检查对照公平性</button>
@@ -314,7 +332,7 @@
           </section>
           <section class="panel ai-chat-panel">
             <div class="panel-head">
-              <div><p class="panel-kicker">DEEPSEEK CHAT</p><h2>实验解读</h2></div>
+              <div><p class="panel-kicker">AI PROVIDER CHAT</p><h2>实验解读</h2></div>
             </div>
             <div id="ai-messages" class="ai-messages">
               <div class="ai-message assistant">选择一份实验档案，然后询问它能证明什么、不能证明什么。</div>
@@ -330,6 +348,8 @@
   </div>
 
   <div id="toast-stack"></div>
-  <script src="/assets/app.js?v=20260813-spacefl-paper-v2"></script>
+  <script src="/vendor/marked/marked.umd.js"></script>
+  <script src="/vendor/dompurify/purify.min.js"></script>
+  <script src="/assets/app.js?v=20260815-library-ccswitch-v1"></script>
 </body>
 </html>

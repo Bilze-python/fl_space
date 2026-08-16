@@ -23,6 +23,11 @@ const viewTitles = {
 
 function $(selector, root = document) { return root.querySelector(selector); }
 function $$(selector, root = document) { return [...root.querySelectorAll(selector)]; }
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
+  })[character]);
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -386,24 +391,80 @@ async function loadLibrary(query = "") {
   try {
     state.library = await api(`/api/library?q=${encodeURIComponent(query)}`);
     $("#library-list").innerHTML = state.library.map(item => `
-      <article class="library-item" data-library-path="${item.path}" data-library-type="${item.type}">
-        <strong>${item.title}</strong>
-        <small>${item.type.toUpperCase()} · ${(item.size / 1024).toFixed(0)} KB</small>
+      <article class="library-item" data-library-path="${escapeHtml(item.path)}" data-library-type="${escapeHtml(item.type)}">
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.type.toUpperCase())} · ${(item.size / 1024).toFixed(0)} KB · <span class="library-source">${escapeHtml(item.source || "项目")}</span></small>
       </article>
     `).join("");
     $$(".library-item").forEach(element => element.addEventListener("click", () => openDocument(element.dataset.libraryPath, element.dataset.libraryType, element)));
   } catch (error) { toast(error.message, "error"); }
 }
 
+async function loadLibrarySettings() {
+  try {
+    const settings = await api("/api/library/settings");
+    $("#library-default-path").value = settings.default_path;
+  } catch (error) { toast(error.message, "error"); }
+}
+
+async function saveLibraryPath() {
+  try {
+    const result = await api("/api/library/settings", {
+      method: "PUT",
+      body: JSON.stringify({ default_path: $("#library-default-path").value.trim() }),
+    });
+    $("#library-default-path").value = result.default_path;
+    $("#library-path-editor").classList.add("hidden");
+    await loadLibrary($("#library-search").value);
+    toast("默认文献目录已更新");
+  } catch (error) { toast(error.message, "error"); }
+}
+
+async function importLibraryFiles(files) {
+  if (!files.length) return;
+  let imported = 0;
+  for (const file of files) {
+    try {
+      await api(`/api/library/import?filename=${encodeURIComponent(file.name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: file,
+      });
+      imported += 1;
+    } catch (error) {
+      toast(`${file.name}: ${error.message}`, "error");
+    }
+  }
+  $("#library-import-input").value = "";
+  if (imported) {
+    await loadLibrary($("#library-search").value);
+    toast(`已导入 ${imported} 份文献`);
+  }
+}
+
 async function loadAiSettings() {
   try {
     const settings = await api("/api/settings");
     const badge = $("#ai-provider-status");
-    badge.textContent = settings.ai_configured ? "DeepSeek 已连接" : "未配置密钥";
+    badge.textContent = settings.ai_configured ? `${settings.ai_provider} 已连接` : "AI 未连接";
     badge.className = `status-badge ${settings.ai_configured ? "green" : "amber"}`;
+    $("#cc-switch-detail").textContent = settings.ai_source === "cc_switch"
+      ? `${settings.ai_provider} · ${settings.ai_model}`
+      : "未导入当前 Claude 供应商";
   } catch (error) {
     $("#ai-provider-status").textContent = "检测失败";
   }
+}
+
+async function importCcSwitch() {
+  const button = $("#cc-switch-import");
+  button.disabled = true;
+  try {
+    const settings = await api("/api/settings/cc-switch/import", { method: "POST" });
+    toast(`已导入 CC Switch: ${settings.ai_provider}`);
+    await loadAiSettings();
+  } catch (error) { toast(error.message, "error"); }
+  finally { button.disabled = false; }
 }
 
 function appendAiMessage(content, role, extraClass = "") {
@@ -443,13 +504,18 @@ async function openDocument(path, type, element) {
   $$(".library-item").forEach(item => item.classList.toggle("active", item === element));
   const title = element.querySelector("strong").textContent;
   if (type === "pdf") {
-    $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${title}</h2></div><iframe class="reader-frame" src="/api/library/file?path=${encodeURIComponent(path)}"></iframe>`;
+    $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><iframe class="reader-frame" title="${escapeHtml(title)}" src="/api/library/file?path=${encodeURIComponent(path)}"></iframe>`;
     return;
   }
   try {
     const data = await api(`/api/library/content?path=${encodeURIComponent(path)}`);
-    $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${title}</h2></div><div class="reader-content"><pre></pre></div>`;
-    $(".reader-content pre").textContent = data.content;
+    if (type === "md" && window.marked && window.DOMPurify) {
+      const html = DOMPurify.sanitize(marked.parse(data.content, { gfm: true }));
+      $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><article class="reader-content markdown-body">${html}</article>`;
+    } else {
+      $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><div class="reader-content"><pre></pre></div>`;
+      $(".reader-content pre").textContent = data.content;
+    }
   } catch (error) { toast(error.message, "error"); }
 }
 
@@ -499,7 +565,7 @@ function drawOrbit() {
   updateOrbitExperimentMetrics();
   // 调用2D轨道绘制模块
   if (window.draw2DOrbit && state.orbit) {
-    window.draw2DOrbit("orbit-canvas-2d", state.orbit);
+    window.draw2DOrbit("orbit-canvas-2d", state.orbit, state.orbitSlot);
     const slot = state.orbit.timeslots[state.orbitSlot];
     $("#orbit-time").textContent = new Date(slot.time).toLocaleString("zh-CN");
     $("#orbit-links").textContent = (slot.contacts?.length || 0) + (slot.isl_links?.length || 0);
@@ -671,7 +737,16 @@ function bindEvents() {
   $("#refresh-overview").addEventListener("click", loadOverview);
   $("#refresh-experiments").addEventListener("click", loadOverview);
   $("#library-search").addEventListener("input", event => loadLibrary(event.target.value));
+  $("#library-import-button").addEventListener("click", () => $("#library-import-input").click());
+  $("#library-import-input").addEventListener("change", event => importLibraryFiles([...event.target.files]));
+  $("#library-settings-button").addEventListener("click", async () => {
+    const editor = $("#library-path-editor");
+    editor.classList.toggle("hidden");
+    if (!editor.classList.contains("hidden")) await loadLibrarySettings();
+  });
+  $("#library-save-path").addEventListener("click", saveLibraryPath);
   $("#ai-form").addEventListener("submit", askAi);
+  $("#cc-switch-import").addEventListener("click", importCcSwitch);
   $$("[data-ai-question]").forEach(button => button.addEventListener("click", () => {
     $("#ai-question").value = button.dataset.aiQuestion;
     askAi();

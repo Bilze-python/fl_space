@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -16,7 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request as HttpRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,8 +26,14 @@ import uvicorn
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = Path(__file__).resolve().parent
 CESIUM_DIR = PROJECT_DIR / "node_modules" / "cesium" / "Build" / "Cesium"
+NODE_MODULES_DIR = PROJECT_DIR / "node_modules"
 SESSION_FILE = PROJECT_DIR / ".fls_session.json"
+LITERATURE_CONFIG_FILE = PROJECT_DIR / ".literature_config.json"
+AI_CONFIG_FILE = PROJECT_DIR / ".spacefl_ai_config.json"
+CC_SWITCH_DB = Path.home() / ".cc-switch" / "cc-switch.db"
 VALIDATION_SCRIPT = PROJECT_DIR / "scripts" / "validate_fedleo_offloading.py"
+LIBRARY_SUFFIXES = {".md", ".markdown", ".pdf", ".txt"}
+MAX_LIBRARY_FILE_SIZE = 30 * 1024 * 1024
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
@@ -251,53 +258,143 @@ def _experiment_detail(experiment_id: str) -> dict[str, Any]:
     return detail
 
 
+def _load_literature_config() -> dict[str, Any]:
+    raw = _read_json(LITERATURE_CONFIG_FILE, {})
+    if not isinstance(raw, dict):
+        raw = {}
+    default_path = raw.get("default_path")
+    if not default_path:
+        legacy_paths = raw.get("default_paths", [])
+        default_path = legacy_paths[0] if legacy_paths else str(PROJECT_DIR / "文献")
+    return {"default_path": str(default_path)}
+
+
+def _resolve_literature_root(raw_path: str) -> Path:
+    candidate = Path(raw_path).expanduser()
+    if not candidate.is_absolute():
+        candidate = PROJECT_DIR / candidate
+    return candidate.resolve()
+
+
+def _library_roots() -> list[tuple[str, Path]]:
+    configured = _resolve_literature_root(_load_literature_config()["default_path"])
+    candidates = [("项目文档", (PROJECT_DIR / "docs").resolve()), ("默认文献", configured)]
+    roots: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
+    for label, path in candidates:
+        if path in seen or not path.exists() or not path.is_dir():
+            continue
+        seen.add(path)
+        roots.append((label, path))
+    return roots
+
+
+def _resolve_library_item(item_path: str) -> Path:
+    prefix, separator, relative = item_path.partition(":")
+    if separator and prefix.isdigit():
+        roots = _library_roots()
+        index = int(prefix)
+        if index >= len(roots):
+            raise HTTPException(status_code=404, detail="文献目录不存在")
+        root = roots[index][1]
+        target = (root / relative).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="文献路径越界") from exc
+        return target
+    return _safe_project_path(item_path)
+
+
 def _scan_library() -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
-    for root_name in ("docs", "文献"):
-        root = PROJECT_DIR / root_name
-        if not root.exists():
-            continue
+    for root_index, (source, root) in enumerate(_library_roots()):
         for path in sorted(root.rglob("*")):
-            if not path.is_file() or path.suffix.lower() not in {".md", ".pdf", ".txt"}:
+            if not path.is_file() or path.suffix.lower() not in LIBRARY_SUFFIXES:
                 continue
-            relative = path.relative_to(PROJECT_DIR).as_posix()
+            relative = path.relative_to(root).as_posix()
             lower = path.name.lower()
             tags = [
                 tag
-                for tag in (
-                    "fedleo",
-                    "fedavg",
-                    "fedprox",
-                    "fedbuff",
-                    "satellite",
-                    "design",
-                )
+                for tag in ("fedleo", "fedavg", "fedprox", "fedbuff", "satellite", "design")
                 if tag in lower
             ]
             items.append(
                 {
-                    "id": relative,
+                    "id": f"{root_index}:{relative}",
                     "title": path.stem,
-                    "type": path.suffix.lower().lstrip("."),
-                    "path": relative,
+                    "type": "md" if path.suffix.lower() == ".markdown" else path.suffix.lower().lstrip("."),
+                    "path": f"{root_index}:{relative}",
+                    "source": source,
                     "size": path.stat().st_size,
-                    "modified_at": datetime.fromtimestamp(
-                        path.stat().st_mtime, tz=timezone.utc
-                    ).isoformat(),
+                    "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
                     "tags": tags,
                 }
             )
     return items
 
 
-def _deepseek_analysis(
-    question: str,
-    experiment: dict[str, Any] | None,
-) -> str:
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("DeepSeek API 尚未配置")
+def _read_cc_switch_provider() -> dict[str, str]:
+    if not CC_SWITCH_DB.exists():
+        raise RuntimeError("未找到 CC Switch 数据库，请先启动 CC Switch 并配置 Claude 供应商")
+    uri = f"file:{CC_SWITCH_DB.as_posix()}?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True, timeout=3) as connection:
+            row = connection.execute(
+                "SELECT id, name, settings_config FROM providers "
+                "WHERE app_type = 'claude' AND is_current = 1 LIMIT 1"
+            ).fetchone()
+    except sqlite3.Error as exc:
+        raise RuntimeError(f"无法读取 CC Switch 数据库: {exc}") from exc
+    if row is None:
+        raise RuntimeError("CC Switch 尚未选择 Claude 供应商")
+    try:
+        settings = json.loads(row[2])
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("CC Switch 当前供应商配置格式无效") from exc
+    env = settings.get("env", {}) if isinstance(settings, dict) else {}
+    token = str(env.get("ANTHROPIC_AUTH_TOKEN") or env.get("ANTHROPIC_API_KEY") or "").strip()
+    base_url = str(env.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com").strip()
+    model = str(settings.get("model") or env.get("ANTHROPIC_MODEL") or "claude-sonnet-4-5").strip()
+    if not token:
+        raise RuntimeError("CC Switch 当前 Claude 供应商没有可用的认证令牌")
+    return {
+        "id": str(row[0]),
+        "name": str(row[1]),
+        "token": token,
+        "base_url": base_url,
+        "model": model,
+    }
 
+
+def _ai_settings() -> dict[str, Any]:
+    config = _read_json(AI_CONFIG_FILE, {})
+    if isinstance(config, dict) and config.get("source") == "cc_switch":
+        try:
+            provider = _read_cc_switch_provider()
+            return {
+                "ai_provider": provider["name"],
+                "ai_model": provider["model"],
+                "ai_configured": True,
+                "ai_source": "cc_switch",
+            }
+        except RuntimeError as exc:
+            return {
+                "ai_provider": "CC Switch",
+                "ai_model": "--",
+                "ai_configured": False,
+                "ai_source": "cc_switch",
+                "ai_error": str(exc),
+            }
+    return {
+        "ai_provider": "DeepSeek",
+        "ai_model": "deepseek-chat",
+        "ai_configured": bool(os.environ.get("DEEPSEEK_API_KEY", "").strip()),
+        "ai_source": "environment",
+    }
+
+
+def _analysis_context(experiment: dict[str, Any] | None) -> dict[str, Any]:
     context: dict[str, Any] = {
         "platform": "SpaceFL visual experiment platform",
         "implementation_level": "lightweight discrete simulation",
@@ -321,6 +418,27 @@ def _deepseek_analysis(
             "history_on_tail": experiment.get("history_on", [])[-5:],
             "history_off_tail": experiment.get("history_off", [])[-5:],
         }
+    return context
+
+
+def _analysis_system_prompt() -> str:
+    return (
+        "你是 SpaceFL 卫星联邦学习实验分析助手。"
+        "只根据提供的数据作答，区分功能验证、趋势证据和论文级复现。"
+        "优先指出对照是否公平、卸载是否真实发生、样本是否守恒、"
+        "准确率与时延结论是否被当前模型支持。回答使用简洁中文。"
+    )
+
+
+def _deepseek_analysis(
+    question: str,
+    experiment: dict[str, Any] | None,
+) -> str:
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("DeepSeek API 尚未配置")
+
+    context = _analysis_context(experiment)
 
     payload = {
         "model": "deepseek-chat",
@@ -329,12 +447,7 @@ def _deepseek_analysis(
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "你是 SpaceFL 卫星联邦学习实验分析助手。"
-                    "只根据提供的数据作答，区分功能验证、趋势证据和论文级复现。"
-                    "优先指出对照是否公平、卸载是否真实发生、样本是否守恒、"
-                    "准确率与时延结论是否被当前模型支持。回答使用简洁中文。"
-                ),
+                "content": _analysis_system_prompt(),
             },
             {
                 "role": "user",
@@ -367,6 +480,56 @@ def _deepseek_analysis(
         return str(data["choices"][0]["message"]["content"]).strip()
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError("DeepSeek 返回了无法识别的响应") from exc
+
+
+def _cc_switch_analysis(
+    question: str,
+    experiment: dict[str, Any] | None,
+) -> tuple[str, dict[str, str]]:
+    provider = _read_cc_switch_provider()
+    base_url = provider["base_url"].rstrip("/")
+    endpoint = f"{base_url}/messages" if base_url.endswith("/v1") else f"{base_url}/v1/messages"
+    user_content = (
+        f"实验上下文：\n{json.dumps(_analysis_context(experiment), ensure_ascii=False)}\n\n"
+        f"用户问题：{question}"
+    )
+    payload = {
+        "model": provider["model"],
+        "temperature": 0.2,
+        "max_tokens": 1200,
+        "system": _analysis_system_prompt(),
+        "messages": [{"role": "user", "content": user_content}],
+    }
+    request = Request(
+        endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {provider['token']}",
+            "x-api-key": provider["token"],
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=90) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"CC Switch 供应商请求失败：HTTP {exc.code} {detail}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"CC Switch 供应商连接失败：{exc.reason}") from exc
+    try:
+        content = "".join(
+            str(block.get("text", ""))
+            for block in data["content"]
+            if isinstance(block, dict) and block.get("type") == "text"
+        ).strip()
+    except (KeyError, TypeError) as exc:
+        raise RuntimeError("CC Switch 供应商返回了无法识别的响应") from exc
+    if not content:
+        raise RuntimeError("CC Switch 供应商没有返回文本内容")
+    return content, {"provider": provider["name"], "model": provider["model"]}
 
 
 def _run_validation_job(
@@ -683,6 +846,27 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
+    app.mount("/vendor/d3", StaticFiles(directory=NODE_MODULES_DIR / "d3" / "dist"), name="vendor-d3")
+    app.mount(
+        "/vendor/topojson",
+        StaticFiles(directory=NODE_MODULES_DIR / "topojson-client" / "dist"),
+        name="vendor-topojson",
+    )
+    app.mount(
+        "/vendor/world-atlas",
+        StaticFiles(directory=NODE_MODULES_DIR / "world-atlas"),
+        name="vendor-world-atlas",
+    )
+    app.mount(
+        "/vendor/marked",
+        StaticFiles(directory=NODE_MODULES_DIR / "marked" / "lib"),
+        name="vendor-marked",
+    )
+    app.mount(
+        "/vendor/dompurify",
+        StaticFiles(directory=NODE_MODULES_DIR / "dompurify" / "dist"),
+        name="vendor-dompurify",
+    )
     if not CESIUM_DIR.exists():
         raise RuntimeError(
             "Cesium local assets are missing. Run `npm install` in the project directory."
@@ -736,11 +920,23 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
     @app.get("/api/settings")
     async def settings() -> dict[str, Any]:
-        return {
-            "ai_provider": "deepseek",
-            "ai_model": "deepseek-chat",
-            "ai_configured": bool(os.environ.get("DEEPSEEK_API_KEY", "").strip()),
-        }
+        return _ai_settings()
+
+    @app.post("/api/settings/cc-switch/import")
+    async def import_cc_switch() -> dict[str, Any]:
+        try:
+            provider = _read_cc_switch_provider()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _write_json(
+            AI_CONFIG_FILE,
+            {
+                "source": "cc_switch",
+                "app_type": "claude",
+                "provider_id_at_import": provider["id"],
+            },
+        )
+        return _ai_settings()
 
     @app.get("/api/session")
     async def get_session() -> dict[str, dict[str, Any]]:
@@ -841,17 +1037,21 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
         experiment_id = str(payload.get("experiment_id", "")).strip()
         experiment = _experiment_detail(experiment_id) if experiment_id else None
+        settings = _ai_settings()
         try:
-            content = await asyncio.to_thread(
-                _deepseek_analysis,
-                question,
-                experiment,
-            )
+            if settings.get("ai_source") == "cc_switch":
+                content, provider_meta = await asyncio.to_thread(
+                    _cc_switch_analysis,
+                    question,
+                    experiment,
+                )
+            else:
+                content = await asyncio.to_thread(_deepseek_analysis, question, experiment)
+                provider_meta = {"provider": "DeepSeek", "model": "deepseek-chat"}
         except RuntimeError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
+            **provider_meta,
             "content": content,
         }
 
@@ -868,17 +1068,67 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             or needle in " ".join(item["tags"]).casefold()
         ]
 
+    @app.get("/api/library/settings")
+    async def library_settings() -> dict[str, Any]:
+        config = _load_literature_config()
+        root = _resolve_literature_root(config["default_path"])
+        return {
+            "default_path": str(root),
+            "exists": root.exists() and root.is_dir(),
+            "supported_types": sorted(suffix.lstrip(".") for suffix in LIBRARY_SUFFIXES),
+        }
+
+    @app.put("/api/library/settings")
+    async def update_library_settings(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        raw_path = str(payload.get("default_path", "")).strip()
+        if not raw_path:
+            raise HTTPException(status_code=422, detail="请输入默认文献目录")
+        root = _resolve_literature_root(raw_path)
+        if not root.exists() or not root.is_dir():
+            raise HTTPException(status_code=422, detail="默认文献目录不存在或不是文件夹")
+        _write_json(LITERATURE_CONFIG_FILE, {"default_path": str(root)})
+        return {"saved": True, "default_path": str(root)}
+
+    @app.post("/api/library/import")
+    async def import_library_file(
+        request: HttpRequest,
+        filename: str = Query(..., min_length=1, max_length=240),
+    ) -> dict[str, Any]:
+        safe_name = Path(filename).name
+        suffix = Path(safe_name).suffix.lower()
+        if suffix not in LIBRARY_SUFFIXES:
+            raise HTTPException(status_code=422, detail="仅支持 PDF、Markdown 和 TXT 文献")
+        content_length = int(request.headers.get("content-length", "0") or 0)
+        if content_length > MAX_LIBRARY_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="单个文献不能超过 30 MB")
+        content = await request.body()
+        if not content or len(content) > MAX_LIBRARY_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="文献为空或超过 30 MB")
+        root = _resolve_literature_root(_load_literature_config()["default_path"])
+        if not root.exists() or not root.is_dir():
+            raise HTTPException(status_code=422, detail="请先设置有效的默认文献目录")
+        target = root / safe_name
+        if target.exists():
+            stem = target.stem
+            for index in range(1, 1000):
+                candidate = root / f"{stem} ({index}){suffix}"
+                if not candidate.exists():
+                    target = candidate
+                    break
+        target.write_bytes(content)
+        return {"imported": True, "name": target.name, "size": len(content)}
+
     @app.get("/api/library/content")
     async def library_content(path: str = Query(...)) -> dict[str, Any]:
-        target = _safe_project_path(path)
-        if not target.exists() or target.suffix.lower() not in {".md", ".txt", ".py", ".json"}:
+        target = _resolve_library_item(path)
+        if not target.exists() or target.suffix.lower() not in {".md", ".markdown", ".txt"}:
             raise HTTPException(status_code=404, detail="Readable document not found")
         text = target.read_text(encoding="utf-8", errors="replace")
         return {"path": path, "content": text[:500_000]}
 
     @app.get("/api/library/file")
     async def library_file(path: str = Query(...)) -> FileResponse:
-        target = _safe_project_path(path)
+        target = _resolve_library_item(path)
         if not target.exists() or target.suffix.lower() != ".pdf":
             raise HTTPException(status_code=404, detail="PDF not found")
         return FileResponse(target)

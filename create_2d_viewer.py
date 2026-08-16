@@ -1,301 +1,52 @@
-"""
-2D轨道可视化 - 使用Natural Earth地图
-基于 topojson/world-atlas 和 D3.js
-"""
+"""Validate the local assets used by the SpaceFL 2D orbit viewer."""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
-# 下载Natural Earth地图数据
-WORLD_MAP_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 
-def create_2d_orbit_viewer():
-    """创建改进的2D轨道可视化"""
-    html = """
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>SpaceFL 2D轨道地图</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://unpkg.com/topojson@3"></script>
-    <style>
-        * { margin: 0; padding: 0; }
-        body { background: #0a1929; font-family: Arial, sans-serif; overflow: hidden; }
-        #container { width: 100vw; height: 100vh; position: relative; }
-        svg { display: block; }
-        .country { fill: #2d5016; stroke: #4a7c23; stroke-width: 0.5; }
-        .ocean { fill: #0d47a1; }
-        .graticule { fill: none; stroke: #1e3a5f; stroke-width: 0.5; opacity: 0.5; }
-        .satellite { fill: #00ff88; stroke: white; stroke-width: 2; }
-        .satellite.active { fill: #00ff88; }
-        .satellite.inactive { fill: #3498db; }
-        .ground-station { fill: #ff4444; stroke: white; stroke-width: 2; }
-        .link { stroke: #ffeb3b; stroke-width: 2; opacity: 0.6; fill: none; }
-        .orbit-path { stroke: #00bcd4; stroke-width: 1; opacity: 0.3; fill: none; stroke-dasharray: 5,5; }
+PROJECT_DIR = Path(__file__).resolve().parent
+REQUIRED_ASSETS = {
+    "viewer": PROJECT_DIR / "web" / "orbit_2d_viewer.html",
+    "d3": PROJECT_DIR / "node_modules" / "d3" / "dist" / "d3.min.js",
+    "topojson": PROJECT_DIR
+    / "node_modules"
+    / "topojson-client"
+    / "dist"
+    / "topojson-client.min.js",
+    "world_map": PROJECT_DIR
+    / "node_modules"
+    / "world-atlas"
+    / "countries-110m.json",
+}
 
-        .controls {
-            position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.85);
-            padding: 20px; border-radius: 10px; color: white; z-index: 1000;
-            max-width: 280px;
-        }
-        .controls h3 { margin: 0 0 15px 0; color: #4fd18b; font-size: 18px; }
-        .controls button {
-            width: 100%; padding: 10px; margin: 5px 0; background: #4fd18b;
-            border: none; border-radius: 5px; color: black; font-weight: bold;
-            cursor: pointer; font-size: 14px;
-        }
-        .controls button:hover { background: #3fb573; }
-        .controls button:disabled { background: #555; cursor: not-allowed; }
 
-        .stats {
-            position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.85);
-            padding: 15px 20px; border-radius: 10px; color: white; z-index: 1000;
-        }
-        .stats div { margin: 5px 0; font-size: 14px; }
-        .stats span { color: #4fd18b; font-weight: bold; }
+def validate_assets() -> list[str]:
+    errors = [f"Missing {name}: {path}" for name, path in REQUIRED_ASSETS.items() if not path.is_file()]
+    world_path = REQUIRED_ASSETS["world_map"]
+    if world_path.is_file():
+        try:
+            world = json.loads(world_path.read_text(encoding="utf-8"))
+            if "countries" not in world.get("objects", {}):
+                errors.append("world-atlas data does not contain objects.countries")
+        except json.JSONDecodeError as exc:
+            errors.append(f"Invalid world-atlas JSON: {exc}")
+    return errors
 
-        .slider-container { margin: 10px 0; }
-        .slider-container label { display: block; margin-bottom: 5px; font-size: 13px; }
-        .slider-container input { width: 100%; }
-    </style>
-</head>
-<body>
-    <div id="container">
-        <div class="controls">
-            <h3>🛰️ 轨道控制</h3>
-            <button id="loadBtn">加载轨道数据</button>
-            <button id="playBtn" disabled>播放动画</button>
-            <button id="pauseBtn" disabled>暂停</button>
-            <div class="slider-container">
-                <label>时隙: <span id="slotLabel">0</span></label>
-                <input type="range" id="slotSlider" min="0" max="0" value="0" disabled>
-            </div>
-        </div>
 
-        <div class="stats">
-            <div>卫星: <span id="satCount">0</span></div>
-            <div>地面站: <span id="gsCount">0</span></div>
-            <div>活跃连接: <span id="linkCount">0</span></div>
-            <div>时隙: <span id="currentSlot">0</span> / <span id="totalSlots">0</span></div>
-        </div>
+def main() -> int:
+    errors = validate_assets()
+    if errors:
+        for error in errors:
+            print(f"[ERROR] {error}")
+        print("Run: npm install")
+        return 1
+    print("SpaceFL 2D orbit viewer assets are ready.")
+    print("Open: http://127.0.0.1:8700/orbit_2d_viewer.html")
+    print("Map source: https://github.com/topojson/world-atlas")
+    return 0
 
-        <svg id="map"></svg>
-    </div>
 
-    <script>
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-
-        const svg = d3.select("#map")
-            .attr("width", width)
-            .attr("height", height);
-
-        // 使用等距圆柱投影（最适合卫星轨道）
-        const projection = d3.geoEquirectangular()
-            .scale(width / (2 * Math.PI))
-            .translate([width / 2, height / 2]);
-
-        const path = d3.geoPath(projection);
-
-        let orbitData = null;
-        let currentSlot = 0;
-        let animationTimer = null;
-
-        // 加载世界地图
-        async function loadMap() {
-            try {
-                const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-
-                // 绘制海洋背景
-                svg.append("rect")
-                    .attr("class", "ocean")
-                    .attr("width", width)
-                    .attr("height", height);
-
-                // 绘制经纬度网格
-                const graticule = d3.geoGraticule();
-                svg.append("path")
-                    .datum(graticule)
-                    .attr("class", "graticule")
-                    .attr("d", path);
-
-                // 绘制国家
-                svg.append("g")
-                    .selectAll("path")
-                    .data(topojson.feature(world, world.objects.countries).features)
-                    .enter().append("path")
-                    .attr("class", "country")
-                    .attr("d", path);
-
-                console.log('✓ 地图加载完成');
-            } catch (error) {
-                console.error('地图加载失败:', error);
-            }
-        }
-
-        // 加载轨道数据
-        async function loadOrbitData() {
-            try {
-                const response = await fetch('/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2');
-                orbitData = await response.json();
-
-                document.getElementById('satCount').textContent = orbitData.satellites;
-                document.getElementById('gsCount').textContent = orbitData.ground_stations.length;
-                document.getElementById('totalSlots').textContent = orbitData.timeslots.length;
-
-                const slider = document.getElementById('slotSlider');
-                slider.max = orbitData.timeslots.length - 1;
-                slider.disabled = false;
-
-                document.getElementById('playBtn').disabled = false;
-                document.getElementById('pauseBtn').disabled = false;
-
-                drawGroundStations();
-                updateSlot(0);
-
-                alert('轨道数据加载成功！');
-            } catch (error) {
-                alert('加载失败: ' + error.message);
-            }
-        }
-
-        // 绘制地面站
-        function drawGroundStations() {
-            svg.selectAll(".gs-group").remove();
-
-            const gsGroup = svg.append("g").attr("class", "gs-group");
-
-            orbitData.ground_stations.forEach((gs, i) => {
-                const [x, y] = projection([gs.lon, gs.lat]);
-
-                // 地面站图标（三角形天线）
-                gsGroup.append("path")
-                    .attr("class", "ground-station")
-                    .attr("d", `M${x},${y-10} L${x-8},${y+6} L${x+8},${y+6} Z`);
-
-                gsGroup.append("text")
-                    .attr("x", x)
-                    .attr("y", y + 20)
-                    .attr("text-anchor", "middle")
-                    .attr("fill", "white")
-                    .attr("font-size", "12px")
-                    .attr("font-weight", "bold")
-                    .text(`GS${i}`);
-            });
-        }
-
-        // 更新时隙
-        function updateSlot(slotIndex) {
-            currentSlot = slotIndex;
-            const slot = orbitData.timeslots[slotIndex];
-
-            // 清除旧的卫星和连接
-            svg.selectAll(".sat-group").remove();
-            svg.selectAll(".link-group").remove();
-
-            // 绘制连接线
-            const linkGroup = svg.append("g").attr("class", "link-group");
-            slot.contacts.forEach(contact => {
-                const sat = slot.positions[contact.sat_id];
-                const gs = orbitData.ground_stations[contact.gs_id];
-
-                linkGroup.append("line")
-                    .attr("class", "link")
-                    .attr("x1", projection([sat.lon, sat.lat])[0])
-                    .attr("y1", projection([sat.lon, sat.lat])[1])
-                    .attr("x2", projection([gs.lon, gs.lat])[0])
-                    .attr("y2", projection([gs.lon, gs.lat])[1]);
-            });
-
-            // 绘制卫星
-            const satGroup = svg.append("g").attr("class", "sat-group");
-            slot.positions.forEach((sat, i) => {
-                const [x, y] = projection([sat.lon, sat.lat]);
-                const hasContact = slot.contacts.some(c => c.sat_id === i);
-
-                // 卫星图标（带太阳能板）
-                const g = satGroup.append("g");
-
-                // 主体
-                g.append("rect")
-                    .attr("class", hasContact ? "satellite active" : "satellite inactive")
-                    .attr("x", x - 6)
-                    .attr("y", y - 6)
-                    .attr("width", 12)
-                    .attr("height", 12)
-                    .attr("rx", 2);
-
-                // 太阳能板
-                g.append("rect")
-                    .attr("fill", hasContact ? "#00ff88" : "#3498db")
-                    .attr("x", x - 15)
-                    .attr("y", y - 3)
-                    .attr("width", 8)
-                    .attr("height", 6);
-
-                g.append("rect")
-                    .attr("fill", hasContact ? "#00ff88" : "#3498db")
-                    .attr("x", x + 7)
-                    .attr("y", y - 3)
-                    .attr("width", 8)
-                    .attr("height", 6);
-
-                // 标签
-                g.append("text")
-                    .attr("x", x)
-                    .attr("y", y - 12)
-                    .attr("text-anchor", "middle")
-                    .attr("fill", "white")
-                    .attr("font-size", "11px")
-                    .attr("font-weight", "bold")
-                    .text(`S${i}`);
-            });
-
-            // 更新统计
-            document.getElementById('currentSlot').textContent = slotIndex;
-            document.getElementById('linkCount').textContent = slot.contacts.length;
-            document.getElementById('slotLabel').textContent = slotIndex;
-            document.getElementById('slotSlider').value = slotIndex;
-        }
-
-        // 播放动画
-        function playAnimation() {
-            if (animationTimer) clearInterval(animationTimer);
-
-            animationTimer = setInterval(() => {
-                currentSlot = (currentSlot + 1) % orbitData.timeslots.length;
-                updateSlot(currentSlot);
-            }, 500);
-        }
-
-        // 暂停动画
-        function pauseAnimation() {
-            if (animationTimer) {
-                clearInterval(animationTimer);
-                animationTimer = null;
-            }
-        }
-
-        // 事件监听
-        document.getElementById('loadBtn').addEventListener('click', loadOrbitData);
-        document.getElementById('playBtn').addEventListener('click', playAnimation);
-        document.getElementById('pauseBtn').addEventListener('click', pauseAnimation);
-        document.getElementById('slotSlider').addEventListener('input', (e) => {
-            pauseAnimation();
-            updateSlot(parseInt(e.target.value));
-        });
-
-        // 初始化
-        loadMap();
-    </script>
-</body>
-</html>
-"""
-
-    return html
-
-if __name__ == '__main__':
-    html = create_2d_orbit_viewer()
-    with open('web/orbit_2d_viewer.html', 'w', encoding='utf-8') as f:
-        f.write(html)
-    print('✓ 2D轨道查看器已创建: web/orbit_2d_viewer.html')
+if __name__ == "__main__":
+    raise SystemExit(main())

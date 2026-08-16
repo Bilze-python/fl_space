@@ -1,280 +1,216 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>SpaceFL 2D轨道地图</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://unpkg.com/topojson@3"></script>
-    <style>
-        * { margin: 0; padding: 0; }
-        body { background: #0a1929; font-family: Arial, sans-serif; overflow: hidden; }
-        #container { width: 100vw; height: 100vh; position: relative; }
-        svg { display: block; }
-        .country { fill: #2d5016; stroke: #4a7c23; stroke-width: 0.5; }
-        .ocean { fill: #0d47a1; }
-        .graticule { fill: none; stroke: #1e3a5f; stroke-width: 0.5; opacity: 0.5; }
-        .satellite { fill: #00ff88; stroke: white; stroke-width: 2; }
-        .satellite.active { fill: #00ff88; }
-        .satellite.inactive { fill: #3498db; }
-        .ground-station { fill: #ff4444; stroke: white; stroke-width: 2; }
-        .link { stroke: #ffeb3b; stroke-width: 2; opacity: 0.6; fill: none; }
-        .orbit-path { stroke: #00bcd4; stroke-width: 1; opacity: 0.3; fill: none; stroke-dasharray: 5,5; }
-
-        .controls {
-            position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.85);
-            padding: 20px; border-radius: 10px; color: white; z-index: 1000;
-            max-width: 280px;
-        }
-        .controls h3 { margin: 0 0 15px 0; color: #4fd18b; font-size: 18px; }
-        .controls button {
-            width: 100%; padding: 10px; margin: 5px 0; background: #4fd18b;
-            border: none; border-radius: 5px; color: black; font-weight: bold;
-            cursor: pointer; font-size: 14px;
-        }
-        .controls button:hover { background: #3fb573; }
-        .controls button:disabled { background: #555; cursor: not-allowed; }
-
-        .stats {
-            position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.85);
-            padding: 15px 20px; border-radius: 10px; color: white; z-index: 1000;
-        }
-        .stats div { margin: 5px 0; font-size: 14px; }
-        .stats span { color: #4fd18b; font-weight: bold; }
-
-        .slider-container { margin: 10px 0; }
-        .slider-container label { display: block; margin-bottom: 5px; font-size: 13px; }
-        .slider-container input { width: 100%; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpaceFL 2D 轨道演示</title>
+  <link rel="stylesheet" href="/assets/app.css?v=20260815-orbit2d">
+  <script src="/vendor/d3/d3.min.js"></script>
+  <script src="/vendor/topojson/topojson-client.min.js"></script>
 </head>
-<body>
-    <div id="container">
-        <div class="controls">
-            <h3>🛰️ 轨道控制</h3>
-            <button id="loadBtn">加载轨道数据</button>
-            <button id="playBtn" disabled>播放动画</button>
-            <button id="pauseBtn" disabled>暂停</button>
-            <div class="slider-container">
-                <label>时隙: <span id="slotLabel">0</span></label>
-                <input type="range" id="slotSlider" min="0" max="0" value="0" disabled>
-            </div>
-        </div>
+<body class="orbit-demo-page">
+  <main class="orbit-demo-shell">
+    <svg id="map" role="img" aria-label="SpaceFL 低轨卫星星座二维轨道地图"></svg>
+    <header class="orbit-demo-header">
+      <a href="/launcher.html" class="orbit-brand"><span class="orbit-brand-mark">SF</span><span><strong>SpaceFL</strong><small>LEO constellation lab</small></span></a>
+      <div class="orbit-header-state"><span id="map-state-dot"></span><span id="map-state">加载本地地图</span></div>
+      <a href="/" class="orbit-back">完整操作台</a>
+    </header>
 
-        <div class="stats">
-            <div>卫星: <span id="satCount">0</span></div>
-            <div>地面站: <span id="gsCount">0</span></div>
-            <div>活跃连接: <span id="linkCount">0</span></div>
-            <div>时隙: <span id="currentSlot">0</span> / <span id="totalSlots">0</span></div>
-        </div>
+    <section class="orbit-control-panel" aria-label="轨道演示控制">
+      <div class="orbit-panel-title"><span>2D ORBIT VIEW</span><strong>Walker star 预览</strong></div>
+      <div class="orbit-control-grid">
+        <label>卫星数<input id="sats" type="number" min="2" max="72" value="10"></label>
+        <label>地面站<input id="gs" type="number" min="1" max="20" value="5"></label>
+        <label>仿真时长 h<input id="hours" type="number" min="0.1" max="24" step="0.1" value="2"></label>
+        <label>时间槽 min<input id="slot-min" type="number" min="1" max="60" value="2"></label>
+      </div>
+      <div class="orbit-toggle-row">
+        <label class="orbit-switch"><input id="isl" type="checkbox" checked><i></i><span>显示 ISL</span></label>
+        <label class="orbit-switch"><input id="trail" type="checkbox" checked><i></i><span>显示轨道线</span></label>
+      </div>
+      <div class="orbit-action-row">
+        <button id="load-btn" class="orbit-button primary" type="button">加载仿真</button>
+        <button id="play-btn" class="orbit-button" type="button" disabled>播放</button>
+        <button id="pause-btn" class="orbit-button" type="button" disabled>暂停</button>
+      </div>
+      <label class="orbit-range">时间槽 <output id="slot-label">0 / 0</output><input id="slot-slider" type="range" min="0" max="0" value="0" disabled></label>
+      <p class="orbit-source-note">地图数据：Natural Earth 110m · world-atlas 本地副本</p>
+    </section>
 
-        <svg id="map"></svg>
-    </div>
+    <aside class="orbit-legend" aria-label="地图图例">
+      <div><i class="legend-sat active"></i>可用卫星</div>
+      <div><i class="legend-sat"></i>卫星节点</div>
+      <div><i class="legend-line gs"></i>地面站链路</div>
+      <div><i class="legend-line isl"></i>星间链路</div>
+    </aside>
 
-    <script>
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+    <section class="orbit-statusbar" aria-label="轨道统计">
+      <div><span>卫星</span><strong id="sat-count">--</strong></div>
+      <div><span>地面站</span><strong id="gs-count">--</strong></div>
+      <div><span>GSL</span><strong id="link-count">--</strong></div>
+      <div><span>ISL</span><strong id="isl-count">--</strong></div>
+      <div><span>当前槽</span><strong id="current-slot">--</strong></div>
+      <div><span>仿真时间</span><strong id="current-time">--</strong></div>
+    </section>
+    <div id="orbit-error" class="orbit-error" role="alert"></div>
+  </main>
 
-        const svg = d3.select("#map")
-            .attr("width", width)
-            .attr("height", height);
+  <script>
+    const svg = d3.select("#map");
+    const state = { world: null, orbit: null, slot: 0, timer: null, projection: null, path: null };
+    const $ = (selector) => document.querySelector(selector);
 
-        // 使用等距圆柱投影（最适合卫星轨道）
-        const projection = d3.geoEquirectangular()
-            .scale(width / (2 * Math.PI))
-            .translate([width / 2, height / 2]);
+    function setState(label, kind = "") {
+      $("#map-state").textContent = label;
+      $("#map-state-dot").className = kind;
+    }
 
-        const path = d3.geoPath(projection);
+    function resizeMap() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      svg.attr("viewBox", `0 0 ${width} ${height}`).attr("width", width).attr("height", height);
+      state.projection = d3.geoNaturalEarth1().fitExtent([[20, 75], [width - 20, height - 75]], { type: "Sphere" });
+      state.path = d3.geoPath(state.projection);
+      if (state.world) renderBase();
+      if (state.orbit) renderOrbit();
+    }
 
-        let orbitData = null;
-        let currentSlot = 0;
-        let animationTimer = null;
+    function renderBase() {
+      svg.selectAll(".map-base").remove();
+      const base = svg.append("g").attr("class", "map-base").attr("pointer-events", "none");
+      base.append("path").datum({ type: "Sphere" }).attr("class", "map-ocean").attr("d", state.path);
+      base.append("path").datum(d3.geoGraticule10()).attr("class", "map-graticule").attr("d", state.path);
+      base.append("g").selectAll("path").data(topojson.feature(state.world, state.world.objects.countries).features).join("path").attr("class", "map-country").attr("d", state.path);
+      base.append("path").datum({ type: "Sphere" }).attr("class", "map-border").attr("d", state.path);
+    }
 
-        // 加载世界地图
-        async function loadMap() {
-            try {
-                const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    function trajectoryFeature(trajectory) {
+      return { type: "LineString", coordinates: trajectory.positions.map((point) => [point.lon, point.lat]) };
+    }
 
-                // 绘制海洋背景
-                svg.append("rect")
-                    .attr("class", "ocean")
-                    .attr("width", width)
-                    .attr("height", height);
+    function pointPosition(point) { return state.projection([point.lon, point.lat]); }
 
-                // 绘制经纬度网格
-                const graticule = d3.geoGraticule();
-                svg.append("path")
-                    .datum(graticule)
-                    .attr("class", "graticule")
-                    .attr("d", path);
-
-                // 绘制国家
-                svg.append("g")
-                    .selectAll("path")
-                    .data(topojson.feature(world, world.objects.countries).features)
-                    .enter().append("path")
-                    .attr("class", "country")
-                    .attr("d", path);
-
-                console.log('✓ 地图加载完成');
-            } catch (error) {
-                console.error('地图加载失败:', error);
-            }
-        }
-
-        // 加载轨道数据
-        async function loadOrbitData() {
-            try {
-                const response = await fetch('/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2');
-                orbitData = await response.json();
-
-                document.getElementById('satCount').textContent = orbitData.satellites;
-                document.getElementById('gsCount').textContent = orbitData.ground_stations.length;
-                document.getElementById('totalSlots').textContent = orbitData.timeslots.length;
-
-                const slider = document.getElementById('slotSlider');
-                slider.max = orbitData.timeslots.length - 1;
-                slider.disabled = false;
-
-                document.getElementById('playBtn').disabled = false;
-                document.getElementById('pauseBtn').disabled = false;
-
-                drawGroundStations();
-                updateSlot(0);
-
-                alert('轨道数据加载成功！');
-            } catch (error) {
-                alert('加载失败: ' + error.message);
-            }
-        }
-
-        // 绘制地面站
-        function drawGroundStations() {
-            svg.selectAll(".gs-group").remove();
-
-            const gsGroup = svg.append("g").attr("class", "gs-group");
-
-            orbitData.ground_stations.forEach((gs, i) => {
-                const [x, y] = projection([gs.lon, gs.lat]);
-
-                // 地面站图标（三角形天线）
-                gsGroup.append("path")
-                    .attr("class", "ground-station")
-                    .attr("d", `M${x},${y-10} L${x-8},${y+6} L${x+8},${y+6} Z`);
-
-                gsGroup.append("text")
-                    .attr("x", x)
-                    .attr("y", y + 20)
-                    .attr("text-anchor", "middle")
-                    .attr("fill", "white")
-                    .attr("font-size", "12px")
-                    .attr("font-weight", "bold")
-                    .text(`GS${i}`);
-            });
-        }
-
-        // 更新时隙
-        function updateSlot(slotIndex) {
-            currentSlot = slotIndex;
-            const slot = orbitData.timeslots[slotIndex];
-
-            // 清除旧的卫星和连接
-            svg.selectAll(".sat-group").remove();
-            svg.selectAll(".link-group").remove();
-
-            // 绘制连接线
-            const linkGroup = svg.append("g").attr("class", "link-group");
-            slot.contacts.forEach(contact => {
-                const sat = slot.positions[contact.sat_id];
-                const gs = orbitData.ground_stations[contact.gs_id];
-
-                linkGroup.append("line")
-                    .attr("class", "link")
-                    .attr("x1", projection([sat.lon, sat.lat])[0])
-                    .attr("y1", projection([sat.lon, sat.lat])[1])
-                    .attr("x2", projection([gs.lon, gs.lat])[0])
-                    .attr("y2", projection([gs.lon, gs.lat])[1]);
-            });
-
-            // 绘制卫星
-            const satGroup = svg.append("g").attr("class", "sat-group");
-            slot.positions.forEach((sat, i) => {
-                const [x, y] = projection([sat.lon, sat.lat]);
-                const hasContact = slot.contacts.some(c => c.sat_id === i);
-
-                // 卫星图标（带太阳能板）
-                const g = satGroup.append("g");
-
-                // 主体
-                g.append("rect")
-                    .attr("class", hasContact ? "satellite active" : "satellite inactive")
-                    .attr("x", x - 6)
-                    .attr("y", y - 6)
-                    .attr("width", 12)
-                    .attr("height", 12)
-                    .attr("rx", 2);
-
-                // 太阳能板
-                g.append("rect")
-                    .attr("fill", hasContact ? "#00ff88" : "#3498db")
-                    .attr("x", x - 15)
-                    .attr("y", y - 3)
-                    .attr("width", 8)
-                    .attr("height", 6);
-
-                g.append("rect")
-                    .attr("fill", hasContact ? "#00ff88" : "#3498db")
-                    .attr("x", x + 7)
-                    .attr("y", y - 3)
-                    .attr("width", 8)
-                    .attr("height", 6);
-
-                // 标签
-                g.append("text")
-                    .attr("x", x)
-                    .attr("y", y - 12)
-                    .attr("text-anchor", "middle")
-                    .attr("fill", "white")
-                    .attr("font-size", "11px")
-                    .attr("font-weight", "bold")
-                    .text(`S${i}`);
-            });
-
-            // 更新统计
-            document.getElementById('currentSlot').textContent = slotIndex;
-            document.getElementById('linkCount').textContent = slot.contacts.length;
-            document.getElementById('slotLabel').textContent = slotIndex;
-            document.getElementById('slotSlider').value = slotIndex;
-        }
-
-        // 播放动画
-        function playAnimation() {
-            if (animationTimer) clearInterval(animationTimer);
-
-            animationTimer = setInterval(() => {
-                currentSlot = (currentSlot + 1) % orbitData.timeslots.length;
-                updateSlot(currentSlot);
-            }, 500);
-        }
-
-        // 暂停动画
-        function pauseAnimation() {
-            if (animationTimer) {
-                clearInterval(animationTimer);
-                animationTimer = null;
-            }
-        }
-
-        // 事件监听
-        document.getElementById('loadBtn').addEventListener('click', loadOrbitData);
-        document.getElementById('playBtn').addEventListener('click', playAnimation);
-        document.getElementById('pauseBtn').addEventListener('click', pauseAnimation);
-        document.getElementById('slotSlider').addEventListener('input', (e) => {
-            pauseAnimation();
-            updateSlot(parseInt(e.target.value));
+    function renderOrbit() {
+      if (!state.orbit || !state.projection) return;
+      svg.selectAll(".orbit-layer").remove();
+      const layer = svg.append("g").attr("class", "orbit-layer");
+      if ($("#trail").checked) {
+        layer.append("g").attr("class", "trajectory-group").selectAll("path").data(state.orbit.trajectories).join("path").attr("class", (d) => `orbit-trail plane-${(d.sat_id || 0) % 6}`).attr("d", (d) => state.path(trajectoryFeature(d)));
+      }
+      const slot = state.orbit.timeslots[state.slot];
+      const contacts = slot.contacts || [];
+      const contactIds = new Set(contacts.map((item) => item.sat_id));
+      const links = layer.append("g").attr("class", "link-group");
+      links.selectAll("line.gsl").data(contacts).join("line").attr("class", "orbit-link gsl").each(function (contact) {
+        const sat = slot.positions[contact.sat_id];
+        const station = state.orbit.ground_stations[contact.gs_id];
+        if (!sat || !station) return;
+        const a = pointPosition(sat); const b = pointPosition(station);
+        d3.select(this).attr("x1", a[0]).attr("y1", a[1]).attr("x2", b[0]).attr("y2", b[1]);
+      });
+      if ($("#isl").checked) {
+        links.selectAll("line.isl").data(slot.isl_links || []).join("line").attr("class", "orbit-link isl").each(function (link) {
+          const aPoint = slot.positions[link.a_id]; const bPoint = slot.positions[link.b_id];
+          if (!aPoint || !bPoint) return;
+          const a = pointPosition(aPoint); const b = pointPosition(bPoint);
+          d3.select(this).attr("x1", a[0]).attr("y1", a[1]).attr("x2", b[0]).attr("y2", b[1]);
         });
+      }
+      const stations = layer.append("g").attr("class", "station-group");
+      stations.selectAll("g").data(state.orbit.ground_stations).join("g").attr("class", "ground-station").each(function (station, index) {
+        const [x, y] = pointPosition(station);
+        d3.select(this).attr("transform", `translate(${x},${y})`).html(`<path d="M0 -8 L7 6 L-7 6 Z"></path><text y="19">GS${index + 1}</text>`);
+      });
+      const satellites = layer.append("g").attr("class", "satellite-group");
+      satellites.selectAll("g").data(slot.positions).join("g").attr("class", "satellite-node").each(function (sat) {
+        const [x, y] = pointPosition(sat);
+        const active = contactIds.has(sat.sat_id);
+        d3.select(this).attr("transform", `translate(${x},${y})`).classed("active", active).html(`<rect class="sat-body" x="-5" y="-5" width="10" height="10"></rect><rect class="sat-panel" x="-15" y="-2" width="8" height="4"></rect><rect class="sat-panel" x="7" y="-2" width="8" height="4"></rect><text y="-10">S${sat.sat_id + 1}</text>`);
+      });
+      $("#sat-count").textContent = state.orbit.satellites;
+      $("#gs-count").textContent = state.orbit.ground_stations.length;
+      $("#link-count").textContent = contacts.length;
+      $("#isl-count").textContent = $("#isl").checked ? (slot.isl_links || []).length : 0;
+      $("#current-slot").textContent = `${state.slot + 1} / ${state.orbit.timeslots.length}`;
+      $("#current-time").textContent = new Date(slot.time).toLocaleTimeString("zh-CN", { hour12: false });
+      $("#slot-label").textContent = `${state.slot + 1} / ${state.orbit.timeslots.length}`;
+      $("#slot-slider").value = state.slot;
+    }
 
-        // 初始化
-        loadMap();
-    </script>
+    function setSlot(index) {
+      if (!state.orbit) return;
+      state.slot = Math.max(0, Math.min(state.orbit.timeslots.length - 1, Number(index)));
+      renderOrbit();
+    }
+
+    async function loadMap() {
+      try {
+        state.world = await d3.json("/vendor/world-atlas/countries-110m.json");
+        resizeMap();
+        setState("地图已加载", "online");
+      } catch (error) {
+        setState("地图加载失败", "error");
+        $("#orbit-error").textContent = `无法加载本地 Natural Earth 地图：${error.message}`;
+      }
+    }
+
+    async function loadOrbit() {
+      pauseOrbit();
+      $("#load-btn").disabled = true;
+      $("#orbit-error").textContent = "";
+      setState("生成轨道数据", "busy");
+      const params = new URLSearchParams({
+        sats: $("#sats").value,
+        gs: $("#gs").value,
+        sim_hours: $("#hours").value,
+        timeslot_min: $("#slot-min").value,
+        isl_enabled: String($("#isl").checked),
+        altitude_km: "500",
+        inclination_deg: "53",
+      });
+      try {
+        state.orbit = await fetch(`/api/orbit_data?${params}`).then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        });
+        state.slot = 0;
+        const slider = $("#slot-slider");
+        slider.max = Math.max(0, state.orbit.timeslots.length - 1);
+        slider.disabled = false;
+        $("#play-btn").disabled = false;
+        $("#pause-btn").disabled = false;
+        setState("轨道数据就绪", "online");
+        renderOrbit();
+      } catch (error) {
+        setState("轨道生成失败", "error");
+        $("#orbit-error").textContent = `轨道数据加载失败：${error.message}`;
+      } finally {
+        $("#load-btn").disabled = false;
+      }
+    }
+
+    function playOrbit() {
+      if (!state.orbit) return;
+      pauseOrbit();
+      state.timer = setInterval(() => setSlot((state.slot + 1) % state.orbit.timeslots.length), 420);
+      setState("播放中", "busy");
+    }
+    function pauseOrbit() {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+      if (state.orbit) setState("轨道数据就绪", "online");
+    }
+
+    $("#load-btn").addEventListener("click", loadOrbit);
+    $("#play-btn").addEventListener("click", playOrbit);
+    $("#pause-btn").addEventListener("click", pauseOrbit);
+    $("#slot-slider").addEventListener("input", (event) => { pauseOrbit(); setSlot(event.target.value); });
+    $("#isl").addEventListener("change", renderOrbit);
+    $("#trail").addEventListener("change", renderOrbit);
+    window.addEventListener("resize", resizeMap);
+    loadMap();
+    loadOrbit();
+  </script>
 </body>
 </html>
