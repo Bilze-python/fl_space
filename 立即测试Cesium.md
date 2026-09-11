@@ -8,15 +8,17 @@
 
 ## 🚀 立即测试
 
-### 方法1: 直接打开（推荐）
+### 方法1: Windows 11 启动器（推荐）
 ```
-双击打开: D:\Desktop\fl_space\cesium_orbit_viewer.html
+双击打开: 项目根目录的 start_spacefl.bat
 ```
+
+启动器会自动准备环境、启动本地 Web 服务并打开三维演示。不要直接双击 HTML 文件。
 
 ### 方法2: 通过服务器
 ```bash
-# 确保SpaceFL服务运行
-python -m web.server
+# 确保 SpaceFL 服务运行
+python -m fl_space.cli run serve --host 127.0.0.1 --port 8700
 
 # 然后在浏览器访问
 http://127.0.0.1:8700/cesium_orbit_viewer.html
@@ -27,23 +29,19 @@ http://127.0.0.1:8700/cesium_orbit_viewer.html
 | 特性 | 旧方案 | Cesium方案 |
 |------|--------|-----------|
 | 视觉效果 | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| 3D地球 | ❌ | ✅ 真实地形 |
+| 3D地球 | ❌ | ✅ 真实地球 |
 | 交互性 | ⭐⭐ | ⭐⭐⭐⭐⭐ |
 | 专业度 | 演示级 | **商业级** |
 
 ## 📝 注意
 
-文件中的 `YOUR_CESIUM_ION_TOKEN` 可以：
-1. 保持不变（使用默认地图）
-2. 或注册免费token获取高清地图: https://cesium.com/ion/signup
+页面当前使用项目内的 Cesium 资源和本地底图，不需要 Cesium Ion Token。需要高级在线地图资源时，再按 Cesium 文档配置 token。
 
 ## 🎯 下一步
 
-1. **测试效果** - 打开cesium_orbit_viewer.html
-2. **如果满意** - 我可以集成到主平台
-3. **或打包成exe** - 独立应用
-
-**现在请测试并告诉我效果！**
+1. **测试效果** - 双击 `start_spacefl.bat`
+2. **测试轨道数据** - 在三维页面加载轨道数据并播放动画
+3. **需要交互实验时** - 双击 `control_panel.bat`
 
 ---
 

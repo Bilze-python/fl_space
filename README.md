@@ -50,6 +50,12 @@ fl_space/
 
 ## 快速开始
 
+### Windows 11 一键启动
+
+源码用户优先双击项目根目录的 `start_spacefl.bat`。首次启动会自动创建项目专用 Python 虚拟环境、安装 Web 依赖和 Cesium/D3 前端资源，然后打开浏览器中的三维演示；后续启动通常只需再次双击。首次准备环境需要联网，并要求 Windows 11 已安装 Python 3.9+ 和 Node.js LTS；如果系统提供 `winget`，启动器会在缺少它们时尝试自动安装。
+
+需要使用交互式实验控制台时，双击 `control_panel.bat`，它会复用同一个项目环境。服务日志保存在 `venv\spacefl-web.out.log` 和 `venv\spacefl-web.err.log`；默认端口 `8700` 被占用时，启动器会自动选择 `8701` 到 `8710` 中的空闲端口。
+
 ```bash
 git clone git@github.com:Bilze-python/fl_space.git
 cd fl_space

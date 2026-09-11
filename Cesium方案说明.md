@@ -6,17 +6,18 @@
 
 ## 🚀 使用方法
 
-### 方法1: 直接在浏览器打开
+### 方法1: Windows 11 启动器（推荐）
 ```
-直接双击打开: cesium_orbit_viewer.html
+双击项目根目录的 start_spacefl.bat
 ```
+启动器会准备 Python/npm 依赖、启动本地服务，并自动打开正确的三维页面。
 
-### 方法2: 通过Web服务器
+### 方法2: 手动通过 Web 服务器
 ```bash
-cd D:/Desktop/fl_space
-python -m http.server 8080
+cd <project-root>
+python -m fl_space.cli run serve --host 127.0.0.1 --port 8700
 ```
-然后访问: http://localhost:8080/cesium_orbit_viewer.html
+然后访问: http://127.0.0.1:8700/cesium_orbit_viewer.html
 
 ## ✨ 特性
 
@@ -26,18 +27,18 @@ python -m http.server 8080
 - ✅ 卫星-地面站连接线
 - ✅ 动画播放
 - ✅ 直接从你的API加载数据
-- ✅ 无需安装，浏览器直接运行
+- ✅ 启动器自动准备本地资源，浏览器通过本地服务运行
 
 ## 📝 注意事项
 
-1. **Cesium Token** (可选):
-   - 文件已使用CDN，可直接运行
-   - 如需高级功能，注册免费token: https://cesium.com/ion/signup
-   - 替换HTML中的 `YOUR_CESIUM_ION_TOKEN`
+1. **不要直接双击 HTML 文件**：三维页面需要通过本地 Web 服务加载 API 和本地 Cesium 资源。
+2. **Cesium Token** (可选):
+   - 当前页面使用项目内的 Cesium 资源和本地底图，不需要 Ion Token
+   - 如需接入 Cesium Ion 的高级在线资源，再按 Cesium 文档配置 token
 
-2. **确保Web服务器运行**:
+3. **确保 Web 服务器运行**:
    ```bash
-   python -m web.server  # SpaceFL平台
+   python -m fl_space.cli run serve --host 127.0.0.1 --port 8700
    ```
 
 ## 对比优势
@@ -55,10 +56,10 @@ python -m http.server 8080
 2. 如果满意，可以集成到主平台
 3. 或者打包成独立应用
 
-**立即测试**: 双击 `cesium_orbit_viewer.html` 或通过浏览器打开！
+**立即测试**: 双击 `start_spacefl.bat`，或先启动 Web 服务后通过浏览器访问页面！
 
 ---
 
 Sources:
-- [Flowm/satvis - Professional satellite visualization](https://github.com/Flowm/satvis)
+- [Flowm/satvis](https://github.com/Flowm/satvis) - Professional satellite visualization
 - [Cesium.js Documentation](https://cesium.com/docs/)
