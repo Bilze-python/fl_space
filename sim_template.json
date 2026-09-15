@@ -1,0 +1,32 @@
+{
+  "_comment": "SpaceFL 模拟器配置模板 — 修改后使用 fl-space simulate --config THIS_FILE.json",
+  "num_satellites": 10,
+  "num_ground_stations": 5,
+  "orbit_altitude_km": 500.0,
+  "orbit_inclination_deg": 90.0,
+  "distribution": "uniform",
+  "backend": "kepler",
+  "timeslot_duration_min": 1.0,
+  "num_timeslots": 1440,
+  "body": {
+    "name": "Earth",
+    "radius_km": 6371.0,
+    "GM": 398600.4418,
+    "rotation_period_hours": 24.0,
+    "atmosphere_height_km": 100.0
+  },
+  "ground_stations": [
+    {
+      "name": "Beijing",
+      "lat_deg": 39.9,
+      "lon_deg": 116.4,
+      "altitude_km": 0.05
+    },
+    {
+      "name": "Sanya",
+      "lat_deg": 18.25,
+      "lon_deg": 109.5,
+      "altitude_km": 0.0
+    }
+  ]
+}

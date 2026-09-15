@@ -1,0 +1,15 @@
+{
+  "_comment": "SpaceFL FL 实验配置模板 — 修改后使用 fl-space train --config THIS_FILE.json",
+  "algorithm": "fedavg",
+  "num_rounds": 50,
+  "num_clients": 10,
+  "fraction": 0.5,
+  "local_epochs": 5,
+  "batch_size": 32,
+  "learning_rate": 0.01,
+  "mu": 0.01,
+  "buffer_size": 5,
+  "staleness_weight": false,
+  "device": "cpu",
+  "seed": 42
+}

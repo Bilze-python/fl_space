@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpaceFL 3D 轨道视图</title>
+    <script>
+        window.CESIUM_BASE_URL = "/cesium/";
+    </script>
+    <script src="/cesium/Cesium.js"></script>
+    <link rel="stylesheet" href="/cesium/Widgets/widgets.css">
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: #02060b;
+            color: #eef6ff;
+        }
+
+        * { box-sizing: border-box; }
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+        button, select, input { font: inherit; }
+
+        .panel {
+            position: absolute;
+            z-index: 10;
+            border: 1px solid rgba(116, 153, 183, 0.36);
+            border-radius: 8px;
+            background: rgba(5, 12, 20, 0.9);
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.36);
+            backdrop-filter: blur(12px);
+        }
+        .control-panel {
+            top: 16px;
+            left: 16px;
+            width: min(340px, calc(100vw - 32px));
+            padding: 16px;
+        }
+        .status-panel {
+            right: 16px;
+            bottom: 16px;
+            width: min(330px, calc(100vw - 32px));
+            padding: 14px 16px;
+        }
+        .eyebrow {
+            margin: 0 0 4px;
+            color: #67d5a4;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        h1 {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.25;
+        }
+        .subtle {
+            margin: 6px 0 14px;
+            color: #9eb3c5;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .toolbar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        button, select {
+            min-height: 36px;
+            border: 1px solid #48647b;
+            border-radius: 6px;
+            background: #122334;
+            color: #eef6ff;
+        }
+        button { cursor: pointer; }
+        button:hover {
+            border-color: #65cfa0;
+            background: #183146;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.46;
+        }
+        .primary {
+            border-color: #4bc28c;
+            background: #12613f;
+        }
+        .primary:hover { background: #17764d; }
+        .field {
+            display: grid;
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .field label {
+            color: #afc1d0;
+            font-size: 12px;
+        }
+        .tracking-note {
+            margin: -2px 0 0;
+            color: #7f97aa;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        select {
+            width: 100%;
+            padding: 0 10px;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: #4bc28c;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .metric {
+            min-width: 0;
+            border-left: 2px solid #31556f;
+            padding-left: 8px;
+        }
+        .metric strong {
+            display: block;
+            overflow: hidden;
+            color: #f6fbff;
+            font-size: 16px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .metric span {
+            color: #849bad;
+            font-size: 11px;
+        }
+        .status-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 7px 0;
+            color: #aabcca;
+            font-size: 12px;
+        }
+        .status-value {
+            max-width: 205px;
+            color: #eef6ff;
+            font-weight: 600;
+            text-align: right;
+        }
+        .status-value.ok { color: #69d8a6; }
+        .status-value.warn { color: #ffd27b; }
+        .status-value.error { color: #ff8f8f; }
+        .notice {
+            display: none;
+            margin-top: 12px;
+            border-left: 3px solid #ffd27b;
+            padding: 8px 10px;
+            background: rgba(116, 74, 13, 0.24);
+            color: #ffe1a7;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .notice.show { display: block; }
+
+        @media (max-width: 720px) {
+            .control-panel {
+                right: 12px;
+                left: 12px;
+                width: auto;
+            }
+            .status-panel {
+                right: 12px;
+                bottom: 12px;
+                left: 12px;
+                width: auto;
+            }
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <section class="panel control-panel" aria-label="轨道控制">
+        <p class="eyebrow">SpaceFL</p>
+        <h1>3D 卫星轨道视图</h1>
+        <p class="subtle">本地地球纹理与星空优先加载，轨道和地面站来自当前后端模型。</p>
+        <div class="field">
+            <label for="experimentSelect">实验存档</label>
+            <select id="experimentSelect">
+                <option value="">当前 Session 参数</option>
+            </select>
+        </div>
+        <div class="toolbar">
+            <button id="loadButton" class="primary" type="button">加载数据</button>
+            <button id="playButton" type="button" disabled>播放</button>
+            <button id="pauseButton" type="button" disabled>暂停</button>
+        </div>
+        <div class="field">
+            <label for="playbackSpeed">播放倍速</label>
+            <select id="playbackSpeed">
+                <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="slotSlider">时隙 <span id="slotText">0 / 0</span></label>
+            <input id="slotSlider" type="range" min="0" max="0" value="0" disabled>
+        </div>
+        <div class="field">
+            <label for="trackingSelect">视角跟踪</label>
+            <select id="trackingSelect" disabled>
+                <option value="">不跟踪</option>
+            </select>
+            <label class="tracking-adjust"><input id="trackingAdjust" type="checkbox" checked> 跟踪时允许鼠标调整视角方向</label>
+            <p class="tracking-note">跟踪时滚轮缩放，按住鼠标拖动可调整视角方向</p>
+        </div>
+        <div class="field">
+            <label for="stationSelect">地面站定位与经纬度核对</label>
+            <select id="stationSelect" disabled>
+                <option value="">数据加载后可选择</option>
+            </select>
+        </div>
+        <div class="metrics">
+            <div class="metric"><strong id="satCount">0</strong><span>卫星</span></div>
+            <div class="metric"><strong id="stationCount">0</strong><span>地面站</span></div>
+            <div class="metric"><strong id="linkCount">0</strong><span>链路</span></div>
+            <div class="metric"><strong id="simTime">--:--</strong><span>UTC</span></div>
+        </div>
+        <div id="notice" class="notice" role="status"></div>
+    </section>
+
+    <aside class="panel status-panel" aria-label="资源状态">
+        <div class="status-row">
+            <span>地球影像</span>
+            <strong id="imageryStatus" class="status-value">正在初始化</strong>
+        </div>
+        <div class="status-row">
+            <span>大气层</span>
+            <strong id="atmosphereStatus" class="status-value">正在初始化</strong>
+        </div>
+        <div class="status-row">
+            <span>海洋效果</span>
+            <strong id="oceanStatus" class="status-value">基础海洋纹理</strong>
+        </div>
+        <div class="status-row">
+            <span>坐标校验</span>
+            <strong id="coordinateStatus" class="status-value">等待数据</strong>
+        </div>
+        <div class="status-row">
+            <span>视角跟踪</span>
+            <strong id="trackingStatus" class="status-value">自由视角</strong>
+        </div>
+    </aside>
+
+    <script>
+        const EARTH_ALTITUDE_METERS = 18000000;
+        const LOCAL_IMAGERY_URL = "/cesium/Assets/Textures/NaturalEarthII";
+        const LOCAL_SKYBOX_URL = "/cesium/Assets/Textures/SkyBox";
+        const DEFAULT_API_URL = "/api/orbit_data?sats=10&gs=5&sim_hours=2&altitude_km=500&inclination_deg=53&timeslot_min=2&isl_enabled=true";
+
+        const elements = {
+            loadButton: document.getElementById("loadButton"),
+            experimentSelect: document.getElementById("experimentSelect"),
+            playButton: document.getElementById("playButton"),
+            pauseButton: document.getElementById("pauseButton"),
+            playbackSpeed: document.getElementById("playbackSpeed"),
+            slotSlider: document.getElementById("slotSlider"),
+            slotText: document.getElementById("slotText"),
+            trackingSelect: document.getElementById("trackingSelect"),
+            stationSelect: document.getElementById("stationSelect"),
+            satCount: document.getElementById("satCount"),
+            stationCount: document.getElementById("stationCount"),
+            linkCount: document.getElementById("linkCount"),
+            simTime: document.getElementById("simTime"),
+            notice: document.getElementById("notice"),
+            imageryStatus: document.getElementById("imageryStatus"),
+            atmosphereStatus: document.getElementById("atmosphereStatus"),
+            oceanStatus: document.getElementById("oceanStatus"),
+            coordinateStatus: document.getElementById("coordinateStatus"),
+            trackingStatus: document.getElementById("trackingStatus"),
+            trackingAdjust: document.getElementById("trackingAdjust")
+        };
+
+        function selectedExperimentId() {
+            return elements.experimentSelect.value || new URLSearchParams(window.location.search).get("experiment_id") || "";
+        }
+
+        function orbitApiUrl() {
+            const experimentId = selectedExperimentId();
+            const projection = new URLSearchParams(window.location.search).get("projection");
+            const query = projection === "stress15"
+                ? "projection_days=15&projection_step_min=30&satellites=24&ground_stations=6&isl_enabled=true"
+                : "projection_days=1&projection_step_min=10";
+            return experimentId
+                ? `/api/experiments/${encodeURIComponent(experimentId)}/orbit_data?${query}`
+                : DEFAULT_API_URL;
+        }
+
+        async function loadExperimentOptions() {
+            const response = await fetch("/api/experiments", { cache: "no-store" });
+            if (!response.ok) throw new Error(`实验存档接口返回 HTTP ${response.status}`);
+            const experiments = await response.json();
+            const requestedId = new URLSearchParams(window.location.search).get("experiment_id") || "";
+            elements.experimentSelect.innerHTML = `<option value="">当前 Session 参数</option>${experiments.map(item =>
+                `<option value="${item.id}">${item.name} · ${item.dataset || "--"} · Seed ${item.seed ?? "--"}</option>`
+            ).join("")}`;
+            elements.experimentSelect.value = requestedId;
+        }
+
+        function setStatus(element, text, level = "") {
+            element.textContent = text;
+            element.className = `status-value ${level}`.trim();
+        }
+
+        function showNotice(message = "") {
+            elements.notice.textContent = message;
+            elements.notice.classList.toggle("show", Boolean(message));
+        }
+
+        const localImageryProvider = Cesium.TileMapServiceImageryProvider.fromUrl(
+            LOCAL_IMAGERY_URL,
+            {
+                fileExtension: "jpg",
+                maximumLevel: 2,
+                credit: "Natural Earth II"
+            }
+        );
+
+        const viewer = new Cesium.Viewer("cesiumContainer", {
+            animation: false,
+            timeline: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            fullscreenButton: true,
+            infoBox: true,
+            selectionIndicator: true,
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+            baseLayer: Cesium.ImageryLayer.fromProviderAsync(localImageryProvider),
+            skyAtmosphere: new Cesium.SkyAtmosphere(),
+            skyBox: new Cesium.SkyBox({
+                sources: {
+                    positiveX: `${LOCAL_SKYBOX_URL}/tycho2t3_80_px.jpg`,
+                    negativeX: `${LOCAL_SKYBOX_URL}/tycho2t3_80_mx.jpg`,
+                    positiveY: `${LOCAL_SKYBOX_URL}/tycho2t3_80_py.jpg`,
+                    negativeY: `${LOCAL_SKYBOX_URL}/tycho2t3_80_my.jpg`,
+                    positiveZ: `${LOCAL_SKYBOX_URL}/tycho2t3_80_pz.jpg`,
+                    negativeZ: `${LOCAL_SKYBOX_URL}/tycho2t3_80_mz.jpg`
+                }
+            })
+        });
+
+        const scene = viewer.scene;
+        scene.backgroundColor = Cesium.Color.BLACK;
+        scene.globe.baseColor = Cesium.Color.fromCssColorString("#0b2438");
+        scene.globe.enableLighting = true;
+        scene.globe.dynamicAtmosphereLighting = true;
+        scene.globe.dynamicAtmosphereLightingFromSun = true;
+        scene.globe.showGroundAtmosphere = true;
+        scene.globe.showWaterEffect = true;
+        scene.globe.depthTestAgainstTerrain = false;
+        scene.highDynamicRange = true;
+        scene.fog.enabled = true;
+        scene.fog.density = 0.0002;
+        scene.sun.show = true;
+        scene.moon.show = true;
+
+        if (scene.skyAtmosphere) {
+            scene.skyAtmosphere.show = true;
+            scene.skyAtmosphere.atmosphereLightIntensity = 18;
+            scene.skyAtmosphere.brightnessShift = 0.05;
+            setStatus(elements.atmosphereStatus, "已启用蓝色光晕", "ok");
+        } else {
+            setStatus(elements.atmosphereStatus, "当前设备不支持", "warn");
+        }
+
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(105, 23, 24000000),
+            orientation: {
+                heading: 0,
+                pitch: Cesium.Math.toRadians(-90),
+                roll: 0
+            }
+        });
+
+        const state = {
+            orbitData: null,
+            currentSlot: 0,
+            timer: null,
+            trackingTarget: "",
+            trackingRange: null,
+            trackingHeading: 18,
+            trackingPitch: -28,
+            trackingDrag: null,
+            stationEntities: [],
+            satelliteEntities: [],
+            satelliteById: new Map(),
+            linkEntities: [],
+            trajectoryEntities: []
+        };
+
+        function validateCoordinate(item, label) {
+            const lon = Number(item.lon);
+            const lat = Number(item.lat);
+            if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+                throw new Error(`${label} 的经纬度不是有效数字`);
+            }
+            if (lon < -180 || lon > 180) {
+                throw new Error(`${label} 经度 ${lon} 超出 [-180, 180]`);
+            }
+            if (lat < -90 || lat > 90) {
+                throw new Error(`${label} 纬度 ${lat} 超出 [-90, 90]`);
+            }
+            return { lon, lat };
+        }
+
+        function clearEntities(entities) {
+            for (const entity of entities) {
+                viewer.entities.remove(entity);
+            }
+            entities.length = 0;
+        }
+
+        function linkMaterial(color, alpha) {
+            return Cesium.Color.fromCssColorString(color).withAlpha(alpha);
+        }
+
+        function linkDepthFailMaterial(color, alpha) {
+            return new Cesium.ColorMaterialProperty(linkMaterial(color, alpha));
+        }
+
+        function createStationIcon() {
+            const canvas = document.createElement("canvas");
+            canvas.width = 72;
+            canvas.height = 72;
+            const context = canvas.getContext("2d");
+            context.strokeStyle = "#ffb45b";
+            context.fillStyle = "#ff775f";
+            context.lineWidth = 5;
+            context.beginPath();
+            context.arc(36, 29, 17, Math.PI * 0.95, Math.PI * 1.85);
+            context.stroke();
+            context.beginPath();
+            context.moveTo(35, 31);
+            context.lineTo(25, 54);
+            context.lineTo(47, 54);
+            context.closePath();
+            context.fill();
+            context.fillRect(19, 55, 34, 7);
+            return canvas.toDataURL("image/png");
+        }
+
+        function createSatelliteIcon(active) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 64;
+            canvas.height = 64;
+            const context = canvas.getContext("2d");
+            const color = active ? "#62e6a7" : "#67c7ff";
+            context.fillStyle = color;
+            context.strokeStyle = "#edf8ff";
+            context.lineWidth = 2;
+            context.fillRect(25, 23, 14, 18);
+            context.fillRect(5, 25, 16, 14);
+            context.fillRect(43, 25, 16, 14);
+            context.strokeRect(25, 23, 14, 18);
+            context.beginPath();
+            context.moveTo(32, 13);
+            context.lineTo(32, 23);
+            context.stroke();
+            return canvas.toDataURL("image/png");
+        }
+
+        const stationIcon = createStationIcon();
+        const inactiveSatelliteIcon = createSatelliteIcon(false);
+        const activeSatelliteIcon = createSatelliteIcon(true);
+
+        function renderGroundStations() {
+            clearEntities(state.stationEntities);
+            elements.stationSelect.innerHTML = '<option value="">选择一个地面站</option>';
+
+            state.orbitData.ground_stations.forEach((station, index) => {
+                const { lon, lat } = validateCoordinate(station, station.name || `GS-${index}`);
+                const altitudeMeters = Number(station.alt_km || 0) * 1000;
+                const entity = viewer.entities.add({
+                    id: `ground-station-${station.id ?? index}`,
+                    name: station.name || `GS-${index}`,
+                    description: [
+                        `<p><strong>经度：</strong>${lon.toFixed(4)}°</p>`,
+                        `<p><strong>纬度：</strong>${lat.toFixed(4)}°</p>`,
+                        `<p><strong>海拔：</strong>${(altitudeMeters / 1000).toFixed(3)} km</p>`
+                    ].join(""),
+                    position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeMeters),
+                    billboard: {
+                        image: stationIcon,
+                        width: 34,
+                        height: 34,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: station.name || `GS-${index}`,
+                        font: "13px Segoe UI",
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 3,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.TOP,
+                        pixelOffset: new Cesium.Cartesian2(0, 8),
+                        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 16000000),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+                state.stationEntities.push(entity);
+
+                const option = document.createElement("option");
+                option.value = String(index);
+                option.textContent = `${station.name}  ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+                elements.stationSelect.appendChild(option);
+            });
+        }
+
+        function satelliteAtSlot(satelliteId, slotIndex = state.currentSlot) {
+            const slot = state.orbitData?.timeslots?.[slotIndex];
+            return (slot?.positions || []).find(
+                (satellite) => Number(satellite.sat_id) === Number(satelliteId)
+            );
+        }
+
+        function satelliteCartesian(satelliteId, slotIndex = state.currentSlot) {
+            const satellite = satelliteAtSlot(satelliteId, slotIndex);
+            if (!satellite) return undefined;
+            const { lon, lat } = validateCoordinate(satellite, `SAT-${satelliteId}`);
+            return Cesium.Cartesian3.fromDegrees(
+                lon,
+                lat,
+                Number(satellite.alt_km || 0) * 1000
+            );
+        }
+
+        function renderSatelliteEntities() {
+            viewer.trackedEntity = undefined;
+            viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            clearEntities(state.satelliteEntities);
+            state.satelliteById.clear();
+            elements.trackingSelect.innerHTML = '<option value="">不跟踪</option>';
+
+            const constellationOption = document.createElement("option");
+            constellationOption.value = "constellation";
+            constellationOption.textContent = `整个星座 · ${state.orbitData.satellites} 颗卫星`;
+            elements.trackingSelect.appendChild(constellationOption);
+
+            const satelliteGroup = document.createElement("optgroup");
+            satelliteGroup.label = "单颗卫星";
+            elements.trackingSelect.appendChild(satelliteGroup);
+
+            for (let satelliteId = 0; satelliteId < state.orbitData.satellites; satelliteId += 1) {
+                const sample = satelliteAtSlot(satelliteId, 0);
+                if (!sample) continue;
+                const entity = viewer.entities.add({
+                    id: `satellite-${satelliteId}`,
+                    name: `SAT-${String(satelliteId).padStart(2, "0")}`,
+                    description: [
+                        `<p><strong>卫星：</strong>SAT-${String(satelliteId).padStart(2, "0")}</p>`,
+                        `<p><strong>轨道面：</strong>${sample.plane ?? "--"}</p>`,
+                        `<p><strong>高度：</strong>${Number(sample.alt_km || 0).toFixed(1)} km</p>`
+                    ].join(""),
+                    position: new Cesium.CallbackProperty(
+                        () => satelliteCartesian(satelliteId),
+                        false
+                    ),
+                    billboard: {
+                        image: inactiveSatelliteIcon,
+                        width: 30,
+                        height: 30,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: `S${satelliteId}`,
+                        font: "12px Segoe UI",
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 3,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, 20),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+                state.satelliteEntities.push(entity);
+                state.satelliteById.set(satelliteId, entity);
+
+                const option = document.createElement("option");
+                option.value = `satellite:${satelliteId}`;
+                option.textContent = `SAT-${String(satelliteId).padStart(2, "0")} · 轨道面 ${sample.plane ?? "--"}`;
+                satelliteGroup.appendChild(option);
+            }
+
+            state.trackingTarget = "";
+            elements.trackingSelect.value = "";
+            elements.trackingSelect.disabled = false;
+            setStatus(elements.trackingStatus, "自由视角");
+        }
+
+        function trackingPoints() {
+            return (state.orbitData?.timeslots?.[state.currentSlot]?.positions || [])
+                .map((satellite) => satelliteCartesian(satellite.sat_id))
+                .filter(Boolean);
+        }
+
+        function updateTrackingView() {
+            if (!state.trackingTarget) return;
+            if (state.trackingTarget === "constellation") {
+                const points = trackingPoints();
+                if (!points.length) return;
+                const sphere = Cesium.BoundingSphere.fromPoints(points);
+                const defaultRange = Math.max(3500000, sphere.radius * 2.8);
+                const range = state.trackingRange ?? defaultRange;
+                viewer.camera.lookAt(
+                    sphere.center,
+                    new Cesium.HeadingPitchRange(
+                        Cesium.Math.toRadians(state.trackingHeading),
+                        Cesium.Math.toRadians(state.trackingPitch),
+                        range
+                    )
+                );
+                return;
+            }
+
+            const satelliteId = Number(state.trackingTarget.split(":")[1]);
+            const position = satelliteCartesian(satelliteId);
+            if (!position) return;
+            viewer.camera.lookAt(
+                position,
+                new Cesium.HeadingPitchRange(
+                    Cesium.Math.toRadians(state.trackingHeading),
+                    Cesium.Math.toRadians(state.trackingPitch),
+                    state.trackingRange ?? 650000
+                )
+            );
+        }
+
+        function handleTrackingWheel(event) {
+            if (!state.trackingTarget) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const delta = Number(event.deltaY) || 0;
+            // Positive wheel delta zooms out; keep a useful close-up while avoiding clipping.
+            const current = state.trackingRange ?? (state.trackingTarget === "constellation" ? 3500000 : 650000);
+            const minimum = state.trackingTarget === "constellation" ? 1200000 : 120000;
+            state.trackingRange = Math.min(30000000, Math.max(minimum, current * Math.exp(delta * 0.001)));
+            updateTrackingView();
+        }
+
+        viewer.scene.canvas.addEventListener("wheel", handleTrackingWheel, { passive: false });
+
+        // While tracking, drag the globe to rotate the camera around the target.
+        viewer.scene.canvas.addEventListener("pointerdown", (event) => {
+            if (!state.trackingTarget || !elements.trackingAdjust.checked) return;
+            event.preventDefault();
+            event.stopPropagation();
+            state.trackingDrag = { x: event.clientX, y: event.clientY };
+            viewer.scene.canvas.setPointerCapture?.(event.pointerId);
+        });
+        viewer.scene.canvas.addEventListener("pointermove", (event) => {
+            if (!state.trackingTarget || !elements.trackingAdjust.checked || !state.trackingDrag) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const dx = event.clientX - state.trackingDrag.x;
+            const dy = event.clientY - state.trackingDrag.y;
+            state.trackingDrag = { x: event.clientX, y: event.clientY };
+            state.trackingHeading = ((state.trackingHeading + dx * 0.35) % 360 + 360) % 360;
+            state.trackingPitch = Math.max(-85, Math.min(-5, state.trackingPitch + dy * 0.25));
+            updateTrackingView();
+        });
+        const stopTrackingDrag = () => { state.trackingDrag = null; };
+        viewer.scene.canvas.addEventListener("pointerup", stopTrackingDrag);
+        viewer.scene.canvas.addEventListener("pointercancel", stopTrackingDrag);
+        elements.trackingAdjust.addEventListener("change", () => {
+            state.trackingDrag = null;
+        });
+
+        function setTrackingTarget(value) {
+            state.trackingTarget = value;
+            state.trackingRange = null;
+            state.trackingHeading = value === "constellation" ? 24 : 18;
+            state.trackingPitch = value === "constellation" ? -34 : -28;
+            viewer.trackedEntity = undefined;
+            if (!value) {
+                viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+                setStatus(elements.trackingStatus, "自由视角");
+                return;
+            }
+
+            const label = value === "constellation"
+                ? `整个星座 · ${state.orbitData.satellites} 颗卫星`
+                : `SAT-${String(Number(value.split(":")[1])).padStart(2, "0")}`;
+            setStatus(elements.trackingStatus, label, "ok");
+            updateTrackingView();
+        }
+
+        scene.preRender.addEventListener(() => {
+            if (state.trackingTarget) updateTrackingView();
+        });
+
+        function renderTrajectories() {
+            clearEntities(state.trajectoryEntities);
+            const satelliteCount = state.orbitData.satellites;
+
+            for (let satelliteId = 0; satelliteId < satelliteCount; satelliteId += 1) {
+                const trajectory = state.orbitData.trajectories?.find(
+                    (item) => Number(item.sat_id) === satelliteId
+                );
+                const samples = trajectory?.positions || state.orbitData.timeslots.map((slot) =>
+                    (slot.positions || []).find(
+                        (satellite) => Number(satellite.sat_id) === satelliteId
+                    )
+                );
+                let coordinates = [];
+                let previousLongitude = null;
+                const flushSegment = () => {
+                    if (coordinates.length < 6) {
+                        coordinates = [];
+                        return;
+                    }
+                    const hue = satelliteId / Math.max(1, satelliteCount);
+                    state.trajectoryEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(coordinates),
+                        width: 1.2,
+                        material: Cesium.Color.fromHsl(hue, 0.74, 0.58, 0.32),
+                        depthFailMaterial: new Cesium.ColorMaterialProperty(
+                            Cesium.Color.fromHsl(hue, 0.74, 0.58, 0.24)
+                        ),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+                    coordinates = [];
+                };
+                for (const satellite of samples) {
+                    if (!satellite) continue;
+                    const { lon, lat } = validateCoordinate(satellite, `SAT-${satelliteId}`);
+                    if (previousLongitude !== null && Math.abs(lon - previousLongitude) > 180) flushSegment();
+                    coordinates.push(lon, lat, Number(satellite.alt_km || 0) * 1000);
+                    previousLongitude = lon;
+                }
+                flushSegment();
+            }
+        }
+
+        function renderSlot(slotIndex) {
+            if (!state.orbitData) return;
+            const normalizedIndex = Math.max(
+                0,
+                Math.min(Number(slotIndex), state.orbitData.timeslots.length - 1)
+            );
+            state.currentSlot = normalizedIndex;
+            const slot = state.orbitData.timeslots[normalizedIndex];
+            clearEntities(state.linkEntities);
+
+            const positionsBySatelliteId = new Map(
+                (slot.positions || []).map((satellite) => [Number(satellite.sat_id), satellite])
+            );
+            const activeSatellites = new Set(
+                (slot.contacts || []).map((contact) => Number(contact.sat_id))
+            );
+            const offloadActions = slot.experiment?.offload_actions || [];
+            for (const action of offloadActions) {
+                activeSatellites.add(Number(action.from_sat));
+                activeSatellites.add(Number(action.to_sat));
+            }
+            for (const satellite of slot.positions) {
+                const satelliteId = Number(satellite.sat_id);
+                const entity = state.satelliteById.get(satelliteId);
+                if (entity) {
+                    entity.billboard.image = activeSatellites.has(satelliteId)
+                        ? activeSatelliteIcon
+                        : inactiveSatelliteIcon;
+                }
+            }
+
+            for (const contact of slot.contacts || []) {
+                const satellite = positionsBySatelliteId.get(Number(contact.sat_id));
+                const station = state.orbitData.ground_stations[Number(contact.gs_id)];
+                if (!satellite || !station) continue;
+                state.linkEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            station.lon, station.lat, Number(station.alt_km || 0) * 1000,
+                            satellite.lon, satellite.lat, Number(satellite.alt_km || 0) * 1000
+                        ]),
+                        width: 2,
+                        material: linkMaterial("#ffd166", 0.78),
+                        depthFailMaterial: linkDepthFailMaterial("#ffd166", 0.46),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+
+            for (const link of slot.isl_links || []) {
+                const first = positionsBySatelliteId.get(Number(link.a_id));
+                const second = positionsBySatelliteId.get(Number(link.b_id));
+                if (!first || !second) continue;
+                state.linkEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            first.lon, first.lat, Number(first.alt_km || 0) * 1000,
+                            second.lon, second.lat, Number(second.alt_km || 0) * 1000
+                        ]),
+                        width: 1.4,
+                        material: linkMaterial("#ff7d68", 0.64),
+                        depthFailMaterial: linkDepthFailMaterial("#ff7d68", 0.36),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+
+            for (const action of offloadActions) {
+                const first = positionsBySatelliteId.get(Number(action.from_sat));
+                const second = positionsBySatelliteId.get(Number(action.to_sat));
+                if (!first || !second) continue;
+                state.linkEntities.push(viewer.entities.add({
+                    name: `卸载 ${action.offload_samples || 0} 样本`,
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                            first.lon, first.lat, Number(first.alt_km || 0) * 1000,
+                            second.lon, second.lat, Number(second.alt_km || 0) * 1000
+                        ]),
+                        width: 4,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.fromCssColorString("#ffd166")
+                        }),
+                        depthFailMaterial: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.fromCssColorString("#ffd166").withAlpha(0.55)
+                        }),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+
+            elements.slotSlider.value = String(normalizedIndex);
+            elements.slotText.textContent = `${normalizedIndex + 1} / ${state.orbitData.timeslots.length}`;
+            elements.linkCount.textContent = String(
+                (slot.contacts || []).length +
+                (slot.isl_links || []).length +
+                offloadActions.length
+            );
+            elements.simTime.textContent = new Date(slot.time).toISOString().slice(11, 16);
+            updateTrackingView();
+        }
+
+        async function loadOrbitData() {
+            elements.loadButton.disabled = true;
+            elements.loadButton.textContent = "加载中";
+            showNotice("");
+            try {
+                const response = await fetch(orbitApiUrl(), { cache: "no-store" });
+                if (!response.ok) throw new Error(`轨道接口返回 HTTP ${response.status}`);
+                const data = await response.json();
+                if (!Array.isArray(data.ground_stations) || !Array.isArray(data.timeslots)) {
+                    throw new Error("轨道接口返回的数据结构不完整");
+                }
+                for (const [index, station] of data.ground_stations.entries()) {
+                    validateCoordinate(station, station.name || `GS-${index}`);
+                }
+                for (const [slotIndex, slot] of data.timeslots.entries()) {
+                    for (const satellite of slot.positions || []) {
+                        validateCoordinate(satellite, `时隙 ${slotIndex} 卫星 ${satellite.sat_id}`);
+                    }
+                }
+
+                state.orbitData = data;
+                if (data.experiment) {
+                    showNotice(`正在演示存档：${data.experiment.name} · ${data.experiment.dataset || "--"} · Seed ${data.experiment.seed ?? "--"}`);
+                }
+                elements.satCount.textContent = String(data.satellites);
+                elements.stationCount.textContent = String(data.ground_stations.length);
+                elements.slotSlider.max = String(Math.max(0, data.timeslots.length - 1));
+                elements.slotSlider.disabled = false;
+                elements.stationSelect.disabled = false;
+                elements.playButton.disabled = false;
+                elements.pauseButton.disabled = false;
+                renderGroundStations();
+                renderSatelliteEntities();
+                renderTrajectories();
+                renderSlot(0);
+                setStatus(elements.coordinateStatus, `${data.ground_stations.length} 个基站全部有效`, "ok");
+            } catch (error) {
+                console.error(error);
+                setStatus(elements.coordinateStatus, "数据校验失败", "error");
+                showNotice(`轨道数据加载失败：${error.message}`);
+            } finally {
+                elements.loadButton.disabled = false;
+                elements.loadButton.textContent = "重新加载";
+            }
+        }
+
+        function play() {
+            if (!state.orbitData?.timeslots?.length || state.timer) return;
+            state.timer = window.setInterval(() => {
+                if (!state.orbitData?.timeslots?.length) {
+                    pause();
+                    return;
+                }
+                const lastSlot = state.orbitData.timeslots.length - 1;
+                if (state.currentSlot >= lastSlot) {
+                    pause();
+                    return;
+                }
+                renderSlot(state.currentSlot + 1);
+            }, Math.max(40, Math.round(420 / Math.max(0.25, Number(elements.playbackSpeed.value || 1)))));
+        }
+
+        function pause() {
+            if (state.timer !== null) window.clearInterval(state.timer);
+            state.timer = null;
+        }
+
+        window.SpaceFLOrbitViewer = {
+            renderSlot,
+            play,
+            pause,
+            getState: () => ({
+                currentSlot: state.currentSlot,
+                totalSlots: state.orbitData?.timeslots?.length || 0,
+                satellites: state.orbitData?.satellites || 0,
+                projectionDays: state.orbitData?.projection_days || 0,
+                trajectories: state.orbitData?.trajectories?.length || 0,
+                renderedTrajectories: state.trajectoryEntities.length,
+                trajectoryPoints: state.orbitData?.trajectories?.[0]?.positions?.length || 0,
+                trackingTarget: state.trackingTarget,
+                trackingRangeMeters: state.trackingRange,
+                satelliteEntities: state.satelliteEntities.length,
+                linkEntities: state.linkEntities.length
+            })
+        };
+
+        elements.loadButton.addEventListener("click", loadOrbitData);
+        elements.experimentSelect.addEventListener("change", () => {
+            const experimentId = elements.experimentSelect.value;
+            const url = new URL(window.location.href);
+            if (experimentId) url.searchParams.set("experiment_id", experimentId);
+            else url.searchParams.delete("experiment_id");
+            window.history.replaceState({}, "", url);
+            pause();
+            loadOrbitData();
+        });
+        elements.playButton.addEventListener("click", play);
+        elements.pauseButton.addEventListener("click", pause);
+        elements.playbackSpeed.addEventListener("change", () => {
+            if (state.timer !== null) {
+                pause();
+                play();
+            }
+        });
+        elements.trackingSelect.addEventListener("change", (event) => {
+            setTrackingTarget(event.target.value);
+        });
+        elements.slotSlider.addEventListener("input", (event) => {
+            pause();
+            renderSlot(Number(event.target.value));
+        });
+        elements.stationSelect.addEventListener("change", () => {
+            const stationIndex = Number(elements.stationSelect.value);
+            if (!Number.isInteger(stationIndex) || stationIndex < 0) return;
+            const station = state.orbitData.ground_stations[stationIndex];
+            elements.trackingSelect.value = "";
+            setTrackingTarget("");
+            viewer.selectedEntity = state.stationEntities[stationIndex];
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(station.lon, station.lat, 2500000),
+                duration: 1.2
+            });
+        });
+
+        localImageryProvider
+            .then((provider) => {
+                provider.errorEvent.addEventListener((error) => {
+                    console.error("Natural Earth imagery error", error);
+                    setStatus(elements.imageryStatus, "部分瓦片加载失败", "warn");
+                    showNotice("本地地球影像有瓦片加载失败，已保留基础地球颜色。");
+                });
+                setStatus(elements.imageryStatus, "Natural Earth II 本地纹理", "ok");
+            })
+            .catch((error) => {
+                console.error("Imagery initialization error", error);
+                setStatus(elements.imageryStatus, "已回退基础地球颜色", "warn");
+                showNotice("本地地球纹理未能初始化，已自动回退到基础地球颜色。");
+            });
+
+        setStatus(elements.oceanStatus, "Natural Earth 海洋 + 光照", "ok");
+        loadExperimentOptions()
+            .catch((error) => showNotice(`实验存档加载失败：${error.message}`))
+            .finally(loadOrbitData);
+    </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+node_modules/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+.fls_session.json
+.literature_config.json
+.spacefl_ai_config.json
+.spacefl_experiment_metadata.json
+.spacefl_experiment_registry.json
+*.log
+.pytest_cache/
+.ruff_cache/
+
+# Experimental outputs (keep structure, ignore data)
+experiments/*/
+!experiments/.gitkeep
+reports/*/
+!reports/.gitkeep
+
+# 网页端实验档案产物
+fedleo_web_validation_*/
+fedleo-local/
+fedleo_local/
+validation_results/
+test_outputs/
+manual_*/
+output/
+results/
+tmp/
+
+# Large data files
+*.bsp
+de421.bsp
+_git_installer.exe
+data/MNIST/raw/
+data/FashionMNIST/raw/
+data/CIFAR10/
+*.tar.gz
+*.zip
+
+# 临时提交辅助文件
+_commit_msg.txt
+_verify_msg.py
+_check_*.py
+
+# CodeBuddy 会话来宾文件（WORKLOG 等协作记录仍保留在根目录）
+.codebuddy/
+
+# 一次性调试脚本
+_smoke_test.py
+_quick_fl.py
+_run_demo.py
+setup_test.py
+test_web_demo.py
+quick_test_output.txt
+
+# 文献 PDF（体积大，按需单独分发）
+文献/*.pdf
+文献/extracted/
+
+# 根目录散落的截图 / 图表（演示素材，不入库）
+/*.png
+orbit_viz_data.json
+quick_test_output.txt
