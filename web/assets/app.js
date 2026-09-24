@@ -10,11 +10,14 @@ const state = {
   orbitTimer: null,
   jobPoll: null,
   satelliteProfiles: {},
+  studyTask: null,
+  studyLoading: false,
 };
 
 const viewTitles = {
   overview: ["SPACE FEDERATED LEARNING", "实验总览"],
   config: ["EXPERIMENT CONTROL", "实验配置"],
+  study: ["LEARNING TASK MODEL", "学习任务"],
   experiments: ["RESULT ARCHIVE", "实验档案"],
   orbit: ["CONSTELLATION VIEW", "轨道视图"],
   library: ["RESEARCH LIBRARY", "文献库"],
@@ -36,8 +39,16 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
-    try { message = (await response.json()).detail || message; } catch (_) {}
-    throw new Error(message);
+    let payload = null;
+    try {
+      payload = await response.json();
+      const detail = payload?.detail;
+      message = typeof detail === "string" ? detail : detail?.message || message;
+    } catch (_) {}
+    const error = new Error(message);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
   }
   return response.json();
 }
@@ -78,7 +89,216 @@ function setView(name) {
   $("#view-title").textContent = viewTitles[name][1];
   if (name === "orbit" && !state.orbit && !state.orbitLoading) loadOrbit();
   if (name === "library" && !state.library.length) loadLibrary();
+  if (name === "study" && !state.studyTask && !state.studyLoading) loadStudyTask();
   requestAnimationFrame(resizeCanvases);
+}
+
+function studyTaskData() {
+  return state.studyTask?.task || null;
+}
+
+function studySetValue(id, value) {
+  const element = $(`#${id}`);
+  if (element) element.value = value ?? "";
+}
+
+function renderStudyTask() {
+  const envelope = state.studyTask;
+  const task = studyTaskData();
+  if (!envelope || !task) return;
+  studySetValue("study-name", task.name);
+  studySetValue("study-dataset-name", task.dataset.name);
+  studySetValue("study-dataset-type", task.dataset.data_type);
+  studySetValue("study-dataset-distribution", task.dataset.distribution);
+  studySetValue("study-model-name", task.model.name);
+  studySetValue("study-model-framework", task.model.framework);
+  studySetValue("study-scheduler-policy", task.scheduler.policy);
+  studySetValue("study-round-duration", task.scheduler.round_duration_s);
+  studySetValue("study-participant-fraction", task.scheduler.participant_fraction);
+
+  const summary = envelope.summary;
+  $("#study-sat-count").textContent = summary.satellite_count;
+  $("#study-gs-count").textContent = summary.ground_station_count;
+  $("#study-link-count").textContent = summary.link_count;
+  $("#study-update-volume").textContent = `${summary.per_round_update_volume_mb} MB`;
+  $("#study-summary-lines").innerHTML = [
+    ["数据集", `${summary.dataset} · ${task.dataset.distribution}`],
+    ["模型", `${summary.model} · ${task.model.framework}`],
+    ["调度", `${summary.scheduler} · ${Number(task.scheduler.participant_fraction * 100).toFixed(0)}% 参与`],
+    ["版本", `${envelope.revision} · ${formatDate(envelope.updated_at)}`],
+  ].map(([label, value]) => `
+    <div class="study-summary-line"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>
+  `).join("");
+  $("#study-json").textContent = JSON.stringify(envelope, null, 2);
+
+  $("#study-node-rows").innerHTML = (task.nodes || []).map(node => {
+    const orbit = node.orbit || {};
+    const visual = node.satellite?.visual || {};
+    return `
+      <tr>
+        <td><strong>${escapeHtml(node.node_id)}</strong><small>${escapeHtml(node.satellite?.name || "")}</small></td>
+        <td>${Number(orbit.semi_major_axis_km || 0).toFixed(2)}</td>
+        <td>${Number(orbit.eccentricity || 0).toFixed(4)}</td>
+        <td>${Number(orbit.inclination_deg || 0).toFixed(2)}</td>
+        <td>${Number(orbit.raan_deg || 0).toFixed(2)}</td>
+        <td>${Number(orbit.arg_perigee_deg || 0).toFixed(2)}</td>
+        <td>${Number(orbit.anomaly_deg || 0).toFixed(2)} ${escapeHtml(orbit.anomaly_kind || "true")}</td>
+        <td>${escapeHtml(visual.primitive || "box")}</td>
+      </tr>
+    `;
+  }).join("");
+
+  $("#study-link-rows").innerHTML = (task.infrastructure?.links || []).map(link => `
+    <tr>
+      <td><strong>${escapeHtml(link.name)}</strong></td>
+      <td>${escapeHtml(link.link_kind)}</td>
+      <td>${escapeHtml(link.band)}<small>${formatFrequency(link.frequency_hz)}</small></td>
+      <td>${Number(link.bandwidth_mhz || 0).toLocaleString("zh-CN")} MHz</td>
+      <td>${Number(link.data_rate_mbps || 0).toLocaleString("zh-CN")} Mb/s</td>
+      <td>${Number(link.max_range_km || 0).toLocaleString("zh-CN")} km</td>
+      <td>${escapeHtml(link.source || "unknown")}</td>
+    </tr>
+  `).join("");
+  $("#study-stations").innerHTML = (task.infrastructure?.ground_stations || []).map(station => `
+    <span class="study-station-tag">${escapeHtml(station.name)}
+      <small>${Number(station.latitude_deg).toFixed(1)}°, ${Number(station.longitude_deg).toFixed(1)}°</small>
+    </span>
+  `).join("");
+
+  const assumptions = [
+    ...(task.assumptions || []),
+    `调度策略：${task.scheduler.policy}`,
+    ...(task.nodes || []).flatMap(node => node.satellite?.assumptions || []),
+  ];
+  $("#study-assumptions").innerHTML = assumptions.length
+    ? assumptions.map(item => `<div class="study-assumption">${escapeHtml(item)}</div>`).join("")
+    : '<div class="empty-state compact">当前任务没有额外假设</div>';
+  drawStudyOrbit();
+}
+
+function formatFrequency(value) {
+  const frequency = Number(value);
+  if (!Number.isFinite(frequency) || frequency <= 0) return "--";
+  if (frequency >= 1e12) return `${(frequency / 1e12).toFixed(2)} THz`;
+  if (frequency >= 1e9) return `${(frequency / 1e9).toFixed(2)} GHz`;
+  if (frequency >= 1e6) return `${(frequency / 1e6).toFixed(2)} MHz`;
+  return `${frequency.toFixed(0)} Hz`;
+}
+
+function drawStudyOrbit() {
+  const canvas = $("#study-orbit-canvas");
+  const task = studyTaskData();
+  if (!canvas || !task) return;
+  const width = 640;
+  const height = 340;
+  const center = { x: width / 2, y: height / 2 };
+  const earthRadius = 62;
+  const nodes = task.nodes || [];
+  canvas.innerHTML = `
+    <circle class="study-orbit-earth" cx="${center.x}" cy="${center.y}" r="${earthRadius}"></circle>
+    <text class="study-orbit-label" x="${center.x}" y="${center.y + 4}">地球</text>
+  `;
+  const colors = ["#4fd18b", "#55b8cf", "#e4b04b", "#ef6b6b", "#a98cdb", "#f08e62"];
+  nodes.forEach((node, index) => {
+    const orbit = node.orbit || {};
+    const altitude = Math.max(80, Math.min(180, Number(orbit.semi_major_axis_km || 6928) - 6378));
+    const angle = (Number(orbit.raan_deg || 0) + Number(orbit.anomaly_deg || 0)) * Math.PI / 180;
+    const rx = altitude;
+    const ry = altitude * Math.max(0.38, Math.cos(Number(orbit.inclination_deg || 0) * Math.PI / 360));
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+    path.setAttribute("class", "study-orbit-path");
+    path.setAttribute("cx", center.x);
+    path.setAttribute("cy", center.y);
+    path.setAttribute("rx", rx);
+    path.setAttribute("ry", ry);
+    path.setAttribute("transform", `rotate(${Number(orbit.raan_deg || 0)} ${center.x} ${center.y})`);
+    canvas.appendChild(path);
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("class", "study-orbit-node");
+    circle.setAttribute("fill", colors[index % colors.length]);
+    circle.setAttribute("cx", center.x + rx * Math.cos(angle));
+    circle.setAttribute("cy", center.y + ry * Math.sin(angle));
+    circle.setAttribute("r", 6);
+    canvas.appendChild(circle);
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("class", "study-orbit-label");
+    label.setAttribute("x", center.x + rx * Math.cos(angle));
+    label.setAttribute("y", center.y + ry * Math.sin(angle) - 11);
+    label.textContent = node.node_id;
+    canvas.appendChild(label);
+  });
+}
+
+async function loadStudyTask() {
+  state.studyLoading = true;
+  $("#study-sync-note").textContent = "正在读取服务端任务快照…";
+  try {
+    state.studyTask = await api("/api/study/task");
+    renderStudyTask();
+    $("#study-sync-note").textContent = `已同步 · revision ${state.studyTask.revision}`;
+  } catch (error) {
+    $("#study-sync-note").textContent = `读取失败：${error.message}`;
+    toast(error.message, "error");
+  } finally {
+    state.studyLoading = false;
+  }
+}
+
+function collectStudyTask() {
+  const task = structuredClone(studyTaskData());
+  task.name = $("#study-name").value.trim();
+  task.dataset.name = $("#study-dataset-name").value.trim();
+  task.dataset.data_type = $("#study-dataset-type").value.trim() || "image";
+  task.dataset.distribution = $("#study-dataset-distribution").value;
+  task.model.name = $("#study-model-name").value.trim();
+  task.model.framework = $("#study-model-framework").value.trim() || "pytorch";
+  task.scheduler.policy = $("#study-scheduler-policy").value;
+  task.scheduler.round_duration_s = Number($("#study-round-duration").value);
+  task.scheduler.participant_fraction = Number($("#study-participant-fraction").value);
+  return task;
+}
+
+async function saveStudyTask(event) {
+  event.preventDefault();
+  if (!state.studyTask) return;
+  const button = $("#study-task-form button[type=submit]");
+  button.disabled = true;
+  try {
+    const response = await api("/api/study/task", {
+      method: "PUT",
+      body: JSON.stringify({
+        expected_revision: state.studyTask.revision,
+        task: collectStudyTask(),
+      }),
+    });
+    state.studyTask = response;
+    renderStudyTask();
+    $("#study-sync-note").textContent = `已保存并重新同步 · revision ${response.revision}`;
+    toast("学习任务已保存，所有视图已从服务端快照刷新");
+  } catch (error) {
+    if (error.message.includes("学习任务已被其他页面更新")) {
+      await loadStudyTask();
+      $("#study-sync-note").textContent = "检测到版本冲突，已加载最新服务端快照；请确认后再保存";
+    }
+    toast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function resetStudyTask() {
+  const button = $("#study-reset-button");
+  button.disabled = true;
+  try {
+    state.studyTask = await api("/api/study/task/reset", { method: "POST" });
+    renderStudyTask();
+    $("#study-sync-note").textContent = `默认任务已恢复 · revision ${state.studyTask.revision}`;
+    toast("已恢复默认学习任务");
+  } catch (error) {
+    toast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadOverview() {
@@ -888,6 +1108,9 @@ function bindEvents() {
     $$(".config-section").forEach(section => section.classList.toggle("active", section.dataset.configSection === button.dataset.configTab));
   }));
   $("#session-form").addEventListener("submit", saveSession);
+  $("#study-task-form").addEventListener("submit", saveStudyTask);
+  $("#study-reset-button").addEventListener("click", resetStudyTask);
+  $("#study-refresh-button").addEventListener("click", loadStudyTask);
   $("#add-satellite-profile").addEventListener("click", addSatelliteProfile);
   $("#protocol-mode").addEventListener("change", applyProtocolPreset);
   $('[name="mount.sats"]').addEventListener("change", () => {
@@ -950,3 +1173,4 @@ function bindEvents() {
 bindEvents();
 loadAiSettings();
 loadOverview();
+loadStudyTask();

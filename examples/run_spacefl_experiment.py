@@ -14,6 +14,7 @@ SpaceFL 太空联邦学习实验 — 异构轨道 + 多地面站对比
 CLI 快速启动：
     fl-space experiment --sats 10 --gs 1 3 5 --rounds 300 --dataset mnist
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,16 +55,17 @@ from fl_space.utils.viz import (
 
 # 全球分布的 5 个地面站（覆盖不同经度）
 ALL_GROUND_STATIONS = [
-    GroundStation("Beijing",    39.9,  116.4, 0.05),   # 东亚
-    GroundStation("Svalbard",   78.2,   15.6, 0.02),   # 北极
-    GroundStation("Santiago",  -33.4,  -70.7, 0.5),    # 南美
-    GroundStation("Singapore",   1.3,  103.8, 0.02),    # 东南亚
-    GroundStation("Washington", 38.9,  -77.0, 0.05),   # 北美
+    GroundStation("Beijing", 39.9, 116.4, 0.05),  # 东亚
+    GroundStation("Svalbard", 78.2, 15.6, 0.02),  # 北极
+    GroundStation("Santiago", -33.4, -70.7, 0.5),  # 南美
+    GroundStation("Singapore", 1.3, 103.8, 0.02),  # 东南亚
+    GroundStation("Washington", 38.9, -77.0, 0.05),  # 北美
 ]
+
 
 def get_gs_network(n_gs: int) -> GroundStationNetwork:
     """获取指定数量的地面站网络（从预定义列表中选取）。"""
-    selected = ALL_GROUND_STATIONS[:min(n_gs, len(ALL_GROUND_STATIONS))]
+    selected = ALL_GROUND_STATIONS[: min(n_gs, len(ALL_GROUND_STATIONS))]
     return GroundStationNetwork(selected)
 
 
@@ -71,9 +73,9 @@ def get_gs_network(n_gs: int) -> GroundStationNetwork:
 
 # 10 颗卫星在不同高度（350-800 km），同一倾角，均匀分布于一个轨道面
 HETERO_ALTITUDES_KM = [350, 400, 450, 500, 550, 600, 650, 700, 750, 800]
-HETERO_INCLINATION_DEG = 53.0   # Starlink 风格倾角
-HETERO_RAAN_DEG = 0.0            # 同一轨道面
-HETERO_NUM_SATELLITES = 10       # 卫星总数
+HETERO_INCLINATION_DEG = 53.0  # Starlink 风格倾角
+HETERO_RAAN_DEG = 0.0  # 同一轨道面
+HETERO_NUM_SATELLITES = 10  # 卫星总数
 
 
 def create_heterogeneous_orbits(
@@ -127,9 +129,11 @@ def create_heterogeneous_orbits(
 
 # ── 实验运行器 ────────────────────────────────────────────────
 
+
 @dataclass
 class ExperimentResult:
     """单组实验结果。"""
+
     name: str
     gs_count: int
     config: dict = field(default_factory=dict)
@@ -189,10 +193,9 @@ def run_spacefl_experiment(
     runner = FLRunner(fl_config, *components, scheduler=scheduler)
 
     if verbose:
-        print(f"\n  [SpaceFL] 启动训练 (GS={sim.num_ground_stations}, "
-              f"Sats={sim.num_satellites})")
+        print(f"\n  [SpaceFL] 启动训练 (GS={sim.num_ground_stations}, Sats={sim.num_satellites})")
 
-    history = runner.run(
+    runner.run(
         dataset_name=dataset,
         iid=iid,
         alpha=alpha,
@@ -248,7 +251,7 @@ def run_baseline_fl(
     if verbose:
         print("\n  [Baseline FL] 启动训练 (无轨道约束)")
 
-    history = runner.run(
+    runner.run(
         dataset_name=dataset,
         iid=iid,
         alpha=alpha,
@@ -343,7 +346,7 @@ def run_experiment_suite(
         "algorithm": "fedprox",
         "num_rounds": num_rounds,
         "num_clients": num_satellites,
-        "fraction": 1.0,          # 全部可用客户端参与
+        "fraction": 1.0,  # 全部可用客户端参与
         "local_epochs": local_epochs,
         "batch_size": batch_size,
         "learning_rate": learning_rate,
@@ -383,14 +386,20 @@ def run_experiment_suite(
     t0 = _time.time()
     baseline_fl_config = FLConfig(**{**base_fl_config, "num_rounds": min(num_rounds, 100)})
     baseline_history = run_baseline_fl(
-        baseline_fl_config, dataset=dataset, iid=iid, alpha=alpha, verbose=verbose,
+        baseline_fl_config,
+        dataset=dataset,
+        iid=iid,
+        alpha=alpha,
+        verbose=verbose,
     )
     baseline_elapsed = _time.time() - t0
 
     if verbose:
         final_acc = baseline_history[-1].get("accuracy", 0) if baseline_history else 0
-        print(f"\n  [基线] 完成: {len(baseline_history)} 轮, "
-              f"准确率 {final_acc:.4f}, 耗时 {baseline_elapsed:.1f}s")
+        print(
+            f"\n  [基线] 完成: {len(baseline_history)} 轮, "
+            f"准确率 {final_acc:.4f}, 耗时 {baseline_elapsed:.1f}s"
+        )
 
     # ── 各组 SpaceFL 实验 ──
     for gs_count in gs_counts:
@@ -431,21 +440,28 @@ def run_experiment_suite(
 
         # 生成热力图
         heatmap_path = os.path.join(output_dir, f"heatmap_gs{gs_count}.png")
-        plot_contact_heatmap(sim, heatmap_path,
-                             title=f"Contact Matrix (GS={gs_count}, Sats={num_satellites})",
-                             lang=lang)
+        plot_contact_heatmap(
+            sim,
+            heatmap_path,
+            title=f"Contact Matrix (GS={gs_count}, Sats={num_satellites})",
+            lang=lang,
+        )
 
         # 地面站分布图
         gs_map_path = os.path.join(output_dir, f"gs_map_gs{gs_count}.png")
-        plot_ground_station_map(sim, gs_map_path,
-                                title=f"Ground Stations (GS={gs_count})",
-                                show_tracks=True,
-                                lang=lang)
+        plot_ground_station_map(
+            sim, gs_map_path, title=f"Ground Stations (GS={gs_count})", show_tracks=True, lang=lang
+        )
 
         # 运行 SpaceFL
         fl_config = FLConfig(**base_fl_config)
-        spacefl_history, server = run_spacefl_experiment(
-            sim, fl_config, dataset=dataset, iid=iid, alpha=alpha, verbose=verbose,
+        spacefl_history, _server = run_spacefl_experiment(
+            sim,
+            fl_config,
+            dataset=dataset,
+            iid=iid,
+            alpha=alpha,
+            verbose=verbose,
         )
 
         elapsed = _time.time() - t0
@@ -463,8 +479,12 @@ def run_experiment_suite(
                 "num_rounds": len(spacefl_history),
                 "num_timeslots_pre": num_timeslots,
                 "sim_hours_pre": sim_hours,
-                "total_timeslots": sim.num_timeslots if hasattr(sim, 'num_timeslots') else num_timeslots,
-                "total_virtual_hours": sim.num_timeslots * timeslot_duration_min / 60.0 if hasattr(sim, 'num_timeslots') else sim_hours,
+                "total_timeslots": sim.num_timeslots
+                if hasattr(sim, "num_timeslots")
+                else num_timeslots,
+                "total_virtual_hours": sim.num_timeslots * timeslot_duration_min / 60.0
+                if hasattr(sim, "num_timeslots")
+                else sim_hours,
             },
             spacefl_history=spacefl_history,
             contact_stats=contact_stats,
@@ -474,8 +494,10 @@ def run_experiment_suite(
         all_results.append(result)
 
         if verbose:
-            print(f"\n  [SpaceFL GS={gs_count}] 完成: {len(spacefl_history)} 轮, "
-                  f"准确率 {final_acc:.4f}, 耗时 {elapsed:.1f}s")
+            print(
+                f"\n  [SpaceFL GS={gs_count}] 完成: {len(spacefl_history)} 轮, "
+                f"准确率 {final_acc:.4f}, 耗时 {elapsed:.1f}s"
+            )
 
     # ── 组装最终报告 ──
     report = {
@@ -535,6 +557,7 @@ def _plot_gs_comparison(
     """绘制多组地面站准确率对比图。"""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -546,8 +569,15 @@ def _plot_gs_comparison(
             sh = r.spacefl_history
             rounds = [h.get("round", j) for j, h in enumerate(sh)]
             acc = [h.get("accuracy", 0) for h in sh]
-            ax1.plot(rounds, acc, "-o", color=color, markersize=2, linewidth=1,
-                     label=f"SpaceFL GS={r.gs_count}")
+            ax1.plot(
+                rounds,
+                acc,
+                "-o",
+                color=color,
+                markersize=2,
+                linewidth=1,
+                label=f"SpaceFL GS={r.gs_count}",
+            )
 
         # 基线
         if baseline_history:
@@ -569,11 +599,20 @@ def _plot_gs_comparison(
             sh = r.spacefl_history
             ts = [h.get("timeslot", h.get("round", j) * 10) for j, h in enumerate(sh)]
             acc = [h.get("accuracy", 0) for h in sh]
-            ax2.plot(ts, acc, "-o", color=color, markersize=2, linewidth=1,
-                     label=f"SpaceFL GS={r.gs_count}")
+            ax2.plot(
+                ts,
+                acc,
+                "-o",
+                color=color,
+                markersize=2,
+                linewidth=1,
+                label=f"SpaceFL GS={r.gs_count}",
+            )
 
         if baseline_history:
-            ts_base = [h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(baseline_history)]
+            ts_base = [
+                h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(baseline_history)
+            ]
             ax2.plot(ts_base, ba, "k--", linewidth=1.5, label="Standard FL")
 
         ax2.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5)
@@ -594,6 +633,7 @@ def _plot_gs_comparison(
 
 # ── CLI 入口 ──────────────────────────────────────────────────
 
+
 def build_parser() -> argparse.ArgumentParser:
     """构建实验 CLI 参数解析器。"""
     p = argparse.ArgumentParser(
@@ -607,37 +647,51 @@ def build_parser() -> argparse.ArgumentParser:
         """,
     )
     p.add_argument("--sats", type=int, default=10, help="卫星数量 (默认: 10)")
-    p.add_argument("--gs-counts", "--gs", type=int, nargs="+", default=[1, 3, 5],
-                   help="地面站数量列表 (默认: 1 3 5)")
+    p.add_argument(
+        "--gs-counts",
+        "--gs",
+        type=int,
+        nargs="+",
+        default=[1, 3, 5],
+        help="地面站数量列表 (默认: 1 3 5)",
+    )
     p.add_argument("--rounds", type=int, default=300, help="最大训练轮次 (默认: 300)")
     p.add_argument("--epochs", type=int, default=3, help="本地训练 epoch (默认: 3)")
     p.add_argument("--batch-size", type=int, default=32, help="batch size (默认: 32)")
     p.add_argument("--lr", type=float, default=0.01, help="学习率 (默认: 0.01)")
     p.add_argument("--mu", type=float, default=0.01, help="FedProx mu (默认: 0.01)")
     p.add_argument("--iid", action="store_true", help="使用 IID 数据分配 (默认 non-IID)")
-    p.add_argument("--alpha", type=float, default=0.3,
-                   help="non-IID Dirichlet alpha (默认: 0.3, 越小越偏斜)")
-    p.add_argument("--dataset", choices=["mnist", "fashion_mnist", "cifar10"],
-                   default="mnist", help="数据集 (默认: mnist)")
-    p.add_argument("--device", choices=["cpu", "cuda"], default="cpu",
-                   help="计算设备 (默认: cpu)")
-    p.add_argument("--early-stop", type=float, default=0.90,
-                   help="早停准确率阈值 (默认: 0.90)")
-    p.add_argument("--train-workers", type=int, default=1,
-                   help="并行训练线程数 (默认: 1)")
-    p.add_argument("--data-workers", type=int, default=0,
-                   help="DataLoader 并行进程数 (默认: 0)")
-    p.add_argument("--inclination", type=float, default=53.0,
-                   help="轨道倾角° (默认: 53)")
-    p.add_argument("--sim-hours", type=float, default=168.0,
-                   help="模拟时长/小时 (默认: 168 = 7天)")
-    p.add_argument("--timeslot-min", type=float, default=1.0,
-                   help="每 timeslot 分钟数 (默认: 1.0)")
+    p.add_argument(
+        "--alpha", type=float, default=0.3, help="non-IID Dirichlet alpha (默认: 0.3, 越小越偏斜)"
+    )
+    p.add_argument(
+        "--dataset",
+        choices=["mnist", "fashion_mnist", "cifar10"],
+        default="mnist",
+        help="数据集 (默认: mnist)",
+    )
+    p.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="计算设备 (默认: cpu)")
+    p.add_argument("--early-stop", type=float, default=0.90, help="早停准确率阈值 (默认: 0.90)")
+    p.add_argument("--train-workers", type=int, default=1, help="并行训练线程数 (默认: 1)")
+    p.add_argument("--data-workers", type=int, default=0, help="DataLoader 并行进程数 (默认: 0)")
+    p.add_argument("--inclination", type=float, default=53.0, help="轨道倾角° (默认: 53)")
+    p.add_argument("--sim-hours", type=float, default=168.0, help="模拟时长/小时 (默认: 168 = 7天)")
+    p.add_argument("--timeslot-min", type=float, default=1.0, help="每 timeslot 分钟数 (默认: 1.0)")
     p.add_argument("--seed", type=int, default=42, help="随机种子 (默认: 42)")
-    p.add_argument("--output", "-o", type=str, default="experiment_output",
-                   help="输出目录 (默认: experiment_output)")
-    p.add_argument("--altitudes", type=float, nargs="+", default=None,
-                   help="自定义卫星高度列表 km (默认: 350-800 均匀分布)")
+    p.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default="experiment_output",
+        help="输出目录 (默认: experiment_output)",
+    )
+    p.add_argument(
+        "--altitudes",
+        type=float,
+        nargs="+",
+        default=None,
+        help="自定义卫星高度列表 km (默认: 350-800 均匀分布)",
+    )
     p.add_argument("--quiet", "-q", action="store_true", help="安静模式")
 
     return p
@@ -650,10 +704,11 @@ def main(argv: list[str] | None = None) -> int:
     altitudes = args.altitudes
     if altitudes is None:
         # 均匀分布在 350-800 km
-        altitudes = [
-            350 + i * (800 - 350) / (args.sats - 1)
-            for i in range(args.sats)
-        ] if args.sats > 1 else [500.0]
+        altitudes = (
+            [350 + i * (800 - 350) / (args.sats - 1) for i in range(args.sats)]
+            if args.sats > 1
+            else [500.0]
+        )
 
     output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
@@ -669,7 +724,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 运行实验
     t_start = _time.time()
-    report = run_experiment_suite(
+    run_experiment_suite(
         gs_counts=args.gs_counts,
         num_satellites=args.sats,
         num_rounds=args.rounds,
@@ -694,7 +749,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     total_elapsed = _time.time() - t_start
-    print(f"\n总耗时: {total_elapsed:.1f}s ({total_elapsed/60:.1f}min)")
+    print(f"\n总耗时: {total_elapsed:.1f}s ({total_elapsed / 60:.1f}min)")
 
     return 0
 

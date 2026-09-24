@@ -28,6 +28,7 @@ try:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader, Subset
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -50,21 +51,21 @@ from fl_space.fedleo.planner import FedLEOPlanner, OffloadPlan
 class FedLEOConfig:
     """FedLEO 实验配置。"""
 
-    num_satellites: int = 15          # 总卫星数
-    num_planes: int = 3               # 轨道面数
-    sats_per_plane: int = 5           # 每轨道面卫星数
-    num_rounds: int = 50              # 训练轮次
-    local_epochs: int = 2             # 本地训练 epoch
-    batch_size: int = 32              # batch size
-    learning_rate: float = 0.01       # 学习率
-    device: str = "cpu"               # 计算设备
+    num_satellites: int = 15  # 总卫星数
+    num_planes: int = 3  # 轨道面数
+    sats_per_plane: int = 5  # 每轨道面卫星数
+    num_rounds: int = 50  # 训练轮次
+    local_epochs: int = 2  # 本地训练 epoch
+    batch_size: int = 32  # batch size
+    learning_rate: float = 0.01  # 学习率
+    device: str = "cpu"  # 计算设备
 
     # 卸载参数
-    enable_offloading: bool = True    # 是否启用数据卸载
-    offload_every_n_rounds: int = 5   # 每 N 轮执行一次卸载
-    max_offload_iter: int = 5         # 单次卸载最大迭代数
-    bandwidth_mbps: float = 10.0      # ISL 带宽
-    bytes_per_sample: int = 784       # 每样本字节数，用于卸载通信开销估算
+    enable_offloading: bool = True  # 是否启用数据卸载
+    offload_every_n_rounds: int = 5  # 每 N 轮执行一次卸载
+    max_offload_iter: int = 5  # 单次卸载最大迭代数
+    bandwidth_mbps: float = 10.0  # ISL 带宽
+    bytes_per_sample: int = 784  # 每样本字节数，用于卸载通信开销估算
     timeslot_duration_sec: float = 60.0
     discrete_ratios: list[float] | None = None
     delay_weight: float = 1.0
@@ -177,29 +178,31 @@ class FedLEOScheduler:
         """
         self._reference_weights = reference_weights
         cfg = self.config
-        global_weights = [
-            param.data.clone() for param in model.parameters()
-        ]
+        global_weights = [param.data.clone() for param in model.parameters()]
 
         # 当前数据分布（卸载会修改）
         current_data_sizes = list(initial_data_sizes)
         current_train_loaders = dict(train_loaders)
-        offload_dataset, client_indices = self._extract_offload_memberships(
-            current_train_loaders
-        )
+        offload_dataset, client_indices = self._extract_offload_memberships(current_train_loaders)
 
         # ── 基线评估 ──
         if cfg.verbose:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"FedLEO 训练开始: {cfg.num_satellites}星 {cfg.num_planes}轨面")
             print(f"轮次: {cfg.num_rounds} | 本地epoch: {cfg.local_epochs}")
-            print(f"卸载: {'启用' if cfg.enable_offloading else '禁用'} "
-                  f"({'每' + str(cfg.offload_every_n_rounds) + '轮' if cfg.enable_offloading else ''})")
-            print(f"{'='*60}\n")
+            print(
+                f"卸载: {'启用' if cfg.enable_offloading else '禁用'} "
+                f"({'每' + str(cfg.offload_every_n_rounds) + '轮' if cfg.enable_offloading else ''})"
+            )
+            print(f"{'=' * 60}\n")
 
         baseline_metrics = self._evaluate(
-            model, global_weights, test_loader, 0,
-            current_data_sizes, 0.0,
+            model,
+            global_weights,
+            test_loader,
+            0,
+            current_data_sizes,
+            0.0,
         )
         if baseline_metrics:
             self.history.append(baseline_metrics)
@@ -219,9 +222,7 @@ class FedLEOScheduler:
                 # 计算当前散度
                 current_div = 0.0
                 if self._reference_weights:
-                    current_div = compute_weight_divergence(
-                        global_weights, self._reference_weights
-                    )
+                    current_div = compute_weight_divergence(global_weights, self._reference_weights)
 
                 offload_plan = self.planner.plan(
                     current_data_sizes=current_data_sizes,
@@ -239,12 +240,9 @@ class FedLEOScheduler:
                         round_num=round_num,
                     )
                     current_data_sizes = [
-                        len(client_indices.get(sat_id, []))
-                        for sat_id in range(cfg.num_satellites)
+                        len(client_indices.get(sat_id, [])) for sat_id in range(cfg.num_satellites)
                     ]
-                    offload_delay = sum(
-                        a.comm_cost_slots for a in offload_plan.actions
-                    )
+                    offload_delay = sum(a.comm_cost_slots for a in offload_plan.actions)
 
             # Phase 1: 本地训练（所有卫星并行）
             local_updates: list[tuple[int, list[Any], int]] = []
@@ -263,9 +261,7 @@ class FedLEOScheduler:
                     round_num=round_num,
                 )
                 if update is not None:
-                    local_updates.append(
-                        (sat_id, update[0], update[1])
-                    )
+                    local_updates.append((sat_id, update[0], update[1]))
                     train_losses.append(update[2])
 
             if not local_updates:
@@ -296,14 +292,16 @@ class FedLEOScheduler:
             # 散度
             weight_div = 0.0
             if self._reference_weights:
-                weight_div = compute_weight_divergence(
-                    global_weights, self._reference_weights
-                )
+                weight_div = compute_weight_divergence(global_weights, self._reference_weights)
 
             if round_num % cfg.eval_every_n_rounds == 0:
                 metrics = self._evaluate(
-                    model, global_weights, test_loader, round_num,
-                    current_data_sizes, weight_div,
+                    model,
+                    global_weights,
+                    test_loader,
+                    round_num,
+                    current_data_sizes,
+                    weight_div,
                 )
                 if metrics:
                     metrics.train_loss = avg_train_loss
@@ -451,7 +449,8 @@ class FedLEOScheduler:
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
-            local_model.parameters(), lr=cfg.learning_rate,
+            local_model.parameters(),
+            lr=cfg.learning_rate,
         )
 
         data_size = len(train_loader.dataset)  # type: ignore
@@ -471,9 +470,7 @@ class FedLEOScheduler:
 
         avg_loss = total_loss / max(cfg.local_epochs, 1)
 
-        local_weights = [
-            param.data.clone() for param in local_model.parameters()
-        ]
+        local_weights = [param.data.clone() for param in local_model.parameters()]
         return local_weights, data_size, avg_loss
 
     def _evaluate(

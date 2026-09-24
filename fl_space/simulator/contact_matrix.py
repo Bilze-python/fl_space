@@ -55,7 +55,8 @@ class ContactMatrix:
         # 完整数据（仅 full 模式维护）
         self._full: list[list[list[int]]] = (
             [[[] for _ in range(num_timeslots)] for _ in range(num_satellites)]
-            if mode == "full" else []
+            if mode == "full"
+            else []
         )
 
     def extend(self, new_total_slots: int) -> int:
@@ -79,7 +80,7 @@ class ContactMatrix:
 
         added = new_total_slots - self.num_timeslots
         new_simple = np.full((self.num_satellites, new_total_slots), -1, dtype=int)
-        new_simple[:, :self.num_timeslots] = self._simple
+        new_simple[:, : self.num_timeslots] = self._simple
         self._simple = new_simple
 
         if self._full:
@@ -141,9 +142,7 @@ class ContactMatrix:
         gs_id = self.get_first_contact(sat_id, timeslot)
         return [gs_id] if gs_id >= 0 else []
 
-    def get_next_contact(
-        self, sat_id: int, after_timeslot: int
-    ) -> Optional[tuple[int, int]]:
+    def get_next_contact(self, sat_id: int, after_timeslot: int) -> Optional[tuple[int, int]]:
         """
         获取某卫星在指定 timeslot 之后的下一次接触。
 
@@ -204,14 +203,14 @@ class ContactMatrix:
         all_gs = self.get_all_contacts(sat_id, timeslot)
         first = self.get_first_contact(sat_id, timeslot)
         detail = {
-            'sat_id': sat_id,
-            'timeslot': timeslot,
-            'contact_count': len(all_gs),
-            'first_gs_id': first if first >= 0 else None,
-            'all_gs_ids': all_gs,
+            "sat_id": sat_id,
+            "timeslot": timeslot,
+            "contact_count": len(all_gs),
+            "first_gs_id": first if first >= 0 else None,
+            "all_gs_ids": all_gs,
         }
         if gs_names:
-            detail['gs_names'] = [gs_names[gid] for gid in all_gs if 0 <= gid < len(gs_names)]
+            detail["gs_names"] = [gs_names[gid] for gid in all_gs if 0 <= gid < len(gs_names)]
         return detail
 
     # ---- 统计 ----
@@ -227,11 +226,11 @@ class ContactMatrix:
 
         total_slots = self.num_satellites * self.num_timeslots
         return {
-            'total_contacts': total_contacts,
-            'sat_contact_counts': sat_counts,
-            'gs_contact_counts': gs_counts,
-            'avg_contacts_per_sat': float(np.mean(sat_counts)) if sat_counts else 0.0,
-            'contact_rate': total_contacts / total_slots if total_slots > 0 else 0.0,
+            "total_contacts": total_contacts,
+            "sat_contact_counts": sat_counts,
+            "gs_contact_counts": gs_counts,
+            "avg_contacts_per_sat": float(np.mean(sat_counts)) if sat_counts else 0.0,
+            "contact_rate": total_contacts / total_slots if total_slots > 0 else 0.0,
         }
 
     # ---- 导出 ----
@@ -254,13 +253,13 @@ class ContactMatrix:
             含 contact_matrix 和 contact_details（如果 full 模式）。
         """
         data = {
-            'mode': self.mode,
-            'num_satellites': self.num_satellites,
-            'num_timeslots': self.num_timeslots,
-            'contact_matrix_simple': self._simple.tolist(),
+            "mode": self.mode,
+            "num_satellites": self.num_satellites,
+            "num_timeslots": self.num_timeslots,
+            "contact_matrix_simple": self._simple.tolist(),
         }
         if gs_names:
-            data['ground_station_names'] = gs_names
+            data["ground_station_names"] = gs_names
 
         # 完整模式导出详情
         if self._full:
@@ -270,23 +269,23 @@ class ContactMatrix:
                     all_gs = self._full[sat_id][ts]
                     if all_gs:
                         detail = {
-                            'sat_id': sat_id, 'timeslot': ts,
-                            'gs_ids': all_gs,
+                            "sat_id": sat_id,
+                            "timeslot": ts,
+                            "gs_ids": all_gs,
                         }
                         if gs_names:
-                            detail['gs_names'] = [
-                                gs_names[gid] for gid in all_gs
-                                if 0 <= gid < len(gs_names)
+                            detail["gs_names"] = [
+                                gs_names[gid] for gid in all_gs if 0 <= gid < len(gs_names)
                             ]
                         details.append(detail)
-            data['contact_details'] = details
+            data["contact_details"] = details
 
-        data['statistics'] = self.compute_statistics()
+        data["statistics"] = self.compute_statistics()
         return data
 
     def save_json(self, filepath: str, gs_names: Optional[list[str]] = None):
         """导出为 JSON 文件。"""
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(gs_names=gs_names), f, indent=2, ensure_ascii=False)
 
     @property

@@ -14,9 +14,15 @@
 """
 
 from .spacex_api import SpaceXApiClient as SpaceXApiClient
+from .spacex_api import orbital_elements_from_starlink as orbital_elements_from_starlink
+from .spacex_api import (
+    public_starlink_optical_link_profile as public_starlink_optical_link_profile,
+)
 from .spacex_api import satellite_design_from_payload as satellite_design_from_payload
 
 __all__ = [
     "SpaceXApiClient",
+    "orbital_elements_from_starlink",
+    "public_starlink_optical_link_profile",
     "satellite_design_from_payload",
 ]

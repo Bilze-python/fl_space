@@ -19,7 +19,8 @@ from typing import Any
 try:
     import torch
     import torch.nn as nn
-    import torch.nn.functional as F
+    import torch.nn.functional as functional
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -83,7 +84,6 @@ if TORCH_AVAILABLE:
                 x = x.view(x.size(0), -1)
             return self.net(x)
 
-
     class SimpleCNN(nn.Module):
         """
         简单卷积神经网络。
@@ -125,14 +125,14 @@ if TORCH_AVAILABLE:
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             """前向传播。"""
-            x = F.relu(self.conv1(x))
-            x = F.relu(self.conv2(x))
+            x = functional.relu(self.conv1(x))
+            x = functional.relu(self.conv2(x))
             x = self.pool1(x)
-            x = F.relu(self.conv3(x))
-            x = F.relu(self.conv4(x))
+            x = functional.relu(self.conv3(x))
+            x = functional.relu(self.conv4(x))
             x = self.pool2(x)
             x = x.view(x.size(0), -1)
-            x = F.relu(self.fc1(x))
+            x = functional.relu(self.fc1(x))
             if self.dropout is not None:
                 x = self.dropout(x)
             x = self.fc2(x)
@@ -153,10 +153,12 @@ def _build_registry() -> None:
     """构建模型注册表（仅在 torch 可用时）。"""
     if not TORCH_AVAILABLE:
         return
-    _MODEL_REGISTRY.update({
-        "mlp": MLP,
-        "simplecnn": SimpleCNN,
-    })
+    _MODEL_REGISTRY.update(
+        {
+            "mlp": MLP,
+            "simplecnn": SimpleCNN,
+        }
+    )
 
 
 def get_model(
@@ -186,18 +188,14 @@ def get_model(
         当模型名称不存在时。
     """
     if not TORCH_AVAILABLE:
-        raise ImportError(
-            "PyTorch 未安装，无法创建模型。请运行: pip install torch"
-        )
+        raise ImportError("PyTorch 未安装，无法创建模型。请运行: pip install torch")
     if not _MODEL_REGISTRY:
         _build_registry()
 
     name_lower = name.lower()
     if name_lower not in _MODEL_REGISTRY:
         available = list(_MODEL_REGISTRY.keys())
-        raise ValueError(
-            f"未知模型 '{name}'，可用: {available}"
-        )
+        raise ValueError(f"未知模型 '{name}'，可用: {available}")
     return _MODEL_REGISTRY[name_lower](**kwargs)
 
 

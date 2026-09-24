@@ -28,7 +28,12 @@ from .constraints import (
     constraint_to_dict,
     default_constraints,
 )
-from .physics import STANDARD_GRAVITY_MPS2, staged_vehicle_delta_v_mps, tsiolkovsky_delta_v_mps
+from .physics import (
+    EARTH_RADIUS_M,
+    STANDARD_GRAVITY_MPS2,
+    staged_vehicle_delta_v_mps,
+    tsiolkovsky_delta_v_mps,
+)
 from .subsystems import (
     AttitudeControlSystem,
     CommunicationSystem,
@@ -37,6 +42,7 @@ from .subsystems import (
 )
 
 VisualPrimitive = Literal["box", "cylinder", "sphere", "custom_mesh"]
+AnomalyKind = Literal["true", "mean"]
 PropellantKind = Literal["kerolox", "hydrolox", "methalox", "solid", "hypergolic", "other"]
 
 
@@ -53,6 +59,103 @@ def _parse_iso_utc(value: str, field_name: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError(f"{field_name} 必须包含时区偏移，例如 2026-01-01T00:00:00+00:00")
     return parsed
+
+
+@dataclass
+class ClassicalOrbitalElements:
+    """二体轨道六根数，距离使用 km，角度使用度。
+
+    这是导师建议中的轨道形状一等对象。它描述轨道平面、形状和航天器在
+    轨道上的相位；传播精度由后端决定，本对象本身不执行摄动计算。
+    """
+
+    semi_major_axis_km: float
+    eccentricity: float = 0.0
+    inclination_deg: float = 53.0
+    raan_deg: float = 0.0
+    arg_perigee_deg: float = 0.0
+    anomaly_deg: float = 0.0
+    anomaly_kind: AnomalyKind = "true"
+    epoch_utc: str | None = None
+
+    def __post_init__(self) -> None:
+        """验证六根数范围。"""
+        earth_radius_km = EARTH_RADIUS_M / 1000.0
+        if self.semi_major_axis_km <= earth_radius_km:
+            raise ValueError("半长轴必须大于地球半径")
+        if not 0 <= self.eccentricity < 1:
+            raise ValueError("当前模型只支持 0 <= eccentricity < 1")
+        if not 0 <= self.inclination_deg <= 180:
+            raise ValueError("轨道倾角必须在 [0, 180] 度")
+        for field_name in ("raan_deg", "arg_perigee_deg", "anomaly_deg"):
+            value = getattr(self, field_name)
+            if not 0 <= value < 360:
+                raise ValueError(f"{field_name} 必须在 [0, 360) 度")
+        if self.epoch_utc is not None:
+            _parse_iso_utc(self.epoch_utc, "epoch_utc")
+
+    @property
+    def perigee_altitude_km(self) -> float:
+        """近地点高度 (km)。"""
+        return self.semi_major_axis_km * (1.0 - self.eccentricity) - EARTH_RADIUS_M / 1000.0
+
+    @property
+    def apogee_altitude_km(self) -> float:
+        """远地点高度 (km)。"""
+        return self.semi_major_axis_km * (1.0 + self.eccentricity) - EARTH_RADIUS_M / 1000.0
+
+    @classmethod
+    def from_circular_altitude(
+        cls,
+        altitude_km: float,
+        *,
+        inclination_deg: float = 53.0,
+        raan_deg: float = 0.0,
+        anomaly_deg: float = 0.0,
+        epoch_utc: str | None = None,
+    ) -> ClassicalOrbitalElements:
+        """由圆轨道高度构造六根数。"""
+        if altitude_km <= 0:
+            raise ValueError("圆轨道高度必须为正")
+        return cls(
+            semi_major_axis_km=EARTH_RADIUS_M / 1000.0 + altitude_km,
+            eccentricity=0.0,
+            inclination_deg=inclination_deg,
+            raan_deg=raan_deg,
+            arg_perigee_deg=0.0,
+            anomaly_deg=anomaly_deg,
+            anomaly_kind="true",
+            epoch_utc=epoch_utc,
+        )
+
+    def to_orbital_target(self) -> OrbitalTarget:
+        """转换为旧的一阶目标轨道对象，保留圆轨道工作流兼容性。"""
+        return OrbitalTarget(
+            altitude_km=self.semi_major_axis_km - EARTH_RADIUS_M / 1000.0,
+            inclination_deg=self.inclination_deg,
+            eccentricity=self.eccentricity,
+            raan_deg=self.raan_deg,
+            arg_perigee_deg=self.arg_perigee_deg,
+            true_anomaly_deg=self.anomaly_deg if self.anomaly_kind == "true" else 0.0,
+        )
+
+    def to_dict(self) -> dict:
+        """序列化为字典。"""
+        return {
+            "semi_major_axis_km": self.semi_major_axis_km,
+            "eccentricity": self.eccentricity,
+            "inclination_deg": self.inclination_deg,
+            "raan_deg": self.raan_deg,
+            "arg_perigee_deg": self.arg_perigee_deg,
+            "anomaly_deg": self.anomaly_deg,
+            "anomaly_kind": self.anomaly_kind,
+            "epoch_utc": self.epoch_utc,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ClassicalOrbitalElements:
+        """从字典创建六根数。"""
+        return cls(**data)
 
 
 @dataclass

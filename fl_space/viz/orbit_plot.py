@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
@@ -19,21 +19,32 @@ if TYPE_CHECKING:
     from fl_space.orbit import KeplerOrbit
 
 # 全局样式配置
-plt.rcParams.update({
-    "figure.dpi": 120,
-    "font.size": 9,
-    "axes.titlesize": 11,
-    "axes.labelsize": 9,
-})
+plt.rcParams.update(
+    {
+        "figure.dpi": 120,
+        "font.size": 9,
+        "axes.titlesize": 11,
+        "axes.labelsize": 9,
+    }
+)
 
 # 地球颜色主题
 EARTH_OCEAN = "#1a3a5c"
 EARTH_LAND = "#2d5a27"
 GRID_COLOR = "#ffffff33"
 SATELLITE_COLORS = [
-    "#ff6b6b", "#ffd93d", "#6bcb77", "#4d96ff",
-    "#ff922b", "#845ef7", "#20c997", "#f06595",
-    "#339af0", "#fcc419", "#94d82d", "#ff8787",
+    "#ff6b6b",
+    "#ffd93d",
+    "#6bcb77",
+    "#4d96ff",
+    "#ff922b",
+    "#845ef7",
+    "#20c997",
+    "#f06595",
+    "#339af0",
+    "#fcc419",
+    "#94d82d",
+    "#ff8787",
 ]
 GS_COLOR = "#ff6b6b"
 ORBIT_COLOR = "#4d96ff55"
@@ -67,9 +78,10 @@ def _draw_earth_background(ax: plt.Axes):
         # 东亚（中国）
         ([70, 135], [15, 55]),
     ]
-    for (lon_range, lat_range) in continents:
-        ax.fill_between(lon_range, lat_range[0], lat_range[1],
-                        color=EARTH_LAND, alpha=0.6, zorder=0)
+    for lon_range, lat_range in continents:
+        ax.fill_between(
+            lon_range, lat_range[0], lat_range[1], color=EARTH_LAND, alpha=0.6, zorder=0
+        )
 
 
 def _compute_ground_track(
@@ -88,8 +100,8 @@ def _compute_ground_track(
     lats = np.zeros(n_points)
     lons = np.zeros(n_points)
 
-    for i, t in enumerate(times):
-        lat, lon = orbit.position_at_time(t)
+    for i, time_min in enumerate(times):
+        lat, lon = orbit.position_at_time(time_min)
         lats[i] = lat
         lons[i] = _wrap_lon(lon)
 
@@ -119,15 +131,15 @@ class OrbitVisualizer:
     def plot_map(
         self,
         orbits: list[KeplerOrbit],
-        ground_stations: Optional[GroundStationNetwork] = None,
+        ground_stations: GroundStationNetwork | None = None,
         duration_hours: float = 24.0,
         n_track_points: int = 300,
         title: str = "SpaceFL — 星座与地面站",
-        sat_labels: Optional[list[str]] = None,
+        sat_labels: list[str] | None = None,
         show_ground_tracks: bool = True,
-        snapshot_time_min: Optional[float] = None,
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        snapshot_time_min: float | None = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """2D 地图视图：卫星轨迹 + 地面站。
 
@@ -160,7 +172,7 @@ class OrbitVisualizer:
         fig, ax = plt.subplots(figsize=self.figsize)
         _draw_earth_background(ax)
 
-        n_sats = len(orbits)
+        len(orbits)
 
         # 轨迹
         if show_ground_tracks:
@@ -176,8 +188,16 @@ class OrbitVisualizer:
                 lon = _wrap_lon(lon)
                 color = SATELLITE_COLORS[i % len(SATELLITE_COLORS)]
                 label = sat_labels[i] if sat_labels and i < len(sat_labels) else f"SAT-{i}"
-                ax.scatter(lon, lat, c=color, s=40, edgecolors="white",
-                          linewidths=0.8, zorder=5, label=label)
+                ax.scatter(
+                    lon,
+                    lat,
+                    c=color,
+                    s=40,
+                    edgecolors="white",
+                    linewidths=0.8,
+                    zorder=5,
+                    label=label,
+                )
 
         # 地面站
         if ground_stations is not None:
@@ -191,21 +211,45 @@ class OrbitVisualizer:
                     gs_lats.append(gs.lat_deg)
                     gs_names.append(gs.name)
 
-            ax.scatter(gs_lons, gs_lats, c=GS_COLOR, s=80, marker="^",
-                      edgecolors="white", linewidths=1, zorder=6, label=t("Ground Station", _lang))
+            ax.scatter(
+                gs_lons,
+                gs_lats,
+                c=GS_COLOR,
+                s=80,
+                marker="^",
+                edgecolors="white",
+                linewidths=1,
+                zorder=6,
+                label=t("Ground Station", _lang),
+            )
 
             # 标签
             for lon, lat, name in zip(gs_lons, gs_lats, gs_names):
-                ax.annotate(name, (lon, lat), textcoords="offset points",
-                           xytext=(5, 7), fontsize=7, color="white",
-                           bbox=dict(boxstyle="round,pad=0.2", facecolor="#00000088",
-                                    edgecolor="none"),
-                           zorder=7)
+                ax.annotate(
+                    name,
+                    (lon, lat),
+                    textcoords="offset points",
+                    xytext=(5, 7),
+                    fontsize=7,
+                    color="white",
+                    bbox={
+                        "boxstyle": "round,pad=0.2",
+                        "facecolor": "#00000088",
+                        "edgecolor": "none",
+                    },
+                    zorder=7,
+                )
 
         # 图例
         if snapshot_time_min is not None:
-            ax.legend(loc="upper left", fontsize=7, ncol=2,
-                     framealpha=0.7, facecolor="#1a1a2e", labelcolor="white")
+            ax.legend(
+                loc="upper left",
+                fontsize=7,
+                ncol=2,
+                framealpha=0.7,
+                facecolor="#1a1a2e",
+                labelcolor="white",
+            )
 
         # 样式
         ax.set_xlim(-180, 180)
@@ -214,7 +258,9 @@ class OrbitVisualizer:
         ax.set_yticks(np.arange(-90, 91, 30))
         ax.set_xlabel(t("Longitude (deg)", _lang))
         ax.set_ylabel(t("Latitude (deg)", _lang))
-        ax.set_title(tf(title, _lang) if _lang == "zh" else title, fontweight="bold", color="white", pad=12)
+        ax.set_title(
+            tf(title, _lang) if _lang == "zh" else title, fontweight="bold", color="white", pad=12
+        )
         ax.set_facecolor(EARTH_OCEAN)
         fig.patch.set_facecolor("#0d1117")
         ax.tick_params(colors="white")
@@ -223,8 +269,7 @@ class OrbitVisualizer:
         fig.tight_layout()
 
         if save_path:
-            fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor(),
-                       bbox_inches="tight")
+            fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
 
         return fig
 
@@ -234,11 +279,11 @@ class OrbitVisualizer:
         num_satellites: int,
         num_stations: int,
         duration_hours: float,
-        sat_labels: Optional[list[str]] = None,
-        gs_labels: Optional[list[str]] = None,
+        sat_labels: list[str] | None = None,
+        gs_labels: list[str] | None = None,
         title: str = "SpaceFL — 接触矩阵热力图",
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """接触矩阵热力图。
 
@@ -265,8 +310,7 @@ class OrbitVisualizer:
         # 二值化：有接触=1，无接触=0
         binary = (contact_matrix >= 0).astype(float)
 
-        im = ax.imshow(binary, aspect="auto", cmap="YlOrRd",
-                       interpolation="nearest", vmin=0, vmax=1)
+        ax.imshow(binary, aspect="auto", cmap="YlOrRd", interpolation="nearest", vmin=0, vmax=1)
 
         # 标签
         if sat_labels is None:
@@ -287,9 +331,15 @@ class OrbitVisualizer:
 
         # 接触率统计
         contact_rate = binary.mean() * 100
-        ax.text(0.99, 1.02, tf("Contact Rate: {rate:.1f}%", _lang, rate=contact_rate),
-                transform=ax.transAxes, ha="right", fontsize=9,
-                bbox=dict(boxstyle="round", facecolor="#f0f0f0", alpha=0.8))
+        ax.text(
+            0.99,
+            1.02,
+            tf("Contact Rate: {rate:.1f}%", _lang, rate=contact_rate),
+            transform=ax.transAxes,
+            ha="right",
+            fontsize=9,
+            bbox={"boxstyle": "round", "facecolor": "#f0f0f0", "alpha": 0.8},
+        )
 
         fig.tight_layout()
 
@@ -301,16 +351,16 @@ class OrbitVisualizer:
     def plot_dashboard(
         self,
         orbits: list[KeplerOrbit],
-        ground_stations: Optional[GroundStationNetwork] = None,
-        contact_matrix: Optional[np.ndarray] = None,
+        ground_stations: GroundStationNetwork | None = None,
+        contact_matrix: np.ndarray | None = None,
         duration_hours: float = 24.0,
         snapshot_time_min: float = 0.0,
-        sat_labels: Optional[list[str]] = None,
-        gs_labels: Optional[list[str]] = None,
-        cluster_map: Optional[dict[str, list[int]]] = None,
+        sat_labels: list[str] | None = None,
+        gs_labels: list[str] | None = None,
+        cluster_map: dict[str, list[int]] | None = None,
         title: str = "SpaceFL — 星座概览",
-        save_path: Optional[str] = None,
-        lang: Optional[str] = None,
+        save_path: str | None = None,
+        lang: str | None = None,
     ) -> plt.Figure:
         """综合仪表盘：地图 + 热力图 + 统计信息。
 
@@ -326,8 +376,7 @@ class OrbitVisualizer:
         """
         _lang = lang if lang is not None else self.lang
         fig = plt.figure(figsize=(16, 9), facecolor="#0d1117")
-        gs = GridSpec(2, 3, figure=fig, height_ratios=[3, 2],
-                      hspace=0.35, wspace=0.35)
+        gs = GridSpec(2, 3, figure=fig, height_ratios=[3, 2], hspace=0.35, wspace=0.35)
 
         # ---- 左上: 地图 ----
         ax_map = fig.add_subplot(gs[0, :2])
@@ -343,22 +392,36 @@ class OrbitVisualizer:
             lat, lon = orbit.position_at_time(snapshot_time_min)
             lon = _wrap_lon(lon)
             color = SATELLITE_COLORS[i % len(SATELLITE_COLORS)]
-            ax_map.scatter(lon, lat, c=color, s=30, edgecolors="white",
-                          linewidths=0.5, zorder=5)
+            ax_map.scatter(lon, lat, c=color, s=30, edgecolors="white", linewidths=0.5, zorder=5)
 
         if ground_stations is not None:
             for j in range(len(ground_stations)):
                 station = ground_stations[j]
                 if station is not None:
-                    ax_map.scatter(station.lon_deg, station.lat_deg,
-                                  c=GS_COLOR, s=60, marker="^",
-                                  edgecolors="white", linewidths=0.8, zorder=6)
-                    ax_map.annotate(station.name, (station.lon_deg, station.lat_deg),
-                                   textcoords="offset points", xytext=(4, 5),
-                                   fontsize=6, color="white",
-                                   bbox=dict(boxstyle="round,pad=0.15",
-                                            facecolor="#00000088", edgecolor="none"),
-                                   zorder=7)
+                    ax_map.scatter(
+                        station.lon_deg,
+                        station.lat_deg,
+                        c=GS_COLOR,
+                        s=60,
+                        marker="^",
+                        edgecolors="white",
+                        linewidths=0.8,
+                        zorder=6,
+                    )
+                    ax_map.annotate(
+                        station.name,
+                        (station.lon_deg, station.lat_deg),
+                        textcoords="offset points",
+                        xytext=(4, 5),
+                        fontsize=6,
+                        color="white",
+                        bbox={
+                            "boxstyle": "round,pad=0.15",
+                            "facecolor": "#00000088",
+                            "edgecolor": "none",
+                        },
+                        zorder=7,
+                    )
 
         ax_map.set_xlim(-180, 180)
         ax_map.set_ylim(-90, 90)
@@ -377,7 +440,9 @@ class OrbitVisualizer:
         stats_lines = [
             f"{t('Satellites:', _lang)} {n_sats}",
             f"{t('Ground Stations:', _lang)} {len(ground_stations) if ground_stations else 0}",
-            f"{t('Altitude:', _lang)} {orbits[0].elements.semi_major_axis_km - orbits[0].body.radius_km:.0f} km" if orbits else "",
+            f"{t('Altitude:', _lang)} {orbits[0].elements.semi_major_axis_km - orbits[0].body.radius_km:.0f} km"
+            if orbits
+            else "",
             f"{t('Duration:', _lang)} {duration_hours}h",
             f"{t('Snapshot:', _lang)} T={snapshot_time_min:.0f}min",
         ]
@@ -393,23 +458,31 @@ class OrbitVisualizer:
             rate = binary.mean() * 100
             stats_lines.append("")
             stats_lines.append(f"{t('Contact Rate:', _lang)} {rate:.1f}%")
-            total_slots = contact_matrix.shape[1]
+            contact_matrix.shape[1]
             avg_contacts = binary.sum(axis=0).mean()
             stats_lines.append(f"{t('Avg Contacts/slot:', _lang)} {avg_contacts:.1f}")
 
         y_pos = 0.95
         for line in stats_lines:
-            ax_stats.text(0.05, y_pos, line, transform=ax_stats.transAxes,
-                         fontsize=9, color="#c9d1d9", fontfamily="monospace",
-                         verticalalignment="top")
+            ax_stats.text(
+                0.05,
+                y_pos,
+                line,
+                transform=ax_stats.transAxes,
+                fontsize=9,
+                color="#c9d1d9",
+                fontfamily="monospace",
+                verticalalignment="top",
+            )
             y_pos -= 0.04
 
         # ---- 底部: 接触热力图 ----
         if contact_matrix is not None:
             ax_heat = fig.add_subplot(gs[1, :])
             binary = (contact_matrix >= 0).astype(float)
-            ax_heat.imshow(binary, aspect="auto", cmap="YlOrRd",
-                          interpolation="nearest", vmin=0, vmax=1)
+            ax_heat.imshow(
+                binary, aspect="auto", cmap="YlOrRd", interpolation="nearest", vmin=0, vmax=1
+            )
 
             if sat_labels is None:
                 sat_labels = [f"SAT-{i}" for i in range(n_sats)]
@@ -428,12 +501,17 @@ class OrbitVisualizer:
             ax_heat.set_ylabel(t("Satellite", _lang), color="white")
             ax_heat.set_title(t("Contact Matrix", _lang), color="white", fontweight="bold")
 
-        fig.suptitle(tf(title, _lang) if _lang == "zh" else title, color="white", fontsize=13, fontweight="bold", y=0.98)
+        fig.suptitle(
+            tf(title, _lang) if _lang == "zh" else title,
+            color="white",
+            fontsize=13,
+            fontweight="bold",
+            y=0.98,
+        )
         fig.patch.set_facecolor("#0d1117")
 
         if save_path:
-            fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor(),
-                       bbox_inches="tight")
+            fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
 
         return fig
 
@@ -445,10 +523,10 @@ class OrbitVisualizer:
 
 def plot_constellation_2d(
     orbits: list[KeplerOrbit],
-    ground_stations: Optional[GroundStationNetwork] = None,
+    ground_stations: GroundStationNetwork | None = None,
     duration_hours: float = 24.0,
     title: str = "SpaceFL Constellation",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制星座 2D 地图。"""
@@ -470,7 +548,7 @@ def plot_contact_heatmap(
     num_stations: int,
     duration_hours: float,
     title: str = "Contact Matrix",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制接触矩阵热力图。"""
@@ -490,7 +568,7 @@ def plot_ground_track(
     orbit: KeplerOrbit,
     duration_hours: float = 24.0,
     title: str = "Ground Track",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """快速绘制单星星下点轨迹。"""
@@ -508,7 +586,7 @@ def plot_ground_track(
 def quick_plot(
     simulator,
     title: str = "SpaceFL — Quick View",
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     lang: str = "en",
 ) -> plt.Figure:
     """一键可视化：传入模拟器，自动绘制仪表盘。
@@ -532,7 +610,7 @@ def quick_plot(
     orbits = simulator.orbits
     ground_stations = simulator.ground_network
     contact_matrix = simulator.contact_matrix._simple
-    duration_hours = (simulator.num_timeslots * simulator.timeslot_duration_min / 60.0)
+    duration_hours = simulator.num_timeslots * simulator.timeslot_duration_min / 60.0
 
     gs_labels = []
     if ground_stations is not None:

@@ -423,7 +423,9 @@ def _compute_contact_stats(sim: OrbitSimulator) -> dict:
 # ── 标准化输出生成 ─────────────────────────────────────────────
 
 
-def generate_standard_outputs(exp: SingleExperiment, output_dir: str, quiet: bool = False, lang: str = "en") -> str:
+def generate_standard_outputs(
+    exp: SingleExperiment, output_dir: str, quiet: bool = False, lang: str = "en"
+) -> str:
     """为一个实验生成全套标准化输出文件。"""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -482,7 +484,9 @@ def generate_standard_outputs(exp: SingleExperiment, output_dir: str, quiet: boo
     _plot_contact_heatmap_std(exp, os.path.join(output_dir, "contact_heatmap.png"), lang=lang)
 
     # 7. satellite_training_time.png
-    _plot_satellite_training_time(exp, os.path.join(output_dir, "satellite_training_time.png"), lang=lang)
+    _plot_satellite_training_time(
+        exp, os.path.join(output_dir, "satellite_training_time.png"), lang=lang
+    )
 
     # 8. orbit_cross_section.png
     _plot_orbit_cross_section(exp, os.path.join(output_dir, "orbit_cross_section.png"), lang=lang)
@@ -534,8 +538,9 @@ def _plot_accuracy_trend(exp: SingleExperiment, path: str, lang: str = "en") -> 
     ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label=t("90%", lang))
     ax1.set_xlabel(t("Round", lang))
     ax1.set_ylabel(t("Accuracy", lang))
-    ax1.set_title(tf("Accuracy vs Rounds (GS={gs}, SAT={sat})", lang,
-                     gs=exp.gs_count, sat=exp.sat_count))
+    ax1.set_title(
+        tf("Accuracy vs Rounds (GS={gs}, SAT={sat})", lang, gs=exp.gs_count, sat=exp.sat_count)
+    )
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim(0, 1.05)
     max_acc = max(accs)
@@ -558,8 +563,13 @@ def _plot_accuracy_trend(exp: SingleExperiment, path: str, lang: str = "en") -> 
     ax2.set_ylim(0, 1.05)
 
     fig.suptitle(
-        tf("SpaceFL FedAvg — GS={gs}, SAT={sat}, Final Acc={acc:.3f}", lang,
-           gs=exp.gs_count, sat=exp.sat_count, acc=accs[-1]),
+        tf(
+            "SpaceFL FedAvg — GS={gs}, SAT={sat}, Final Acc={acc:.3f}",
+            lang,
+            gs=exp.gs_count,
+            sat=exp.sat_count,
+            acc=accs[-1],
+        ),
         fontsize=13,
         fontweight="bold",
     )
@@ -593,8 +603,7 @@ def _plot_gs_positions(exp: SingleExperiment, path: str, lang: str = "en") -> No
     ax.set_ylim(-90, 90)
     ax.set_xlabel(t("Longitude (°)", lang))
     ax.set_ylabel(t("Latitude (°)", lang))
-    ax.set_title(tf("Ground Station Positions (GS={gs}) — Paper Table 3", lang,
-                    gs=exp.gs_count))
+    ax.set_title(tf("Ground Station Positions (GS={gs}) — Paper Table 3", lang, gs=exp.gs_count))
     ax.xaxis.set_major_locator(mticker.MultipleLocator(30))
     ax.yaxis.set_major_locator(mticker.MultipleLocator(30))
     ax.grid(True, alpha=0.3)
@@ -648,13 +657,23 @@ def _plot_contact_heatmap_std(exp: SingleExperiment, path: str, lang: str = "en"
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
     cbar.set_label(t("Connected GS", lang), fontsize=9)
 
-    ax.set_xlabel(tf("Time ({hours:.0f}h, {slot_min}min/slot)", lang,
-                     hours=hours, slot_min=sim.timeslot_duration_min))
+    ax.set_xlabel(
+        tf(
+            "Time ({hours:.0f}h, {slot_min}min/slot)",
+            lang,
+            hours=hours,
+            slot_min=sim.timeslot_duration_min,
+        )
+    )
     ax.set_ylabel(t("Satellite ID", lang))
     ax.set_title(
-        tf("Contact Matrix — GS={gs}, SAT={sat}, Rate={rate:.1%}", lang,
-           gs=exp.gs_count, sat=exp.sat_count,
-           rate=sim.stats.get('contact_rate', 0))
+        tf(
+            "Contact Matrix — GS={gs}, SAT={sat}, Rate={rate:.1%}",
+            lang,
+            gs=exp.gs_count,
+            sat=exp.sat_count,
+            rate=sim.stats.get("contact_rate", 0),
+        )
     )
 
     # 右侧标注 GS 名称
@@ -721,9 +740,13 @@ def _plot_satellite_training_time(exp: SingleExperiment, path: str, lang: str = 
     ax2.grid(axis="y", alpha=0.3)
 
     fig.suptitle(
-        tf("Satellite Connectivity — GS={gs}, {sats} Sats @ {alt}km", lang,
-           gs=exp.gs_count, sats=exp.sat_count,
-           alt=exp.config.get('altitude_km', 500)),
+        tf(
+            "Satellite Connectivity — GS={gs}, {sats} Sats @ {alt}km",
+            lang,
+            gs=exp.gs_count,
+            sats=exp.sat_count,
+            alt=exp.config.get("altitude_km", 500),
+        ),
         fontsize=13,
         fontweight="bold",
     )
@@ -808,8 +831,13 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str, lang: str = "en"
     ax.text(
         0.98,
         0.98,
-        tf("Orbit: {alt}km alt, {incl}° incl\n{sats} satellites evenly spaced", lang,
-           alt=altitude_km, incl=inclination, sats=sat_count),
+        tf(
+            "Orbit: {alt}km alt, {incl}° incl\n{sats} satellites evenly spaced",
+            lang,
+            alt=altitude_km,
+            incl=inclination,
+            sats=sat_count,
+        ),
         transform=ax.transAxes,
         fontsize=9,
         ha="right",
@@ -823,8 +851,13 @@ def _plot_orbit_cross_section(exp: SingleExperiment, path: str, lang: str = "en"
     ax.set_xlabel(t("X (km)", lang))
     ax.set_ylabel(t("Y (km)", lang))
     ax.set_title(
-        tf("Orbit Cross-Section — GS={gs}, SAT={sat} @ {alt}km", lang,
-           gs=exp.gs_count, sat=sat_count, alt=altitude_km),
+        tf(
+            "Orbit Cross-Section — GS={gs}, SAT={sat} @ {alt}km",
+            lang,
+            gs=exp.gs_count,
+            sat=sat_count,
+            alt=altitude_km,
+        ),
         fontsize=13,
         fontweight="bold",
     )
@@ -876,8 +909,7 @@ def _plot_gs_sat_contacts(exp: SingleExperiment, path: str, lang: str = "en") ->
 
     ax1.set_xlabel(t("Satellite ID", lang))
     ax1.set_ylabel(t("Contact Window Count", lang))
-    ax1.set_title(tf("GS-Satellite Contact Counts (GS={gs}, SAT={sat})", lang,
-                     gs=n_gs, sat=n_sats))
+    ax1.set_title(tf("GS-Satellite Contact Counts (GS={gs}, SAT={sat})", lang, gs=n_gs, sat=n_sats))
     ax1.set_xticks(x)
     ax1.set_xticklabels([f"SAT-{i}" for i in range(n_sats)])
     ax1.legend(fontsize=7, ncol=min(n_gs, 5))
@@ -902,9 +934,9 @@ def _plot_gs_sat_contacts(exp: SingleExperiment, path: str, lang: str = "en") ->
     ax2.invert_yaxis()
 
     fig.suptitle(
-        tf("GS-Satellite Contact Analysis — GS={gs}, SAT={sat}", lang,
-           gs=n_gs, sat=n_sats),
-        fontsize=13, fontweight="bold",
+        tf("GS-Satellite Contact Analysis — GS={gs}, SAT={sat}", lang, gs=n_gs, sat=n_sats),
+        fontsize=13,
+        fontweight="bold",
     )
     plt.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -1130,8 +1162,9 @@ def _plot_grid_heatmap(results: list[SingleExperiment], output_dir: str, lang: s
             )
     plt.colorbar(im2, ax=ax2, shrink=0.8)
 
-    fig.suptitle(tf("SpaceFL Grid Search Summary — FedAvg, GS×SAT", lang),
-                 fontsize=14, fontweight="bold")
+    fig.suptitle(
+        tf("SpaceFL Grid Search Summary — FedAvg, GS×SAT", lang), fontsize=14, fontweight="bold"
+    )
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, "grid_summary.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -1179,11 +1212,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--train-workers", type=int, default=1)
     p.add_argument("--data-workers", type=int, default=0)
     p.add_argument("--output", "-o", type=str, default="experiment_output")
-    p.add_argument("--partition-strategy", choices=["iid", "dirichlet", "shard", "probability"], default="probability")
+    p.add_argument(
+        "--partition-strategy",
+        choices=["iid", "dirichlet", "shard", "probability"],
+        default="probability",
+    )
     p.add_argument("--class-probability", type=float, default=0.8)
     p.add_argument("--data-dir", type=str, default="./data")
-    p.add_argument("--lang", choices=["en", "zh"], default="en",
-                   help="输出图表语言 (默认: en)")
+    p.add_argument("--lang", choices=["en", "zh"], default="en", help="输出图表语言 (默认: en)")
     p.add_argument("--quiet", "-q", action="store_true")
     return p
 

@@ -125,6 +125,7 @@ def _get_session_or_default(args: argparse.Namespace) -> dict[str, dict[str, Any
 def _check_torch() -> bool:
     try:
         import torch  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -133,6 +134,7 @@ def _check_torch() -> bool:
 def _check_skyfield() -> bool:
     try:
         import skyfield  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -794,18 +796,12 @@ def cmd_run_train(args: argparse.Namespace) -> int:
         "learning_rate": args.lr if args.lr is not None else t["lr"],
         "batch_size": args.batch_size if args.batch_size is not None else t["batch_size"],
         "mu": args.mu if args.mu is not None else t["mu"],
-        "buffer_size": (
-            args.buffer_size if args.buffer_size is not None else t["buffer_size"]
-        ),
+        "buffer_size": (args.buffer_size if args.buffer_size is not None else t["buffer_size"]),
         "fraction": args.fraction if args.fraction is not None else 0.5,
-        "server_learning_rate": (
-            args.server_lr if args.server_lr is not None else 1.0
-        ),
+        "server_learning_rate": (args.server_lr if args.server_lr is not None else 1.0),
         "async_eval_every": args.eval_every if args.eval_every is not None else 1,
         "staleness_weight": (
-            args.staleness_weight
-            if args.staleness_weight is not None
-            else m["staleness"]
+            args.staleness_weight if args.staleness_weight is not None else m["staleness"]
         ),
         "seed": args.seed if args.seed is not None else t["seed"],
         "partition_strategy": t["partition_strategy"],
@@ -876,7 +872,9 @@ def cmd_run_train(args: argparse.Namespace) -> int:
         if algo == "fedprox":
             print(f"  近端项 μ: {getattr(c, 'mu', t['mu'])}")
         if algo == "fedbuff":
-            print(f"  缓冲区K: {getattr(c, 'buffer_size', t['buffer_size'])}  陈旧度: {m['staleness']}")
+            print(
+                f"  缓冲区K: {getattr(c, 'buffer_size', t['buffer_size'])}  陈旧度: {m['staleness']}"
+            )
         print()
 
     _history = runner.run(
@@ -951,6 +949,7 @@ def cmd_run_experiment(args: argparse.Namespace) -> int:
         run_experiment_grid = module.run_experiment_grid
 
         import time as _time
+
         t_start = _time.time()
 
         gs_list = getattr(args, "gs", None) or [3, 5, 7, 10]
@@ -1009,6 +1008,7 @@ def cmd_run_experiment(args: argparse.Namespace) -> int:
         run_experiment_suite = module.run_experiment_suite
 
         import time as _time
+
         t_start = _time.time()
 
         gs_list = getattr(args, "gs", None) or [1, 3, 5]
@@ -1162,6 +1162,7 @@ def cmd_run_list(args: argparse.Namespace) -> int:
 
     if resource == "presets":
         from fl_space.fl.config import EXPERIMENT_PRESETS
+
         print("=== FL 实验预设 ===\n")
         for p in EXPERIMENT_PRESETS:
             print(f"  {p['name']:30s} — {p['description']}")
@@ -1169,6 +1170,7 @@ def cmd_run_list(args: argparse.Namespace) -> int:
     elif resource == "models":
         try:
             from fl_space.fl.models import list_models
+
             print("=== 可用模型 ===\n")
             models = list_models()
             if models:
@@ -1181,6 +1183,7 @@ def cmd_run_list(args: argparse.Namespace) -> int:
 
     elif resource == "satellites":
         from fl_space.orbit.satellite_registry import registry
+
         print("=== 已注册卫星类型 ===\n")
         types = registry.list_types()
         if types:
@@ -1197,6 +1200,7 @@ def cmd_run_list(args: argparse.Namespace) -> int:
 
     elif resource == "experiments":
         from fl_space.config.defaults import EXPERIMENT_CONFIGS
+
         print("=== 模拟实验预设 ===\n")
         for cfg in EXPERIMENT_CONFIGS:
             name, sats, gss, desc = cfg
@@ -1224,9 +1228,12 @@ def cmd_run_export(args: argparse.Namespace) -> int:
     num_slots = int(sc["sim_hours"] * 60 / sc["timeslot_duration_min"])
 
     body_map = {
-        "earth": CelestialBody.earth, "mars": CelestialBody.mars,
-        "moon": CelestialBody.moon, "jupiter": CelestialBody.jupiter,
-        "saturn": CelestialBody.saturn, "venus": CelestialBody.venus,
+        "earth": CelestialBody.earth,
+        "mars": CelestialBody.mars,
+        "moon": CelestialBody.moon,
+        "jupiter": CelestialBody.jupiter,
+        "saturn": CelestialBody.saturn,
+        "venus": CelestialBody.venus,
     }
     body = body_map.get(sc["body"], CelestialBody.earth)()
     gs_network = create_default_network(n_gs)
@@ -1244,7 +1251,8 @@ def cmd_run_export(args: argparse.Namespace) -> int:
         orbits.append(orb)
 
     sim = OrbitSimulator(
-        body=body, orbits=orbits,
+        body=body,
+        orbits=orbits,
         ground_station_network=gs_network,
         num_timeslots=num_slots,
         timeslot_duration_min=sc["timeslot_duration_min"],
@@ -1295,10 +1303,15 @@ def cmd_run_serve(args: argparse.Namespace) -> int:
     port = args.port or 8700
 
     app = create_app(
-        sim_hours=sim_hours, sats=sats, gs=gs,
-        altitude_km=altitude, inclination_deg=inclination,
+        sim_hours=sim_hours,
+        sats=sats,
+        gs=gs,
+        altitude_km=altitude,
+        inclination_deg=inclination,
         timeslot_min=timeslot_min,
-        isl_enabled=isl_enabled, isl_buffer=isl_buffer, seed=seed,
+        isl_enabled=isl_enabled,
+        isl_buffer=isl_buffer,
+        seed=seed,
     )
 
     print("\n  SpaceFL 3D 可视化服务器")
@@ -1340,18 +1353,21 @@ def cmd_info(args: argparse.Namespace) -> int:
     print("  NumPy:    ", end="")
     try:
         import numpy
+
         print(f"{ok} {numpy.__version__}")
     except ImportError:
         print(f"{no} 未安装")
     print("  Matplotlib: ", end="")
     try:
         import matplotlib
+
         print(f"{ok} {matplotlib.__version__}")
     except ImportError:
         print(f"{no} 未安装")
     print("  CUDA:     ", end="")
     try:
         import torch
+
         cuda_ok = torch.cuda.is_available()
         print(f"{ok + ' ' + torch.version.cuda if cuda_ok else no + ' 不可用 (CPU only)'}")
     except ImportError:
@@ -1463,6 +1479,7 @@ def cmd_completion(args: argparse.Namespace) -> int:
     if action == "install":
         # 尝试 argcomplete
         import importlib.util as _iu
+
         if _iu.find_spec("argcomplete") is not None:
             print("argcomplete 已安装。")
             print()
@@ -1471,12 +1488,14 @@ def cmd_completion(args: argparse.Namespace) -> int:
             print("PowerShell (推荐):")
             print("  1. 以管理员身份运行 PowerShell")
             print("  2. 执行: Register-ArgumentCompleter -Command fls -ScriptBlock {")
-            print('       param($wordToComplete, $commandAst, $cursorPosition)')
-            print('       & python -m fl_space.cli _complete $commandAst')
+            print("       param($wordToComplete, $commandAst, $cursorPosition)")
+            print("       & python -m fl_space.cli _complete $commandAst")
             print("     }")
             print()
-            print("  或在 PowerShell 配置文件中添加 "
-                  "(~\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1)")
+            print(
+                "  或在 PowerShell 配置文件中添加 "
+                "(~\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1)"
+            )
             print()
             print("Bash / Zsh:")
             print('  eval "$(register-python-argcomplete fls)"')
@@ -1513,7 +1532,7 @@ def cmd_completion(args: argparse.Namespace) -> int:
 
 def _generate_ps1_completion() -> str:
     """生成 PowerShell Tab 补全脚本。"""
-    return r'''# SpaceFL fls Tab 补全 (PowerShell)
+    return r"""# SpaceFL fls Tab 补全 (PowerShell)
 # 用法: . .\fls_completion.ps1
 
 $fls_commands = @(
@@ -1552,7 +1571,7 @@ Register-ArgumentCompleter -CommandName fls -ScriptBlock {
         default { $fls_commands | Where-Object { $_ -like "$wordToComplete*" } }
     }
 }
-'''
+"""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1598,14 +1617,46 @@ def build_parser() -> argparse.ArgumentParser:
     _add_tune("data-workers", "数据加载进程数", cmd_tune_data_workers, type=int, help="进程数")
     _add_tune("non-iid", "non-IID开关", cmd_tune_non_iid, type=str, help="on|off")
     _add_tune("alpha", "Dirichlet α", cmd_tune_alpha, type=float, help="α值")
-    _add_tune("classes-per-client", "每客户端类别数", cmd_tune_classes_per_client, type=int, help="2|3|...")
-    _add_tune("max-samples", "每客户端样本上限", cmd_tune_max_samples, type=int, help="样本数, 0=不限")
-    _add_tune("partition-strategy", "??????", cmd_tune_partition_strategy, type=str, help="iid|dirichlet|shard|probability")
+    _add_tune(
+        "classes-per-client",
+        "每客户端类别数",
+        cmd_tune_classes_per_client,
+        type=int,
+        help="2|3|...",
+    )
+    _add_tune(
+        "max-samples", "每客户端样本上限", cmd_tune_max_samples, type=int, help="样本数, 0=不限"
+    )
+    _add_tune(
+        "partition-strategy",
+        "??????",
+        cmd_tune_partition_strategy,
+        type=str,
+        help="iid|dirichlet|shard|probability",
+    )
     _add_tune("class-probability", "??????", cmd_tune_class_probability, type=float, help="0.0~1.0")
     _add_tune("data-dir", "????", cmd_tune_data_dir, type=str, help="?????ImageFolder???")
-    _add_tune("preference-mode", "????", cmd_tune_preference_mode, type=str, help="client_window|class_balanced")
-    _add_tune("preferred-clients-per-class", "????????", cmd_tune_preferred_clients_per_class, type=int, help="??")
-    _add_tune("sample-cap-strategy", "??????", cmd_tune_sample_cap_strategy, type=str, help="preserve|balanced")
+    _add_tune(
+        "preference-mode",
+        "????",
+        cmd_tune_preference_mode,
+        type=str,
+        help="client_window|class_balanced",
+    )
+    _add_tune(
+        "preferred-clients-per-class",
+        "????????",
+        cmd_tune_preferred_clients_per_class,
+        type=int,
+        help="??",
+    )
+    _add_tune(
+        "sample-cap-strategy",
+        "??????",
+        cmd_tune_sample_cap_strategy,
+        type=str,
+        help="preserve|balanced",
+    )
     _add_tune("device", "计算设备", cmd_tune_device, type=str, help="cpu|cuda")
 
     p = tune_sub.add_parser("show", help="查看当前调参", add_help=False)
@@ -1631,10 +1682,20 @@ def build_parser() -> argparse.ArgumentParser:
     _add_mount("isl-buffer", "ISL大气余量km", cmd_mount_isl_buffer, type=float, help="缓冲区km")
     _add_mount("isl-step", "ISL采样步长s", cmd_mount_isl_step, type=float, help="采样步长秒")
     _add_mount("time-model", "时间模型", cmd_mount_time_model, type=str, help="slot|physics")
-    _add_mount("time-model-args", "时间模型参数JSON", cmd_mount_time_model_args, type=str, help="JSON字符串")
+    _add_mount(
+        "time-model-args",
+        "时间模型参数JSON",
+        cmd_mount_time_model_args,
+        type=str,
+        help="JSON字符串",
+    )
     _add_mount("backend", "轨道后端", cmd_mount_backend, type=str, help="kepler|skyfield")
-    _add_mount("body", "中心天体", cmd_mount_body, type=str, help="earth|mars|moon|jupiter|saturn|venus")
-    _add_mount("distribution", "星座分布", cmd_mount_distribution, type=str, help="uniform|walker|cluster")
+    _add_mount(
+        "body", "中心天体", cmd_mount_body, type=str, help="earth|mars|moon|jupiter|saturn|venus"
+    )
+    _add_mount(
+        "distribution", "星座分布", cmd_mount_distribution, type=str, help="uniform|walker|cluster"
+    )
     _add_mount("staleness", "陈旧度降权", cmd_mount_staleness, type=str, help="on|off")
     _add_mount("sats", "卫星数量", cmd_mount_sats, type=int, help="卫星数")
     _add_mount("stations", "地面站数量", cmd_mount_stations, type=int, help="地面站数")
@@ -1654,7 +1715,8 @@ def build_parser() -> argparse.ArgumentParser:
     # ══════════════════════════════════════════════════════════
 
     p_run = sub.add_parser(
-        "run", help="运行指令 — 执行实验/模拟/导出",
+        "run",
+        help="运行指令 — 执行实验/模拟/导出",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
     )
@@ -1668,9 +1730,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_sim.add_argument("--backend", choices=["kepler", "skyfield"], default=None, help="轨道后端")
     p_sim.add_argument("--altitude", type=float, default=None, help="轨道高度km")
     p_sim.add_argument("--inclination", type=float, default=None, help="轨道倾角deg")
-    p_sim.add_argument("--distribution", choices=["uniform", "walker", "cluster"], default=None, help="分布")
+    p_sim.add_argument(
+        "--distribution", choices=["uniform", "walker", "cluster"], default=None, help="分布"
+    )
     p_sim.add_argument("--timeslot-min", type=float, default=None, help="时隙min")
-    p_sim.add_argument("--body", choices=["earth", "mars", "moon", "jupiter", "saturn", "venus"], default=None)
+    p_sim.add_argument(
+        "--body", choices=["earth", "mars", "moon", "jupiter", "saturn", "venus"], default=None
+    )
     p_sim.add_argument("--isl", choices=["disabled", "wgs84"], default=None, help="ISL")
     p_sim.add_argument("--isl-buffer", type=float, default=None, help="ISL余量km")
     p_sim.add_argument("--output", "-o", type=str, default=None, help="导出JSON")
@@ -1699,12 +1765,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--seed", type=int, default=None, help="覆盖种子")
     p_tr.add_argument("--time-model", type=str, default=None, help="覆盖时间模型")
     p_tr.add_argument("--time-model-args", type=str, default=None, help="时间模型参数JSON")
-    p_tr.add_argument("--partition-strategy", choices=["iid", "dirichlet", "shard", "probability"], default=None, help="????????")
+    p_tr.add_argument(
+        "--partition-strategy",
+        choices=["iid", "dirichlet", "shard", "probability"],
+        default=None,
+        help="????????",
+    )
     p_tr.add_argument("--class-probability", type=float, default=None, help="????????")
     p_tr.add_argument("--data-dir", type=str, default=None, help="??????")
-    p_tr.add_argument("--preference-mode", choices=["client_window", "class_balanced"], default=None, help="??????")
+    p_tr.add_argument(
+        "--preference-mode",
+        choices=["client_window", "class_balanced"],
+        default=None,
+        help="??????",
+    )
     p_tr.add_argument("--preferred-clients-per-class", type=int, default=None, help="??????????")
-    p_tr.add_argument("--sample-cap-strategy", choices=["preserve", "balanced"], default=None, help="????????")
+    p_tr.add_argument(
+        "--sample-cap-strategy", choices=["preserve", "balanced"], default=None, help="????????"
+    )
     p_tr.add_argument("--output", "-o", type=str, default=None, help="导出JSON")
     p_tr.add_argument("--quiet", "-q", action="store_true", help="安静模式")
     p_tr.add_argument("--no-session", action="store_true", help="忽略session使用默认值")
@@ -1729,7 +1807,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_fedleo.add_argument("--epochs", type=int, default=2, help="本地epoch")
     p_fedleo.add_argument("--batch-size", type=int, default=32, help="batch size")
     p_fedleo.add_argument("--lr", type=float, default=0.01, help="学习率")
-    p_fedleo.add_argument("--dataset", choices=["mnist", "fashion_mnist", "cifar10", "femnist"], default="mnist", help="数据集")
+    p_fedleo.add_argument(
+        "--dataset",
+        choices=["mnist", "fashion_mnist", "cifar10", "femnist"],
+        default="mnist",
+        help="数据集",
+    )
     p_fedleo.add_argument("--data-dir", type=str, default="./data", help="数据目录")
     p_fedleo.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="计算设备")
     p_fedleo.add_argument("--offload-every", type=int, default=5, help="每N轮执行一次卸载")
@@ -1739,12 +1822,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_fedleo.add_argument("--timeslot-sec", type=float, default=60.0, help="timeslot秒数")
     p_fedleo.add_argument("--ratios", type=str, default=None, help="离散卸载比例, 如 0,0.25,0.5,1")
     p_fedleo.add_argument("--delay-weight", type=float, default=1.0, help="时延改善权重")
-    p_fedleo.add_argument("--divergence-weight", type=float, default=0.5, help="数据均衡/散度代理权重")
+    p_fedleo.add_argument(
+        "--divergence-weight", type=float, default=0.5, help="数据均衡/散度代理权重"
+    )
     p_fedleo.add_argument("--comm-cost-weight", type=float, default=0.3, help="通信成本权重")
     p_fedleo.add_argument("--eval-every", type=int, default=1, help="每N轮评估一次")
     p_fedleo.add_argument("--classes-per-client", type=int, default=2, help="每类偏好客户端数")
-    p_fedleo.add_argument("--max-samples-per-client", type=int, default=1000, help="每客户端最大样本数")
-    p_fedleo.add_argument("--sample-imbalance", type=float, default=0.0, help="样本截断异构度[0,0.95]")
+    p_fedleo.add_argument(
+        "--max-samples-per-client", type=int, default=1000, help="每客户端最大样本数"
+    )
+    p_fedleo.add_argument(
+        "--sample-imbalance", type=float, default=0.0, help="样本截断异构度[0,0.95]"
+    )
     p_fedleo.add_argument("--seed", type=int, default=42, help="随机种子")
     p_fedleo.add_argument("--output", "-o", type=str, default="fedleo_output", help="输出目录")
     p_fedleo.add_argument("--no-baseline", action="store_true", help="不运行FedAvg基线")
@@ -1792,9 +1881,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # run list
     p_ls = run_sub.add_parser("list", help="查看内置资源", add_help=False)
-    p_ls.add_argument("resource", nargs="?", default="presets",
-                      choices=["presets", "models", "satellites", "experiments"],
-                      help="presets|models|satellites|experiments")
+    p_ls.add_argument(
+        "resource",
+        nargs="?",
+        default="presets",
+        choices=["presets", "models", "satellites", "experiments"],
+        help="presets|models|satellites|experiments",
+    )
     p_ls.set_defaults(func=cmd_run_list)
 
     # run export
@@ -1808,7 +1901,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_ex.add_argument("--inclination", type=float, default=None)
     p_ex.add_argument("--distribution", choices=["uniform", "walker", "cluster"], default=None)
     p_ex.add_argument("--timeslot-min", type=float, default=None)
-    p_ex.add_argument("--body", choices=["earth", "mars", "moon", "jupiter", "saturn", "venus"], default=None)
+    p_ex.add_argument(
+        "--body", choices=["earth", "mars", "moon", "jupiter", "saturn", "venus"], default=None
+    )
     p_ex.add_argument("--no-session", action="store_true", help="忽略session")
     p_ex.set_defaults(func=cmd_run_export)
 
@@ -1875,6 +1970,7 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get("_ARGCOMPLETE") == "1":
         try:
             import argcomplete
+
             argcomplete.autocomplete(parser)
         except ImportError:
             pass
@@ -1900,7 +1996,9 @@ def main(argv: list[str] | None = None) -> int:
             print("请指定 mount 子命令。可用: algo, isl, backend, body, ...")
             print("运行 'fls help' 查看完整列表。")
         elif args.category == "run":
-            print("请指定 run 子命令。可用: simulate, train, experiment, fedleo, validate-algorithms, quick-test, list, export, serve")
+            print(
+                "请指定 run 子命令。可用: simulate, train, experiment, fedleo, validate-algorithms, quick-test, list, export, serve"
+            )
             print("运行 'fls help' 查看完整列表。")
         elif args.category == "completion":
             print("请指定 completion 操作。可用: install, ps1")
@@ -1918,6 +2016,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"错误: {e}")
         if "-q" not in argv and "--quiet" not in argv:
             import traceback
+
             traceback.print_exc()
         return 1
 

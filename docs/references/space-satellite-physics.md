@@ -30,14 +30,17 @@ v_circular = sqrt(mu / r)
 T = 2π * sqrt(a³ / mu)
 ```
 
-轨道要素至少包括：
+轨道要素至少包括六根数：
 
-- 半长轴 `a`；
-- 偏心率 `e`；
-- 倾角 `i`；
-- 升交点赤经 `raan`；
-- 近地点幅角；
-- 初始近点角。
+- 半长轴 `semi_major_axis_km`；
+- 偏心率 `eccentricity`；
+- 倾角 `inclination_deg`；
+- 升交点赤经 `raan_deg`；
+- 近地点幅角 `arg_perigee_deg`；
+- 初始近点角 `anomaly_deg`，并声明 `true` 或 `mean`。
+
+在代码中使用 `ClassicalOrbitalElements` 表达完整二体轨道；仅做一阶发射入轨预算时，
+可以用 `OrbitalTarget` 保持兼容。
 
 任何涉及真实任务时间、星地窗口或碰撞风险的结论，都必须注明使用
 `kepler`、`skyfield/SGP4` 或更高保真后端。
@@ -91,6 +94,8 @@ D / m = q * Cd * A / m
 - 可见性/视线；
 - 指向、捕获和跟踪；
 - 带宽、发射功率、接收灵敏度和链路预算；
+- 频段与中心频率，例如 UHF/L/S/X/Ka/optical；
+- 模型更新大小与链路速率之间的传输时间；
 - 天线/光学终端并发能力；
 - 遮挡、天气和云量对星地光链路的影响。
 

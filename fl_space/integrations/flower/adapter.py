@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fl_space.simulator import OrbitSimulator
@@ -27,7 +27,7 @@ class ContactWindow:
     start_utc: datetime
     end_utc: datetime
     duration_s: float
-    max_elevation_deg: Optional[float] = None
+    max_elevation_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -36,12 +36,12 @@ class IntraLinkWindow:
 
     satellite_a: str
     satellite_b: str
-    cluster_id: Optional[str]
+    cluster_id: str | None
     start_utc: datetime
     end_utc: datetime
     duration_s: float
-    min_range_km: Optional[float] = None
-    max_range_km: Optional[float] = None
+    min_range_km: float | None = None
+    max_range_km: float | None = None
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -82,7 +82,7 @@ class FlowerAdapter:
     def from_simulator(
         cls,
         sim: OrbitSimulator,
-        sim_start: Optional[datetime] = None,
+        sim_start: datetime | None = None,
     ) -> FlowerAdapter:
         """从 SpaceFL OrbitSimulator 构造适配器。
 
@@ -130,19 +130,19 @@ class FlowerAdapter:
         # 构造 ISL IntraLinkWindow 列表
         intra: list[IntraLinkWindow] = []
         if sim.isl_config.enabled:
-            for w in sim.isl_windows:
-                intra.append(
-                    IntraLinkWindow(
-                        satellite_a=w.satellite_a,
-                        satellite_b=w.satellite_b,
-                        cluster_id=w.cluster_id,
-                        start_utc=w.start_utc,
-                        end_utc=w.end_utc,
-                        duration_s=w.duration_s,
-                        min_range_km=w.min_range_km,
-                        max_range_km=w.max_range_km,
-                    )
+            intra.extend(
+                IntraLinkWindow(
+                    satellite_a=w.satellite_a,
+                    satellite_b=w.satellite_b,
+                    cluster_id=w.cluster_id,
+                    start_utc=w.start_utc,
+                    end_utc=w.end_utc,
+                    duration_s=w.duration_s,
+                    min_range_km=w.min_range_km,
+                    max_range_km=w.max_range_km,
                 )
+                for w in sim.isl_windows
+            )
 
         return cls(
             satellite_names=sat_names,

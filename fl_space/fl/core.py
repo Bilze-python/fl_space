@@ -42,6 +42,7 @@ class ClientState:
     last_update_round : int
         该客户端上次参与聚合的轮次（用于 staleness 计算）。
     """
+
     client_id: int
     data_size: int = 100
     is_connected: bool = False
@@ -66,6 +67,7 @@ class ClientUpdate:
     round_num : int
         对应的全局轮次。
     """
+
     client_id: int
     weights: list[Any]
     data_size: int
@@ -100,6 +102,7 @@ class FLRoundResult:
     time_breakdown : dict | None
         本轮时间分解（由 TimeModel 产生），None 表示未启用。
     """
+
     round_num: int
     num_clients: int
     train_loss: float

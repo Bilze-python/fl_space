@@ -33,6 +33,7 @@ import numpy as np
 try:
     from torch.utils.data import Dataset
     import torchvision.transforms as transforms
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -81,15 +82,16 @@ class FEMNISTWriterDataset(Dataset):
         """
         if not TORCH_AVAILABLE:
             raise ImportError(
-                "FEMNIST 数据加载需要 torchvision + torch. "
-                "请运行: pip install fl-space[full]"
+                "FEMNIST 数据加载需要 torchvision + torch. 请运行: pip install fl-space[full]"
             )
 
         self.data_dir = data_dir
         self.train = train
         self.transform = transform
 
-        cache_path = Path(cache_override) if cache_override else Path(data_dir) / "femnist_cache.pkl"
+        cache_path = (
+            Path(cache_override) if cache_override else Path(data_dir) / "femnist_cache.pkl"
+        )
 
         # 加载或构建缓存
         cache = self._load_or_build_cache(cache_path, download)
@@ -142,9 +144,7 @@ class FEMNISTWriterDataset(Dataset):
                 print(f"[FEMNIST] 缓存文件损坏，将重建: {e}", file=sys.stderr)
 
         if not download:
-            raise FileNotFoundError(
-                f"FEMNIST 缓存不存在且 download=False: {cache_path}"
-            )
+            raise FileNotFoundError(f"FEMNIST 缓存不存在且 download=False: {cache_path}")
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         print(f"[FEMNIST] 首次加载，开始下载/解析到 {cache_path} ...")
@@ -275,10 +275,12 @@ class FEMNISTWriterDataset(Dataset):
         # 转为 PIL-like (HWC) 以兼容 torchvision transform
         if self.transform is not None:
             from PIL import Image
+
             img = Image.fromarray(img_arr, mode="L")
             return self.transform(img), label
         # 默认返回 tensor (与 MNIST 行为一致)
         import torch
+
         return torch.from_numpy(img_arr).float().unsqueeze(0) / 255.0, label
 
     @property
@@ -300,18 +302,9 @@ def _build_char_map() -> None:
     """构建 0-9 / A-Z / a-z → 0-61 的映射."""
     if _CHAR_TO_LABEL:
         return
-    # 数字 0-9
-    for i, c in enumerate("0123456789"):
-        _CHAR_TO_LABEL[c] = i
-    # 大写 A-Z (10-35)
-    for i, c in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
-        _CHAR_TO_LABEL[c] = 10 + i
-    # 小写 a-z (36-61)
-    for i, c in enumerate("abcdefghijklmnopqrstuvwxyz"):
-        _CHAR_TO_LABEL[c] = 36 + i
-    # LEAF 有时会用数字字符串表示数字
-    for i in range(10):
-        _CHAR_TO_LABEL[str(i)] = i
+    _CHAR_TO_LABEL.update({c: i for i, c in enumerate("0123456789")})
+    _CHAR_TO_LABEL.update({c: 10 + i for i, c in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ")})
+    _CHAR_TO_LABEL.update({c: 36 + i for i, c in enumerate("abcdefghijklmnopqrstuvwxyz")})
 
 
 def _char_to_label(char: str) -> int | None:
@@ -322,10 +315,12 @@ def _char_to_label(char: str) -> int | None:
 
 def get_default_transform():
     """返回 FEMNIST 标准 transform (与 MNIST 一致)."""
-    return transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,)),
-    ])
+    return transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,)),
+        ]
+    )
 
 
 def get_femnist_split(
@@ -348,13 +343,19 @@ def get_femnist_split(
     """
     transform = get_default_transform()
     train_ds = FEMNISTWriterDataset(
-        data_dir=data_dir, train=True, download=download,
-        transform=transform, max_writers=max_writers,
+        data_dir=data_dir,
+        train=True,
+        download=download,
+        transform=transform,
+        max_writers=max_writers,
         samples_per_writer=samples_per_writer,
     )
     test_ds = FEMNISTWriterDataset(
-        data_dir=data_dir, train=False, download=download,
-        transform=transform, max_writers=max_writers,
+        data_dir=data_dir,
+        train=False,
+        download=download,
+        transform=transform,
+        max_writers=max_writers,
         samples_per_writer=None,  # test 不截断
     )
     writer_ids = sorted(train_ds.writer_to_indices.keys())

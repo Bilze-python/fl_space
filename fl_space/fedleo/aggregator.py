@@ -19,6 +19,7 @@ from typing import Any
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -117,8 +118,7 @@ class FedLEOAggregator:
             if total_size == 0:
                 # 取第一个非空权重作为回退
                 plane_weights[plane_id] = [
-                    w.clone() if isinstance(w, torch.Tensor) else w
-                    for w in updates[0][0]
+                    w.clone() if isinstance(w, torch.Tensor) else w for w in updates[0][0]
                 ]
                 plane_sizes[plane_id] = 1
                 continue
@@ -166,9 +166,7 @@ class FedLEOAggregator:
             # 加权平均: W_global = Σ (n_plane / N) × W_plane
             first_weights = next(iter(plane_weights.values()))
             aggregated = [
-                torch.zeros_like(w, dtype=torch.float32)
-                if isinstance(w, torch.Tensor)
-                else 0.0
+                torch.zeros_like(w, dtype=torch.float32) if isinstance(w, torch.Tensor) else 0.0
                 for w in first_weights
             ]
             for plane_id, weights in plane_weights.items():
@@ -192,9 +190,7 @@ class FedLEOAggregator:
         """按数据量加权求和。"""
         first_weights = updates[0][0]
         aggregated = [
-            torch.zeros_like(w, dtype=torch.float32)
-            if isinstance(w, torch.Tensor)
-            else 0.0
+            torch.zeros_like(w, dtype=torch.float32) if isinstance(w, torch.Tensor) else 0.0
             for w in first_weights
         ]
         for weights, data_size in updates:
@@ -215,8 +211,7 @@ class FedLEOAggregator:
         avg = []
         for i in range(len(first)):
             summed = sum(
-                w[i].clone() if isinstance(w[i], torch.Tensor) else w[i]
-                for w in weights_list
+                w[i].clone() if isinstance(w[i], torch.Tensor) else w[i] for w in weights_list
             )
             if isinstance(summed, torch.Tensor):
                 avg.append(summed / n)

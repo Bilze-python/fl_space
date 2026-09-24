@@ -48,6 +48,7 @@ try:
     import torch
     from torch.utils.data import DataLoader, Dataset, Subset
     from torchvision import datasets, transforms
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -86,8 +87,7 @@ class FLRunner:
     ):
         if not TORCH_AVAILABLE:
             raise ImportError(
-                "FLRunner 需要 PyTorch 和 torchvision。"
-                "请运行: pip install fl-space[full]"
+                "FLRunner 需要 PyTorch 和 torchvision。请运行: pip install fl-space[full]"
             )
 
         self.config = config
@@ -154,6 +154,7 @@ class FLRunner:
         algo = algorithm.lower()
         if algo == "fedavg":
             from fl_space.fl.fedavg import create_fedavg_components
+
             components = create_fedavg_components(
                 fraction=config.fraction,
                 min_clients=max(1, int(config.num_clients * config.fraction)),
@@ -166,6 +167,7 @@ class FLRunner:
             )
         elif algo == "fedprox":
             from fl_space.fl.fedprox import create_fedprox_components
+
             components = create_fedprox_components(
                 fraction=config.fraction,
                 min_clients=max(1, int(config.num_clients * config.fraction)),
@@ -179,6 +181,7 @@ class FLRunner:
             )
         elif algo == "fedbuff":
             from fl_space.fl.fedbuff import create_fedbuff_components
+
             components = create_fedbuff_components(
                 min_clients=config.num_clients,
                 local_epochs=config.local_epochs,
@@ -246,40 +249,49 @@ class FLRunner:
 
         # 选择数据集和变换
         if dataset_name in ("mnist", "fashion_mnist"):
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,)),
-            ])
-            ds_cls = (
-                datasets.MNIST if dataset_name == "mnist"
-                else datasets.FashionMNIST
+            transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,)),
+                ]
             )
+            ds_cls = datasets.MNIST if dataset_name == "mnist" else datasets.FashionMNIST
             train_ds = ds_cls(data_dir, train=True, download=True, transform=transform)
             test_ds = ds_cls(data_dir, train=False, download=True, transform=transform)
             self._dataset_model_kwargs = {}
 
         elif dataset_name == "cifar10":
-            transform_train = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465),
-                    (0.2023, 0.1994, 0.2010),
-                ),
-            ])
-            transform_test = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465),
-                    (0.2023, 0.1994, 0.2010),
-                ),
-            ])
+            transform_train = transforms.Compose(
+                [
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.4914, 0.4822, 0.4465),
+                        (0.2023, 0.1994, 0.2010),
+                    ),
+                ]
+            )
+            transform_test = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.4914, 0.4822, 0.4465),
+                        (0.2023, 0.1994, 0.2010),
+                    ),
+                ]
+            )
             train_ds = datasets.CIFAR10(
-                data_dir, train=True, download=True, transform=transform_train,
+                data_dir,
+                train=True,
+                download=True,
+                transform=transform_train,
             )
             test_ds = datasets.CIFAR10(
-                data_dir, train=False, download=True, transform=transform_test,
+                data_dir,
+                train=False,
+                download=True,
+                transform=transform_test,
             )
             self._dataset_model_kwargs = {}
         elif dataset_name == "femnist":
@@ -290,9 +302,7 @@ class FLRunner:
             # max_writers 由 num_clients 决定（每 writer = 1 client）
             max_writers = self.config.num_clients
             # samples_per_writer 对齐论文 200~350
-            samples_per_writer = (
-                max_samples_per_client if max_samples_per_client > 0 else 300
-            )
+            samples_per_writer = max_samples_per_client if max_samples_per_client > 0 else 300
             train_ds, test_ds, writer_ids = get_femnist_split(
                 data_dir=data_dir,
                 max_writers=max_writers,
@@ -307,25 +317,29 @@ class FLRunner:
         elif dataset_name in ("imagefolder", "custom"):
             train_dir = f"{data_dir}/train"
             test_dir = f"{data_dir}/test"
-            transform_train = transforms.Compose([
-                transforms.Lambda(lambda img: img.convert("RGB")),
-                transforms.Resize((32, 32)),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465),
-                    (0.2023, 0.1994, 0.2010),
-                ),
-            ])
-            transform_test = transforms.Compose([
-                transforms.Lambda(lambda img: img.convert("RGB")),
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465),
-                    (0.2023, 0.1994, 0.2010),
-                ),
-            ])
+            transform_train = transforms.Compose(
+                [
+                    transforms.Lambda(lambda img: img.convert("RGB")),
+                    transforms.Resize((32, 32)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.4914, 0.4822, 0.4465),
+                        (0.2023, 0.1994, 0.2010),
+                    ),
+                ]
+            )
+            transform_test = transforms.Compose(
+                [
+                    transforms.Lambda(lambda img: img.convert("RGB")),
+                    transforms.Resize((32, 32)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.4914, 0.4822, 0.4465),
+                        (0.2023, 0.1994, 0.2010),
+                    ),
+                ]
+            )
             train_ds = datasets.ImageFolder(train_dir, transform=transform_train)
             test_ds = datasets.ImageFolder(test_dir, transform=transform_test)
             self._dataset_model_kwargs = {
@@ -344,9 +358,7 @@ class FLRunner:
         )
         if dataset_name == "femnist":
             # FEMNIST: 按 writer 划分 (1 writer = 1 client)，已经是天然 non-IID
-            client_data_indices = self._partition_femnist_writers(
-                train_ds, n_clients
-            )
+            client_data_indices = self._partition_femnist_writers(train_ds, n_clients)
         elif profiles:
             targets = np.array([train_ds[i][1] for i in range(len(train_ds))])
             client_data_indices = self._partition_satellite_profiles(
@@ -357,7 +369,10 @@ class FLRunner:
             )
         else:
             client_data_indices = self._partition_data(
-                train_ds, n_clients, iid=iid, alpha=alpha,
+                train_ds,
+                n_clients,
+                iid=iid,
+                alpha=alpha,
                 classes_per_client=classes_per_client,
                 partition_strategy=partition_strategy,
                 class_probability=class_probability,
@@ -395,7 +410,7 @@ class FLRunner:
 
         # 创建 DataLoader
         self._train_loaders = {}
-        num_workers = getattr(self.config, 'num_workers', 0) or 0
+        num_workers = getattr(self.config, "num_workers", 0) or 0
         for cid, indices in enumerate(client_data_indices):
             subset = Subset(train_ds, indices)
             generator = None
@@ -420,9 +435,7 @@ class FLRunner:
             pin_memory=(self.config.device == "cuda"),
         )
 
-    def _partition_femnist_writers(
-        self, dataset: Dataset, n_clients: int
-    ) -> list[list[int]]:
+    def _partition_femnist_writers(self, dataset: Dataset, n_clients: int) -> list[list[int]]:
         """FEMNIST writer-level partition: 1 writer = 1 client.
 
         这是最自然的 non-IID 划分，每个 writer 的笔迹风格独特，
@@ -440,9 +453,7 @@ class FLRunner:
             raise ValueError("FEMNIST 数据集未提供 writer_to_indices 映射")
 
         writer_ids = sorted(writer_to_indices.keys())[:n_clients]
-        client_indices: list[list[int]] = []
-        for wid in writer_ids:
-            client_indices.append(list(writer_to_indices[wid]))
+        client_indices = [list(writer_to_indices[wid]) for wid in writer_ids]
 
         # 若 writer 数 < n_clients，剩余客户端分空 (后续 selector 会跳过)
         while len(client_indices) < n_clients:
@@ -481,8 +492,7 @@ class FLRunner:
             indices = rng.permutation(n_samples)
             split_size = n_samples // n_clients
             client_indices = [
-                indices[i * split_size : (i + 1) * split_size].tolist()
-                for i in range(n_clients)
+                indices[i * split_size : (i + 1) * split_size].tolist() for i in range(n_clients)
             ]
             remainder = indices[n_clients * split_size :]
             if len(remainder) > 0:
@@ -621,9 +631,7 @@ class FLRunner:
                     continue
                 if class_id in classes:
                     preferred.add(class_id)
-            probability = float(
-                raw_profile.get("preference_probability", default_probability)
-            )
+            probability = float(raw_profile.get("preference_probability", default_probability))
             normalized[client_id] = (preferred, min(max(probability, 0.0), 1.0))
 
         for class_id in classes:
@@ -635,8 +643,7 @@ class FLRunner:
                 if class_id in preferred
             ]
             fallback_clients = [
-                client_id for client_id in range(n_clients)
-                if client_id not in preferred_clients
+                client_id for client_id in range(n_clients) if client_id not in preferred_clients
             ] or list(range(n_clients))
             class_preference_probability = (
                 sum(normalized[client_id][1] for client_id in preferred_clients)
@@ -821,35 +828,42 @@ class FLRunner:
                 print(f"轮次 {r.round_num}: 准确率 {r.eval_metrics['accuracy']}")
         """
         # 从 config 读取默认值
-        _iid = iid if iid is not None else (getattr(self.config, 'classes_per_client', 0) == 0)
+        _iid = iid if iid is not None else (getattr(self.config, "classes_per_client", 0) == 0)
         _alpha = alpha if alpha is not None else 0.5
         _cpc = (
-            classes_per_client if classes_per_client is not None
-            else getattr(self.config, 'classes_per_client', None)
+            classes_per_client
+            if classes_per_client is not None
+            else getattr(self.config, "classes_per_client", None)
         )
         _max_spc = (
-            max_samples_per_client if max_samples_per_client is not None
-            else getattr(self.config, 'max_samples_per_client', 0)
+            max_samples_per_client
+            if max_samples_per_client is not None
+            else getattr(self.config, "max_samples_per_client", 0)
         )
         _data_dir = data_dir if data_dir != "./data" else getattr(self.config, "data_dir", data_dir)
         _partition_strategy = (
-            partition_strategy if partition_strategy is not None
+            partition_strategy
+            if partition_strategy is not None
             else getattr(self.config, "partition_strategy", "probability")
         )
         _class_probability = (
-            class_probability if class_probability is not None
+            class_probability
+            if class_probability is not None
             else getattr(self.config, "class_probability", 0.8)
         )
         _preference_mode = (
-            preference_mode if preference_mode is not None
+            preference_mode
+            if preference_mode is not None
             else getattr(self.config, "preference_mode", "class_balanced")
         )
         _preferred_clients_per_class = (
-            preferred_clients_per_class if preferred_clients_per_class is not None
+            preferred_clients_per_class
+            if preferred_clients_per_class is not None
             else getattr(self.config, "preferred_clients_per_class", 1)
         )
         _sample_cap_strategy = (
-            sample_cap_strategy if sample_cap_strategy is not None
+            sample_cap_strategy
+            if sample_cap_strategy is not None
             else getattr(self.config, "sample_cap_strategy", "preserve")
         )
         _satellite_data_profiles = (
@@ -895,7 +909,7 @@ class FLRunner:
         if verbose:
             print("[2/3] 创建模型...")
         # 固定 PyTorch 随机种子，确保模型初始化可复现
-        if TORCH_AVAILABLE and hasattr(self.config, 'seed') and self.config.seed is not None:
+        if TORCH_AVAILABLE and hasattr(self.config, "seed") and self.config.seed is not None:
             torch.manual_seed(self.config.seed)
         ds_preset = DATASET_PRESETS.get(dataset_name, DATASET_PRESETS["mnist"])
         model_kwargs = dict(ds_preset.get("model_kwargs", {}))
@@ -938,9 +952,10 @@ class FLRunner:
                 # 使用 time_model 显示可读时间
                 tm = self._server.time_model
                 ts_dur = getattr(tm, "timeslot_duration_min", 1.0)
-                time_str = tm.slots_to_display(total_slots, ts_dur) if tm else f"{total_slots} slots"
-                print(f"  虚拟时间范围: TS{first_ts} → TS{last_ts} "
-                      f"({time_str}, {len(history)} 轮)")
+                time_str = (
+                    tm.slots_to_display(total_slots, ts_dur) if tm else f"{total_slots} slots"
+                )
+                print(f"  虚拟时间范围: TS{first_ts} → TS{last_ts} ({time_str}, {len(history)} 轮)")
                 print(f"  时间模型: {tm.name}")
 
         return history

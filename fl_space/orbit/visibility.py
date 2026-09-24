@@ -17,7 +17,6 @@ import numpy as np
 from fl_space.environment import CelestialBody, GroundStationNetwork
 from fl_space.environment.coordinate_utils import (
     batch_angular_distances_rad,
-    horizon_angle_rad,
 )
 
 from .kepler_orbit import KeplerOrbit
@@ -68,28 +67,35 @@ class VisibilityEngine:
         self.network = network
 
         # 预计算地表坐标数组 (N, 2) 用于批量运算
-        self._gs_coords_rad = np.array([
-            [gs.lat_rad, gs.lon_rad] for gs in network
-        ]) if network.count > 0 else np.zeros((0, 2))
+        self._gs_coords_rad = (
+            np.array([[gs.lat_rad, gs.lon_rad] for gs in network])
+            if network.count > 0
+            else np.zeros((0, 2))
+        )
 
         # 最小仰角数组
-        self._gs_min_elev_rad = np.array([
-            gs.min_elevation_rad for gs in network
-        ]) if network.count > 0 else np.zeros(0)
+        self._gs_min_elev_rad = (
+            np.array([gs.min_elevation_rad for gs in network]) if network.count > 0 else np.zeros(0)
+        )
 
-        # 地平可见半角
-        self._horizon_angle = horizon_angle_rad(
-            body.radius_km, orbit.orbit_radius_km, body.atmosphere_height_km,
+        self._station_altitudes_km = (
+            np.array([gs.altitude_km for gs in network]) if network.count > 0 else np.zeros(0)
         )
 
     @property
     def horizon_angle_rad(self) -> float:
         """地平可见半角 (弧度)。"""
-        return self._horizon_angle
+        from fl_space.environment.coordinate_utils import (
+            ground_central_angle_for_elevation_rad,
+        )
 
-    def visible_stations_at_time(
-        self, time_min: float
-    ) -> list[int]:
+        return ground_central_angle_for_elevation_rad(
+            self.body.radius_km,
+            self.orbit.orbit_radius_km,
+            0.0,
+        )
+
+    def visible_stations_at_time(self, time_min: float) -> list[int]:
         """
         返回 t 时刻卫星可见的所有地面站 ID 列表。
 
@@ -108,18 +114,32 @@ class VisibilityEngine:
 
         sat_lat, sat_lon = self.orbit.position_at_time(time_min)
         ang_dists = batch_angular_distances_rad(
-            sat_lat, sat_lon, self._gs_coords_rad,
+            sat_lat,
+            sat_lon,
+            self._gs_coords_rad,
         )
 
-        # 可见条件: 角距 < 地平半角 - 最小仰角
-        thresholds = self._horizon_angle - self._gs_min_elev_rad
+        # Exact spherical mask relation; use the instantaneous radius for
+        # eccentric orbits rather than the semi-major-axis radius.
+        radius_km = self.orbit.radius_at_time_km(time_min)
+        reference_radius_km = np.maximum(
+            self.body.radius_km + self._station_altitudes_km,
+            self.body.radius_km,
+        )
+        cosine_arguments = np.clip(
+            (reference_radius_km / radius_km) * np.cos(self._gs_min_elev_rad),
+            -1.0,
+            1.0,
+        )
+        thresholds = np.maximum(
+            0.0,
+            np.arccos(cosine_arguments) - self._gs_min_elev_rad,
+        )
         visible_mask = ang_dists < thresholds
 
         return np.where(visible_mask)[0].tolist()
 
-    def first_visible_station_at_time(
-        self, time_min: float
-    ) -> Optional[int]:
+    def first_visible_station_at_time(self, time_min: float) -> Optional[int]:
         """
         返回 t 时刻第一个可见的地面站 ID。
 
@@ -138,9 +158,7 @@ class VisibilityEngine:
         visible = self.visible_stations_at_time(time_min)
         return visible[0] if visible else None
 
-    def all_visible_at_time(
-        self, time_min: float
-    ) -> list[int]:
+    def all_visible_at_time(self, time_min: float) -> list[int]:
         """同 visible_stations_at_time。"""
         return self.visible_stations_at_time(time_min)
 
@@ -164,13 +182,9 @@ class MultiSatVisibility:
         self.network = network
 
         # 为每颗卫星创建 VisibilityEngine
-        self._engines = [
-            VisibilityEngine(body, orb, network) for orb in orbits
-        ]
+        self._engines = [VisibilityEngine(body, orb, network) for orb in orbits]
 
-    def visible_matrix_at_time(
-        self, time_min: float
-    ) -> list[list[int]]:
+    def visible_matrix_at_time(self, time_min: float) -> list[list[int]]:
         """
         返回 t 时刻所有卫星的可见地面站矩阵。
 
@@ -181,9 +195,7 @@ class MultiSatVisibility:
         """
         return [eng.visible_stations_at_time(time_min) for eng in self._engines]
 
-    def first_contact_matrix_at_time(
-        self, time_min: float
-    ) -> list[Optional[int]]:
+    def first_contact_matrix_at_time(self, time_min: float) -> list[Optional[int]]:
         """
         返回 t 时刻每颗卫星的第一个可见地面站 ID。
 

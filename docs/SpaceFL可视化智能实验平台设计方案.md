@@ -353,40 +353,43 @@ DELETE /api/workbench/algorithms/{name} → 停用导入算法
 ```python
 # experiment
 class Experiment(BaseModel):
-    id: str                       # exp_<timestamp>_<rand>
+    id: str  # exp_<timestamp>_<rand>
     name: str
-    status: Literal["PENDING","RUNNING","PAUSED","DONE","FAILED","ABORTED"]
-    config: dict                  # 完整配置快照（tune+mount）
+    status: Literal["PENDING", "RUNNING", "PAUSED", "DONE", "FAILED", "ABORTED"]
+    config: dict  # 完整配置快照（tune+mount）
     created_at: str
     current_round: int = 0
     total_rounds: int = 0
     checkpoint_dir: str
-    result_summary: dict | None   # final accuracy, elapsed, contact_rate...
+    result_summary: dict | None  # final accuracy, elapsed, contact_rate...
+
 
 class CheckpointMeta(BaseModel):
     path: str
     round: int
     created_at: str
-    label: str | None             # 用户命名存档
-    metrics: dict                 # 当前 accuracy/loss
+    label: str | None  # 用户命名存档
+    metrics: dict  # 当前 accuracy/loss
+
 
 # workbench
 class AlgorithmAnalysis(BaseModel):
     name: str
-    entry_point: str              # 模块路径
-    params: list[ParamSpec]       # 自动生成调参表单
+    entry_point: str  # 模块路径
+    params: list[ParamSpec]  # 自动生成调参表单
     imports: list[str]
     conflicts: list[ConflictIssue]  # severity: info/warning/error
     interface_matches: bool
     smoke_test: SmokeResult | None
-    score: float                  # 0-100
+    score: float  # 0-100
+
 
 class ChangeRecord(BaseModel):
     id: str
     file: str
     ts: str
     summary: str
-    backup_path: str              # 可回滚
+    backup_path: str  # 可回滚
     applied: bool
 ```
 

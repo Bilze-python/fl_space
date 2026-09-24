@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import pytest
 from fastapi import HTTPException
+import pytest
 
 from web import server
 

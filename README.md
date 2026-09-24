@@ -95,7 +95,9 @@ gss = create_default_network(7)
 orbits = [create_circular_orbit(500, 53, 0, i * 120, earth) for i in range(3)]
 
 sim = OrbitSimulator(
-    body=earth, orbits=orbits, ground_stations=gss,
+    body=earth,
+    orbits=orbits,
+    ground_stations=gss,
     duration_hours=24,
 )
 print(f"接触率: {sim.contact_rate:.1%}")

@@ -9,6 +9,7 @@ fl_space — 太空联邦学习 (Space Federated Learning) 研究框架
     orbit/        — 轨道力学层（轨道计算、可见性判断）
     simulator/    — 模拟器层（接触矩阵、主模拟器）
     config/       — 配置层（默认参数、配置加载）
+    study/        — 学习任务顶层场景（数据、模型、轨道、基础设施、调度）
     mission/      — 发射任务、卫星设计、部署与低阶航天物理
     integrations/ — 外部生态适配器（含 SpaceX API 只读适配）
     fl/           — 联邦学习层（可插拔 FL 算法框架）

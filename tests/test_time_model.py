@@ -8,9 +8,12 @@
     4. 时间分解输出正确
     5. CLI --time-model 参数可用
 """
+
 import os
 import sys
 import traceback
+
+from fl_space.fl.time_model import PhysicsTimeModel, SlotTimeModel, TimeBreakdown, TimeModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -25,7 +28,7 @@ def check(name, condition, detail=""):
         errors.append(name)
 
 
-def test_model(
+def run_model_case(
     label: str,
     time_model_spec: str,
     time_model_kwargs: dict | None = None,
@@ -133,7 +136,7 @@ print("\n" + "=" * 60)
 print(" 测试 1/4: SlotTimeModel (slots_per_epoch=0, 零训练时间)")
 print("=" * 60)
 
-server1, history1 = test_model(
+server1, history1 = run_model_case(
     label="SlotTimeModel 零训练时间",
     time_model_spec="slot",
     time_model_kwargs={"slots_per_epoch": 0, "slots_per_mb_down": 0, "slots_per_mb_up": 0},
@@ -152,9 +155,11 @@ if server1 is not None and history1:
     print("\n  结果摘要:")
     for r in history1:
         bd = r.time_breakdown or {}
-        print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
-              f"train={bd.get('train',0)} total={bd.get('total',0)} "
-              f"acc={r.eval_metrics.get('accuracy',0):.4f}")
+        print(
+            f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
+            f"train={bd.get('train', 0)} total={bd.get('total', 0)} "
+            f"acc={r.eval_metrics.get('accuracy', 0):.4f}"
+        )
 else:
     check("训练执行", False)
 
@@ -164,7 +169,7 @@ print("\n" + "=" * 60)
 print(" 测试 2/4: SlotTimeModel (slots_per_epoch=1, 训练有成本)")
 print("=" * 60)
 
-server2, history2 = test_model(
+server2, history2 = run_model_case(
     label="SlotTimeModel 训练有成本",
     time_model_spec="slot",
     time_model_kwargs={"slots_per_epoch": 1, "slots_per_mb_down": 0, "slots_per_mb_up": 0},
@@ -178,9 +183,11 @@ if server2 is not None and history2:
     print("\n  结果摘要:")
     for r in history2:
         bd = r.time_breakdown or {}
-        print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
-              f"train={bd.get('train',0)} total={bd.get('total',0)} "
-              f"acc={r.eval_metrics.get('accuracy',0):.4f}")
+        print(
+            f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
+            f"train={bd.get('train', 0)} total={bd.get('total', 0)} "
+            f"acc={r.eval_metrics.get('accuracy', 0):.4f}"
+        )
 else:
     check("训练执行", False)
 
@@ -190,7 +197,7 @@ print("\n" + "=" * 60)
 print(" 测试 3/4: SlotTimeModel (slots_per_epoch=1 + 传输成本)")
 print("=" * 60)
 
-server3, history3 = test_model(
+server3, history3 = run_model_case(
     label="SlotTimeModel 训练+传输成本",
     time_model_spec="slot",
     time_model_kwargs={"slots_per_epoch": 1, "slots_per_mb_down": 2, "slots_per_mb_up": 3},
@@ -205,10 +212,12 @@ if server3 is not None and history3:
     print("\n  结果摘要:")
     for r in history3:
         bd = r.time_breakdown or {}
-        print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
-              f"down={bd.get('download',0)} train={bd.get('train',0)} "
-              f"up={bd.get('upload',0)} total={bd.get('total',0)} "
-              f"acc={r.eval_metrics.get('accuracy',0):.4f}")
+        print(
+            f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
+            f"down={bd.get('download', 0)} train={bd.get('train', 0)} "
+            f"up={bd.get('upload', 0)} total={bd.get('total', 0)} "
+            f"acc={r.eval_metrics.get('accuracy', 0):.4f}"
+        )
 else:
     check("训练执行", False)
 
@@ -218,7 +227,7 @@ print("\n" + "=" * 60)
 print(" 测试 4/4: PhysicsTimeModel (物理精度)")
 print("=" * 60)
 
-server4, history4 = test_model(
+server4, history4 = run_model_case(
     label="PhysicsTimeModel",
     time_model_spec="physics",
     time_model_kwargs={
@@ -238,10 +247,12 @@ if server4 is not None and history4:
     print("\n  结果摘要:")
     for r in history4:
         bd = r.time_breakdown or {}
-        print(f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
-              f"down={bd.get('download',0)} train={bd.get('train',0)} "
-              f"up={bd.get('upload',0)} total={bd.get('total',0)} "
-              f"acc={r.eval_metrics.get('accuracy',0):.4f}")
+        print(
+            f"    Round {r.round_num}: TS={r.timeslot_start}->{r.timeslot} "
+            f"down={bd.get('download', 0)} train={bd.get('train', 0)} "
+            f"up={bd.get('upload', 0)} total={bd.get('total', 0)} "
+            f"acc={r.eval_metrics.get('accuracy', 0):.4f}"
+        )
 else:
     check("训练执行", False)
 
@@ -250,8 +261,6 @@ else:
 print("\n" + "=" * 60)
 print(" 测试 5/5: TimeModel 工厂方法")
 print("=" * 60)
-
-from fl_space.fl.time_model import PhysicsTimeModel, SlotTimeModel, TimeBreakdown, TimeModel
 
 # 内置创建
 tm_slot = TimeModel.create("slot", slots_per_epoch=2)

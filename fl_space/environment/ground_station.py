@@ -33,6 +33,7 @@ class GroundStation:
     antenna_gain_dbi : float
         天线增益 (dBi)，用于信号链路预算（可选）。
     """
+
     name: str
     lat_deg: float
     lon_deg: float
@@ -109,9 +110,7 @@ class GroundStationNetwork:
             idx = self._name_index.pop(name)
             self._stations.pop(idx)
             # 重建索引
-            self._name_index = {
-                gs.name: i for i, gs in enumerate(self._stations)
-            }
+            self._name_index = {gs.name: i for i, gs in enumerate(self._stations)}
             return True
         return False
 
@@ -162,9 +161,7 @@ class GroundStationNetwork:
     # --- IO ---
 
     @classmethod
-    def from_tuples(
-        cls, stations: list[tuple[str, float, float]]
-    ) -> "GroundStationNetwork":
+    def from_tuples(cls, stations: list[tuple[str, float, float]]) -> "GroundStationNetwork":
         """
         从 (名称, 纬度, 经度) 元组列表快速创建。
 
@@ -177,20 +174,19 @@ class GroundStationNetwork:
         -------
         GroundStationNetwork
         """
-        return cls([
-            GroundStation(name=name, lat_deg=lat, lon_deg=lon)
-            for name, lat, lon in stations
-        ])
+        return cls(
+            [GroundStation(name=name, lat_deg=lat, lon_deg=lon) for name, lat, lon in stations]
+        )
 
     def save_json(self, filepath: str):
         """保存到 JSON 文件。"""
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.to_dict_list(), f, indent=2, ensure_ascii=False)
 
     @classmethod
     def load_json(cls, filepath: str) -> "GroundStationNetwork":
         """从 JSON 文件加载。"""
-        with open(filepath, encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
         return cls([GroundStation.from_dict(d) for d in data])
 
@@ -217,7 +213,15 @@ PAPER_GROUND_STATIONS = [
 ]
 
 # 扩展的准全球覆盖地面站（论文扩展实验用）
-EXTENDED_GROUND_STATIONS = [*PAPER_GROUND_STATIONS, ("Anchorage", 61.2, -149.9), ("Honolulu", 21.3, -157.8), ("Reykjavik", 64.1, -21.9), ("Mumbai", 19.1, 72.9), ("Tokyo", 35.7, 139.7), ("Santiago", -33.4, -70.7)]
+EXTENDED_GROUND_STATIONS = [
+    *PAPER_GROUND_STATIONS,
+    ("Anchorage", 61.2, -149.9),
+    ("Honolulu", 21.3, -157.8),
+    ("Reykjavik", 64.1, -21.9),
+    ("Mumbai", 19.1, 72.9),
+    ("Tokyo", 35.7, 139.7),
+    ("Santiago", -33.4, -70.7),
+]
 
 
 def create_default_network(n: int = 7) -> GroundStationNetwork:

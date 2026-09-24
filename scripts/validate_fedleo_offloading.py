@@ -86,12 +86,8 @@ def main() -> int:
         "control_metrics_finite": off_checks["all_metrics_finite"],
         "offload_training_progressed": on_checks["accuracy_improved"],
         "control_training_progressed": off_checks["accuracy_improved"],
-        "offloading_improved_balance": (
-            on_checks["final_balance"] > off_checks["final_balance"]
-        ),
-        "offload_accuracy_not_worse": (
-            offload.final_accuracy >= no_offload.final_accuracy
-        ),
+        "offloading_improved_balance": (on_checks["final_balance"] > off_checks["final_balance"]),
+        "offload_accuracy_not_worse": (offload.final_accuracy >= no_offload.final_accuracy),
         "completed_within_30_minutes": elapsed < 1800,
     }
     summary = {
@@ -114,9 +110,7 @@ def main() -> int:
         },
         "deltas_on_minus_off": {
             "final_accuracy": round(offload.final_accuracy - no_offload.final_accuracy, 6),
-            "final_balance": round(
-                on_checks["final_balance"] - off_checks["final_balance"], 6
-            ),
+            "final_balance": round(on_checks["final_balance"] - off_checks["final_balance"], 6),
             "total_delay_slots": offload.total_delay_slots - no_offload.total_delay_slots,
         },
         "gates": gates,

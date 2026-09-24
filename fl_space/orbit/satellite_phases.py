@@ -17,6 +17,7 @@ DistributionType = Literal["walker", "cluster", "custom", "uniform"]
 @dataclass
 class ConstellationConfig:
     """星座配置描述（纯数据类）。"""
+
     num_satellites: int = 3
     num_planes: int = 1
     inclination_deg: float = 90.0
@@ -26,7 +27,9 @@ class ConstellationConfig:
 
     def __post_init__(self):
         if self.num_planes > self.num_satellites:
-            raise ValueError(f"num_planes({self.num_planes}) > num_satellites({self.num_satellites})")
+            raise ValueError(
+                f"num_planes({self.num_planes}) > num_satellites({self.num_satellites})"
+            )
 
 
 def generate_walker_phases(
@@ -57,10 +60,15 @@ def generate_walker_phases(
         raan = plane * 360.0 / num_planes
         for j in range(n_in_plane):
             ta = j * 360.0 / max(n_in_plane, 1) + phasing_factor * plane * 360.0 / num_satellites
-            orbits.append(create_circular_orbit(
-                altitude_km=altitude_km, inclination_deg=inclination_deg,
-                raan_deg=raan, true_anomaly_deg=ta, body=body,
-            ))
+            orbits.append(
+                create_circular_orbit(
+                    altitude_km=altitude_km,
+                    inclination_deg=inclination_deg,
+                    raan_deg=raan,
+                    true_anomaly_deg=ta,
+                    body=body,
+                )
+            )
     return orbits
 
 
@@ -90,10 +98,15 @@ def generate_cluster_phases(
         cluster = i % num_clusters
         raan = cluster * (360.0 / num_clusters)
         ta = (i // num_clusters) * (360.0 / (sats_per_cluster + 1))
-        orbits.append(create_circular_orbit(
-            altitude_km=altitude_km, inclination_deg=inclination_deg,
-            raan_deg=raan, true_anomaly_deg=ta, body=body,
-        ))
+        orbits.append(
+            create_circular_orbit(
+                altitude_km=altitude_km,
+                inclination_deg=inclination_deg,
+                raan_deg=raan,
+                true_anomaly_deg=ta,
+                body=body,
+            )
+        )
     return orbits
 
 
@@ -110,10 +123,15 @@ def generate_uniform_phases(
     for i in range(num_satellites):
         raan = i * (360.0 / num_satellites)
         ta = i * (360.0 / num_satellites)
-        orbits.append(create_circular_orbit(
-            altitude_km=altitude_km, inclination_deg=inclination_deg,
-            raan_deg=raan, true_anomaly_deg=ta, body=body,
-        ))
+        orbits.append(
+            create_circular_orbit(
+                altitude_km=altitude_km,
+                inclination_deg=inclination_deg,
+                raan_deg=raan,
+                true_anomaly_deg=ta,
+                body=body,
+            )
+        )
     return orbits
 
 

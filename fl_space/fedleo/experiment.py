@@ -66,7 +66,9 @@ class ComparisonResult:
     """对比实验结果。"""
 
     fedleo: ExperimentResult = field(default_factory=lambda: ExperimentResult(name="FedLEO"))
-    baseline: ExperimentResult = field(default_factory=lambda: ExperimentResult(name="FedAvg-Baseline"))
+    baseline: ExperimentResult = field(
+        default_factory=lambda: ExperimentResult(name="FedAvg-Baseline")
+    )
     config: dict[str, Any] = field(default_factory=dict)
 
 
@@ -101,18 +103,22 @@ def _prepare_data(
 
     # 加载数据集
     if dataset_name in ("mnist", "fashion_mnist"):
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),
-        ])
+        transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,)),
+            ]
+        )
         ds_cls = datasets.MNIST if dataset_name == "mnist" else datasets.FashionMNIST
         train_ds = ds_cls(data_dir, train=True, download=True, transform=transform)
         test_ds = ds_cls(data_dir, train=False, download=True, transform=transform)
     elif dataset_name == "cifar10":
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+        transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ]
+        )
         train_ds = datasets.CIFAR10(data_dir, train=True, download=True, transform=transform)
         test_ds = datasets.CIFAR10(data_dir, train=False, download=True, transform=transform)
     else:
@@ -129,10 +135,7 @@ def _prepare_data(
     for class_pos, c in enumerate(classes):
         # 每个类别指定 classes_per_client 个偏好客户端（循环分配）
         preferred_count = max(1, min(classes_per_client, num_clients))
-        preferred = [
-            (class_pos + offset) % num_clients
-            for offset in range(preferred_count)
-        ]
+        preferred = [(class_pos + offset) % num_clients for offset in range(preferred_count)]
 
         class_indices = np.where(targets == c)[0]
         rng.shuffle(class_indices)
@@ -168,7 +171,10 @@ def _prepare_data(
         generator = torch.Generator()
         generator.manual_seed(seed + cid)
         train_loaders[cid] = DataLoader(
-            subset, batch_size=batch_size, shuffle=True, drop_last=False,
+            subset,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=False,
             generator=generator,
         )
 
@@ -284,9 +290,9 @@ def run_fedleo_experiment(
     if not TORCH_AVAILABLE:
         raise ImportError("FedLEO 实验需要 PyTorch")
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"FedLEO 实验: {num_planes}轨面 × {sats_per_plane}星/面")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
     total_sats = num_planes * sats_per_plane
     t_start = _time.time()
 
@@ -432,28 +438,37 @@ def run_fedleo_experiment(
     }
 
     if verbose:
-        print(f"\nFedLEO 完成: "
-              f"最终准确率={final_acc:.4f} "
-              f"最高={peak_acc:.4f} "
-              f"总时延={total_delay:.0f}slots "
-              f"卸载={total_offloaded}样本 "
-              f"耗时={elapsed:.0f}s")
+        print(
+            f"\nFedLEO 完成: "
+            f"最终准确率={final_acc:.4f} "
+            f"最高={peak_acc:.4f} "
+            f"总时延={total_delay:.0f}slots "
+            f"卸载={total_offloaded}样本 "
+            f"耗时={elapsed:.0f}s"
+        )
 
     # 保存结果
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, f"fedleo_{'offload' if enable_offloading else 'no_offload'}.json")
+        output_path = os.path.join(
+            output_dir, f"fedleo_{'offload' if enable_offloading else 'no_offload'}.json"
+        )
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "config": result.config,
-                "history": result.history,
-                "final_accuracy": result.final_accuracy,
-                "peak_accuracy": result.peak_accuracy,
-                "total_delay_slots": result.total_delay_slots,
-                "total_offloaded": result.total_offloaded,
-                "elapsed_sec": result.elapsed_sec,
-                "extra": result.extra,
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {
+                    "config": result.config,
+                    "history": result.history,
+                    "final_accuracy": result.final_accuracy,
+                    "peak_accuracy": result.peak_accuracy,
+                    "total_delay_slots": result.total_delay_slots,
+                    "total_offloaded": result.total_offloaded,
+                    "elapsed_sec": result.elapsed_sec,
+                    "extra": result.extra,
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
         csv_path = os.path.join(
             output_dir,
             f"fedleo_{'offload' if enable_offloading else 'no_offload'}_history.csv",
@@ -514,12 +529,18 @@ def _run_baseline_fedavg(
 
     # 通信调度器
     from fl_space.fl.scheduler import CommunicationScheduler
+
     comm_scheduler = CommunicationScheduler(sim)
 
     # FedAvg 组件
     selector, trainer, aggregator, evaluator = create_fedavg_components(
-        fraction=0.5, min_clients=1, local_epochs=local_epochs,
-        batch_size=batch_size, learning_rate=learning_rate, device=device, seed=seed,
+        fraction=0.5,
+        min_clients=1,
+        local_epochs=local_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        device=device,
+        seed=seed,
     )
 
     # 配置
@@ -663,16 +684,16 @@ def run_fedleo_vs_baseline(
     """
     total_sats = num_planes * sats_per_plane
 
-    print(f"\n{'#'*60}")
+    print(f"\n{'#' * 60}")
     print("# FedLEO vs 基线 对比实验")
     print(f"# 配置: {num_planes}轨面 × {sats_per_plane}星 = {total_sats}星")
     print(f"# {num_rounds}轮 | {local_epochs} epoch/轮 | {dataset} | {device}")
-    print(f"{'#'*60}")
+    print(f"{'#' * 60}")
 
     # ── 1. FedLEO + 卸载 ──
-    print(f"\n{'─'*40}")
+    print(f"\n{'─' * 40}")
     print("实验 1/2: FedLEO + 数据卸载")
-    print(f"{'─'*40}")
+    print(f"{'─' * 40}")
     fedleo_result = run_fedleo_experiment(
         num_planes=num_planes,
         sats_per_plane=sats_per_plane,
@@ -705,9 +726,9 @@ def run_fedleo_vs_baseline(
     # ── 2. 基线 FedAvg ──
     baseline_result: ExperimentResult | None = None
     if run_baseline:
-        print(f"\n{'─'*40}")
+        print(f"\n{'─' * 40}")
         print("实验 2/2: 基线 FedAvg")
-        print(f"{'─'*40}")
+        print(f"{'─' * 40}")
         baseline_result = _run_baseline_fedavg(
             num_satellites=total_sats,
             num_ground_stations=num_ground_stations,
@@ -727,20 +748,26 @@ def run_fedleo_vs_baseline(
 
     # ── 对比 ──
     if run_baseline and baseline_result:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("对比结果")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"{'指标':<25} {'FedLEO':>12} {'基线':>12} {'增益':>12}")
-        print(f"{'-'*61}")
-        print(f"{'最终准确率':<25} {fedleo_result.final_accuracy:>12.4f} "
-              f"{baseline_result.final_accuracy:>12.4f} "
-              f"{fedleo_result.final_accuracy - baseline_result.final_accuracy:>+11.4f}")
-        print(f"{'最高准确率':<25} {fedleo_result.peak_accuracy:>12.4f} "
-              f"{baseline_result.peak_accuracy:>12.4f} "
-              f"{fedleo_result.peak_accuracy - baseline_result.peak_accuracy:>+11.4f}")
+        print(f"{'-' * 61}")
+        print(
+            f"{'最终准确率':<25} {fedleo_result.final_accuracy:>12.4f} "
+            f"{baseline_result.final_accuracy:>12.4f} "
+            f"{fedleo_result.final_accuracy - baseline_result.final_accuracy:>+11.4f}"
+        )
+        print(
+            f"{'最高准确率':<25} {fedleo_result.peak_accuracy:>12.4f} "
+            f"{baseline_result.peak_accuracy:>12.4f} "
+            f"{fedleo_result.peak_accuracy - baseline_result.peak_accuracy:>+11.4f}"
+        )
         print(f"{'总卸载样本':<25} {fedleo_result.total_offloaded:>12d} {'—':>12} {'—':>12}")
-        print(f"{'耗时':<25} {fedleo_result.elapsed_sec:>11.1f}s "
-              f"{baseline_result.elapsed_sec:>11.1f}s {'—':>12}")
+        print(
+            f"{'耗时':<25} {fedleo_result.elapsed_sec:>11.1f}s "
+            f"{baseline_result.elapsed_sec:>11.1f}s {'—':>12}"
+        )
 
     # 保存对比结果
     if output_dir:
@@ -832,6 +859,7 @@ def run_fedleo_vs_baseline(
 # 命令行入口
 # ═══════════════════════════════════════════════════════════════
 
+
 def parse_discrete_ratios(value: str | None) -> list[float] | None:
     """解析逗号分隔的卸载比例列表。"""
     if not value:
@@ -866,12 +894,18 @@ if __name__ == "__main__":
     parser.add_argument("--timeslot-sec", type=float, default=60.0, help="timeslot秒数")
     parser.add_argument("--ratios", default=None, help="离散卸载比例, 如 0,0.25,0.5,1")
     parser.add_argument("--delay-weight", type=float, default=1.0, help="时延改善权重")
-    parser.add_argument("--divergence-weight", type=float, default=0.5, help="数据均衡/散度代理权重")
+    parser.add_argument(
+        "--divergence-weight", type=float, default=0.5, help="数据均衡/散度代理权重"
+    )
     parser.add_argument("--comm-cost-weight", type=float, default=0.3, help="通信成本权重")
     parser.add_argument("--eval-every", type=int, default=1, help="每N轮评估一次")
     parser.add_argument("--classes-per-client", type=int, default=2, help="每类偏好客户端数")
-    parser.add_argument("--max-samples-per-client", type=int, default=1000, help="每客户端最大样本数")
-    parser.add_argument("--sample-imbalance", type=float, default=0.0, help="样本截断异构度[0,0.95]")
+    parser.add_argument(
+        "--max-samples-per-client", type=int, default=1000, help="每客户端最大样本数"
+    )
+    parser.add_argument(
+        "--sample-imbalance", type=float, default=0.0, help="样本截断异构度[0,0.95]"
+    )
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
     parser.add_argument("--output", "-o", default="fedleo_output", help="输出目录")
     parser.add_argument("--no-baseline", action="store_true", help="不跑基线对比")

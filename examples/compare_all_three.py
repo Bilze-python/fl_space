@@ -52,8 +52,10 @@ from fl_space.simulator import OrbitSimulator
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     HAS_MPL = True
 except ImportError:
     HAS_MPL = False
@@ -69,6 +71,7 @@ PAPER_GS = [
     ("Tromso", 69.65, 18.95),
 ]
 
+
 def create_gs_network(n: int) -> GroundStationNetwork:
     n = min(n, len(PAPER_GS))
     return GroundStationNetwork(
@@ -78,19 +81,27 @@ def create_gs_network(n: int) -> GroundStationNetwork:
 
 # ── 轨道 ──────────────────────────────────────────────────────
 
+
 def create_uniform_orbits(body, n_sats, altitude_km=500.0, inclination_deg=53.0):
     from fl_space.orbit import create_circular_orbit
+
     orbits = []
     for i in range(n_sats):
         ta = i * (360.0 / n_sats)
-        orbits.append(create_circular_orbit(
-            altitude_km=altitude_km, inclination_deg=inclination_deg,
-            raan_deg=0.0, true_anomaly_deg=ta, body=body,
-        ))
+        orbits.append(
+            create_circular_orbit(
+                altitude_km=altitude_km,
+                inclination_deg=inclination_deg,
+                raan_deg=0.0,
+                true_anomaly_deg=ta,
+                body=body,
+            )
+        )
     return orbits
 
 
 # ── 结果 ──────────────────────────────────────────────────────
+
 
 @dataclass
 class RunResult:
@@ -107,6 +118,7 @@ class RunResult:
 
 
 # ── FedAvg / FedProx 运行 ─────────────────────────────────────
+
 
 def run_sync_algo(
     *,
@@ -136,13 +148,18 @@ def run_sync_algo(
 
     if algorithm == "fedprox":
         trainer = ProximalTrainer(
-            local_epochs=local_epochs, batch_size=batch_size,
-            learning_rate=learning_rate, mu=mu, device=device,
+            local_epochs=local_epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            mu=mu,
+            device=device,
         )
     else:
         trainer = FixedEpochTrainer(
-            local_epochs=local_epochs, batch_size=batch_size,
-            learning_rate=learning_rate, device=device,
+            local_epochs=local_epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            device=device,
         )
 
     selector = CappedSelector(max_count=max_selected, min_clients=1, seed=seed)
@@ -150,14 +167,26 @@ def run_sync_algo(
     evaluator = StandardEvaluator(device=device)
 
     config = FLConfig(
-        algorithm=algorithm, num_rounds=num_rounds, num_clients=n_sats,
-        fraction=1.0, local_epochs=local_epochs, batch_size=batch_size,
-        learning_rate=learning_rate, mu=mu, device=device, seed=seed,
-        time_model="slot", time_model_kwargs={"slots_per_epoch": 1},
-        early_stop_acc=0.99, limit_to_sim_window=True,
-        partition_strategy="probability", class_probability=class_probability,
-        preference_mode="class_balanced", preferred_clients_per_class=1,
-        sample_cap_strategy="preserve", data_dir=data_dir,
+        algorithm=algorithm,
+        num_rounds=num_rounds,
+        num_clients=n_sats,
+        fraction=1.0,
+        local_epochs=local_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        mu=mu,
+        device=device,
+        seed=seed,
+        time_model="slot",
+        time_model_kwargs={"slots_per_epoch": 1},
+        early_stop_acc=0.99,
+        limit_to_sim_window=True,
+        partition_strategy="probability",
+        class_probability=class_probability,
+        preference_mode="class_balanced",
+        preferred_clients_per_class=1,
+        sample_cap_strategy="preserve",
+        data_dir=data_dir,
     )
 
     runner = FLRunner(config, selector, trainer, aggregator, evaluator, scheduler=scheduler)
@@ -166,32 +195,41 @@ def run_sync_algo(
         print(f"  [{name}] max_selected={max_selected}, mu={mu}")
 
     history = runner.run(
-        dataset_name=dataset, iid=False, alpha=0.5,
-        classes_per_client=2, max_samples_per_client=1000,
-        partition_strategy="probability", class_probability=class_probability,
-        preference_mode="class_balanced", preferred_clients_per_class=1,
-        sample_cap_strategy="preserve", data_dir=data_dir,
+        dataset_name=dataset,
+        iid=False,
+        alpha=0.5,
+        classes_per_client=2,
+        max_samples_per_client=1000,
+        partition_strategy="probability",
+        class_probability=class_probability,
+        preference_mode="class_balanced",
+        preferred_clients_per_class=1,
+        sample_cap_strategy="preserve",
+        data_dir=data_dir,
         verbose=False,
     )
 
-    history_dict = []
-    for h in history:
-        history_dict.append({
+    history_dict = [
+        {
             "round": h.round_num,
             "timeslot": getattr(h, "timeslot", h.round_num),
             "timeslot_start": getattr(h, "timeslot_start", None),
             "accuracy": h.eval_metrics.get("accuracy", 0),
             "loss": h.eval_metrics.get("loss", 0),
             "num_clients": getattr(h, "num_clients", None),
-        })
+        }
+        for h in history
+    ]
 
     elapsed = _time.time() - t0
     trained = [r for r in history_dict if r["round"] >= 0]
     accs = [r["accuracy"] for r in trained]
 
     result = RunResult(
-        name=name, algorithm=algorithm,
-        history=history_dict, elapsed_sec=elapsed,
+        name=name,
+        algorithm=algorithm,
+        history=history_dict,
+        elapsed_sec=elapsed,
         final_acc=accs[-1] if accs else 0,
         max_acc=max(accs) if accs else 0,
         final_timeslot=trained[-1]["timeslot"] if trained else 0,
@@ -200,13 +238,16 @@ def run_sync_algo(
     )
 
     if verbose:
-        print(f"  [{name}] {len(trained)} updates, max_acc={result.max_acc:.4f}, "
-              f"final_ts={result.final_timeslot}, {elapsed:.1f}s")
+        print(
+            f"  [{name}] {len(trained)} updates, max_acc={result.max_acc:.4f}, "
+            f"final_ts={result.final_timeslot}, {elapsed:.1f}s"
+        )
 
     return result
 
 
 # ── FedBuff 运行 ──────────────────────────────────────────────
+
 
 def run_fedbuff(
     *,
@@ -230,48 +271,69 @@ def run_fedbuff(
     t0 = _time.time()
 
     n_sats = sim.num_satellites
-    n_gs = sim.num_ground_stations
 
     scheduler = CommunicationScheduler(sim)
     trainer = AsyncTrainer(
-        local_epochs=local_epochs, batch_size=batch_size,
-        learning_rate=learning_rate, device=device,
+        local_epochs=local_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        device=device,
     )
     selector = AsyncSelector(min_clients=1)
     aggregator = BufferAggregator(
-        buffer_size=buffer_size, staleness_weight=staleness_weight,
+        buffer_size=buffer_size,
+        staleness_weight=staleness_weight,
         server_learning_rate=server_learning_rate,
     )
     evaluator = StandardEvaluator(device=device)
 
     config = FLConfig(
-        algorithm="fedbuff", num_rounds=num_rounds, num_clients=n_sats,
+        algorithm="fedbuff",
+        num_rounds=num_rounds,
+        num_clients=n_sats,
         timeslots_per_round=10,  # sufficient for async window
-        fraction=1.0, local_epochs=local_epochs, batch_size=batch_size,
-        learning_rate=learning_rate, buffer_size=buffer_size,
+        fraction=1.0,
+        local_epochs=local_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        buffer_size=buffer_size,
         staleness_weight=staleness_weight,
         server_learning_rate=server_learning_rate,
         async_eval_every=async_eval_every,
-        device=device, seed=seed,
-        time_model="slot", time_model_kwargs={"slots_per_epoch": 1},
-        early_stop_acc=0.99, limit_to_sim_window=True,
-        partition_strategy="probability", class_probability=class_probability,
-        preference_mode="class_balanced", preferred_clients_per_class=1,
-        sample_cap_strategy="preserve", data_dir=data_dir,
+        device=device,
+        seed=seed,
+        time_model="slot",
+        time_model_kwargs={"slots_per_epoch": 1},
+        early_stop_acc=0.99,
+        limit_to_sim_window=True,
+        partition_strategy="probability",
+        class_probability=class_probability,
+        preference_mode="class_balanced",
+        preferred_clients_per_class=1,
+        sample_cap_strategy="preserve",
+        data_dir=data_dir,
     )
 
     runner = FLRunner(config, selector, trainer, aggregator, evaluator, scheduler=scheduler)
 
     if verbose:
-        print(f"  [FedBuff] buffer_size={buffer_size}, staleness_weight={staleness_weight}, "
-              f"server_lr={server_learning_rate}")
+        print(
+            f"  [FedBuff] buffer_size={buffer_size}, staleness_weight={staleness_weight}, "
+            f"server_lr={server_learning_rate}"
+        )
 
     history = runner.run(
-        dataset_name=dataset, iid=False, alpha=0.5,
-        classes_per_client=2, max_samples_per_client=1000,
-        partition_strategy="probability", class_probability=class_probability,
-        preference_mode="class_balanced", preferred_clients_per_class=1,
-        sample_cap_strategy="preserve", data_dir=data_dir,
+        dataset_name=dataset,
+        iid=False,
+        alpha=0.5,
+        classes_per_client=2,
+        max_samples_per_client=1000,
+        partition_strategy="probability",
+        class_probability=class_probability,
+        preference_mode="class_balanced",
+        preferred_clients_per_class=1,
+        sample_cap_strategy="preserve",
+        data_dir=data_dir,
         verbose=False,
     )
 
@@ -281,16 +343,18 @@ def run_fedbuff(
 
     for h in history:
         extra = getattr(h, "extra", {}) or {}
-        history_dict.append({
-            "round": h.round_num,
-            "timeslot": getattr(h, "timeslot", h.round_num),
-            "accuracy": h.eval_metrics.get("accuracy", 0) if h.eval_metrics else None,
-            "loss": h.eval_metrics.get("loss", 0) if h.eval_metrics else None,
-            "num_clients": getattr(h, "num_clients", None),
-            "staleness": extra.get("staleness", []),
-            "mean_staleness": extra.get("mean_staleness", 0.0),
-            "total_arrivals": extra.get("total_arrivals", 0),
-        })
+        history_dict.append(
+            {
+                "round": h.round_num,
+                "timeslot": getattr(h, "timeslot", h.round_num),
+                "accuracy": h.eval_metrics.get("accuracy", 0) if h.eval_metrics else None,
+                "loss": h.eval_metrics.get("loss", 0) if h.eval_metrics else None,
+                "num_clients": getattr(h, "num_clients", None),
+                "staleness": extra.get("staleness", []),
+                "mean_staleness": extra.get("mean_staleness", 0.0),
+                "total_arrivals": extra.get("total_arrivals", 0),
+            }
+        )
         if extra.get("staleness"):
             stalenesses.extend(extra["staleness"])
         if extra.get("total_arrivals"):
@@ -301,8 +365,10 @@ def run_fedbuff(
     valid_accs = [r["accuracy"] for r in trained if r["accuracy"] is not None]
 
     result = RunResult(
-        name="FedBuff", algorithm="fedbuff",
-        history=history_dict, elapsed_sec=elapsed,
+        name="FedBuff",
+        algorithm="fedbuff",
+        history=history_dict,
+        elapsed_sec=elapsed,
         final_acc=valid_accs[-1] if valid_accs else 0,
         max_acc=max(valid_accs) if valid_accs else 0,
         final_timeslot=trained[-1]["timeslot"] if trained else 0,
@@ -312,14 +378,17 @@ def run_fedbuff(
     )
 
     if verbose:
-        print(f"  [FedBuff] {len(trained)} updates, max_acc={result.max_acc:.4f}, "
-              f"final_ts={result.final_timeslot}, staleness_mean={result.mean_staleness:.2f}, "
-              f"{elapsed:.1f}s")
+        print(
+            f"  [FedBuff] {len(trained)} updates, max_acc={result.max_acc:.4f}, "
+            f"final_ts={result.final_timeslot}, staleness_mean={result.mean_staleness:.2f}, "
+            f"{elapsed:.1f}s"
+        )
 
     return result
 
 
 # ── 可视化 ─────────────────────────────────────────────────────
+
 
 def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     if not HAS_MPL:
@@ -338,8 +407,14 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
             continue
         x = list(range(1, len(trained) + 1))
         y = [d["accuracy"] for d in trained]
-        ax1.plot(x, y, color=colors.get(r.name, "#95a5a6"), linewidth=1.5,
-                 label=f"{r.name} (max={r.max_acc:.3f})", alpha=0.9)
+        ax1.plot(
+            x,
+            y,
+            color=colors.get(r.name, "#95a5a6"),
+            linewidth=1.5,
+            label=f"{r.name} (max={r.max_acc:.3f})",
+            alpha=0.9,
+        )
 
     ax1.set_xlabel("Server Update")
     ax1.set_ylabel("Accuracy")
@@ -355,8 +430,14 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
             continue
         x = [d["timeslot"] for d in trained]
         y = [d["accuracy"] for d in trained]
-        ax2.plot(x, y, color=colors.get(r.name, "#95a5a6"), linewidth=1.5,
-                 label=f"{r.name} (ts={r.final_timeslot})", alpha=0.9)
+        ax2.plot(
+            x,
+            y,
+            color=colors.get(r.name, "#95a5a6"),
+            linewidth=1.5,
+            label=f"{r.name} (ts={r.final_timeslot})",
+            alpha=0.9,
+        )
 
     ax2.set_xlabel("Simulated Timeslot")
     ax2.set_ylabel("Accuracy")
@@ -393,7 +474,9 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     axes[1].grid(axis="y", alpha=0.3)
 
     # Right: Client updates
-    axes[2].bar(names, [r.total_client_updates for r in results], color=bar_colors, edgecolor="white")
+    axes[2].bar(
+        names, [r.total_client_updates for r in results], color=bar_colors, edgecolor="white"
+    )
     for i, v in enumerate([r.total_client_updates for r in results]):
         axes[2].text(i, v + 1, str(v), ha="center", fontsize=9, fontweight="bold")
     axes[2].set_ylabel("Total Client Updates")
@@ -409,6 +492,7 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
 
 
 # ── 主流程 ─────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(description="SpaceFL 三算法对比实验")
@@ -435,8 +519,9 @@ def main():
     parser.add_argument("--skip-fedavg", action="store_true", help="跳过 FedAvg")
     parser.add_argument("--skip-fedprox", action="store_true", help="跳过 FedProx")
     parser.add_argument("--skip-fedbuff", action="store_true", help="跳过 FedBuff")
-    parser.add_argument("--async-eval-every", type=int, default=2,
-                        help="FedBuff 每 N 次聚合评估一次")
+    parser.add_argument(
+        "--async-eval-every", type=int, default=2, help="FedBuff 每 N 次聚合评估一次"
+    )
     args = parser.parse_args()
 
     quiet = args.quiet
@@ -448,8 +533,10 @@ def main():
         print(f"  地面站: {args.gs}  |  卫星: {args.sats}  |  轮次: {args.rounds}")
         print(f"  数据集: {args.dataset} (non-IID, probability+class_balanced)")
         print(f"  模拟:   {args.sim_hours}h  |  设备: {args.device}")
-        print(f"  FedProx μ={args.mu}  |  FedBuff K={args.buffer_size}, "
-              f"server_lr={args.server_lr}, staleness={args.staleness_weight}")
+        print(
+            f"  FedProx μ={args.mu}  |  FedBuff K={args.buffer_size}, "
+            f"server_lr={args.server_lr}, staleness={args.staleness_weight}"
+        )
         print("=" * 70)
 
     # ── 创建共享 OrbitSimulator ──
@@ -459,9 +546,14 @@ def main():
     num_timeslots = int(args.sim_hours * 60 / 1.0)
 
     sim = OrbitSimulator(
-        body=body, orbits=orbits, ground_station_network=gs_network,
-        num_timeslots=num_timeslots, timeslot_duration_min=1.0,
-        backend="kepler", contact_mode="simple", verbose=False,
+        body=body,
+        orbits=orbits,
+        ground_station_network=gs_network,
+        num_timeslots=num_timeslots,
+        timeslot_duration_min=1.0,
+        backend="kepler",
+        contact_mode="simple",
+        verbose=False,
     )
 
     if not quiet:
@@ -469,13 +561,19 @@ def main():
 
     results: list[RunResult] = []
 
-    common_kwargs = dict(
-        sim=sim, num_rounds=args.rounds, local_epochs=args.local_epochs,
-        batch_size=args.batch_size, learning_rate=args.lr,
-        device=args.device, seed=args.seed, dataset=args.dataset,
-        class_probability=0.8, data_dir=args.data_dir,
-        verbose=not quiet,
-    )
+    common_kwargs = {
+        "sim": sim,
+        "num_rounds": args.rounds,
+        "local_epochs": args.local_epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "device": args.device,
+        "seed": args.seed,
+        "dataset": args.dataset,
+        "class_probability": 0.8,
+        "data_dir": args.data_dir,
+        "verbose": not quiet,
+    }
 
     # ── FedAvg ──
     if not args.skip_fedavg:
@@ -496,12 +594,19 @@ def main():
         if not quiet:
             print(f"\n{'─' * 50}\n  [3] FedBuff (K={args.buffer_size})\n{'─' * 50}")
         r_buff = run_fedbuff(
-            sim=sim, num_rounds=args.rounds, local_epochs=args.local_epochs,
-            batch_size=args.batch_size, learning_rate=args.lr,
-            buffer_size=args.buffer_size, staleness_weight=args.staleness_weight,
+            sim=sim,
+            num_rounds=args.rounds,
+            local_epochs=args.local_epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.lr,
+            buffer_size=args.buffer_size,
+            staleness_weight=args.staleness_weight,
             server_learning_rate=args.server_lr,
-            device=args.device, seed=args.seed, dataset=args.dataset,
-            class_probability=0.8, data_dir=args.data_dir,
+            device=args.device,
+            seed=args.seed,
+            dataset=args.dataset,
+            class_probability=0.8,
+            data_dir=args.data_dir,
             async_eval_every=args.async_eval_every,
             verbose=not quiet,
         )
@@ -517,28 +622,38 @@ def main():
 
     summary = {
         "config": {
-            "gs_count": args.gs, "sat_count": args.sats,
-            "num_rounds": args.rounds, "local_epochs": args.local_epochs,
-            "batch_size": args.batch_size, "learning_rate": args.lr,
-            "fedprox_mu": args.mu, "fedbuff_K": args.buffer_size,
-            "server_lr": args.server_lr, "staleness_weight": args.staleness_weight,
-            "sim_hours": args.sim_hours, "device": args.device, "seed": args.seed,
+            "gs_count": args.gs,
+            "sat_count": args.sats,
+            "num_rounds": args.rounds,
+            "local_epochs": args.local_epochs,
+            "batch_size": args.batch_size,
+            "learning_rate": args.lr,
+            "fedprox_mu": args.mu,
+            "fedbuff_K": args.buffer_size,
+            "server_lr": args.server_lr,
+            "staleness_weight": args.staleness_weight,
+            "sim_hours": args.sim_hours,
+            "device": args.device,
+            "seed": args.seed,
         },
         "contact_rate": sim.stats.get("contact_rate", 0),
         "results": [],
     }
 
     for r in results:
-        summary["results"].append({
-            "name": r.name, "algorithm": r.algorithm,
-            "max_acc": round(r.max_acc, 4),
-            "final_acc": round(r.final_acc, 4),
-            "final_timeslot": r.final_timeslot,
-            "server_updates": r.total_server_updates,
-            "client_updates": r.total_client_updates,
-            "mean_staleness": round(r.mean_staleness, 4),
-            "elapsed_sec": round(r.elapsed_sec, 1),
-        })
+        summary["results"].append(
+            {
+                "name": r.name,
+                "algorithm": r.algorithm,
+                "max_acc": round(r.max_acc, 4),
+                "final_acc": round(r.final_acc, 4),
+                "final_timeslot": r.final_timeslot,
+                "server_updates": r.total_server_updates,
+                "client_updates": r.total_client_updates,
+                "mean_staleness": round(r.mean_staleness, 4),
+                "elapsed_sec": round(r.elapsed_sec, 1),
+            }
+        )
 
     with open(os.path.join(args.output, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
@@ -556,8 +671,10 @@ def main():
         print(f"  {'─' * 62}")
         for r in results:
             staleness_str = f"{r.mean_staleness:.2f}" if r.algorithm == "fedbuff" else "—"
-            print(f"  {r.name:<12} {r.max_acc:>8.4f} {r.final_acc:>8.4f} "
-                  f"{r.final_timeslot:>8} {r.total_client_updates:>10} {staleness_str:>8}")
+            print(
+                f"  {r.name:<12} {r.max_acc:>8.4f} {r.final_acc:>8.4f} "
+                f"{r.final_timeslot:>8} {r.total_client_updates:>10} {staleness_str:>8}"
+            )
 
         # 时隙效率对比
         if len(results) >= 2:
@@ -567,8 +684,10 @@ def main():
                 avg_sync_ts = np.mean([r.final_timeslot for r in sync_results])
                 buff_ts = buff_results[0].final_timeslot
                 speedup = avg_sync_ts / max(buff_ts, 1)
-                print(f"\n  时隙效率: FedBuff 用时隙 {buff_ts} vs 同步平均 {avg_sync_ts:.0f} "
-                      f"({speedup:.1f}× 更快)")
+                print(
+                    f"\n  时隙效率: FedBuff 用时隙 {buff_ts} vs 同步平均 {avg_sync_ts:.0f} "
+                    f"({speedup:.1f}× 更快)"
+                )
 
         print(f"\n  输出: {os.path.abspath(args.output)}/")
         print(f"{'=' * 70}")

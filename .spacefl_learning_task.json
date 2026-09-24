@@ -1,0 +1,296 @@
+{
+  "schema_version": "learning_task_v1",
+  "revision": "8d036fadb0a21fff",
+  "updated_at": "2026-09-16T10:44:38.925680+00:00",
+  "task": {
+    "name": "Starlink 光链路联邦学习初评",
+    "dataset": {
+      "name": "earth-observation-demo",
+      "data_type": "image",
+      "distribution": "non_iid_label_skew",
+      "sample_count": 30000,
+      "size_mb": 512.0,
+      "shard_count": 3,
+      "metadata": {}
+    },
+    "model": {
+      "name": "tiny-resnet",
+      "task_kind": "classification",
+      "framework": "pytorch",
+      "parameter_count": 250000,
+      "model_size_mb": 2.0,
+      "update_size_mb": 2.0,
+      "metadata": {}
+    },
+    "nodes": [
+      {
+        "node_id": "sat-1",
+        "satellite": {
+          "name": "research-satellite-1",
+          "dry_mass_kg": 260.0,
+          "propellant_mass_kg": 0.0,
+          "power_w": 240.0,
+          "drag_coefficient": 2.2,
+          "cross_section_area_m2": 0.85,
+          "storage_gb": 64.0,
+          "body_dimensions_m": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "stowed_dimensions_m": null,
+          "power_system": null,
+          "communication_system": {
+            "name": "starlink_public_optical_isl",
+            "link_kind": "inter_satellite",
+            "band": "optical",
+            "frequency_hz": 193500000000000.0,
+            "channel_bandwidth_mhz": 0.0,
+            "transmit_power_w": 1.0,
+            "transmit_antenna_gain_dbi": 0.0,
+            "receive_antenna_gain_dbi": 0.0,
+            "ground_station_gain_dbi": 30.0,
+            "downlink_rate_mbps": 25000.0,
+            "uplink_rate_mbps": 25000.0,
+            "inter_satellite_link": true,
+            "isl_rate_mbps": 25000.0,
+            "max_simultaneous_links": 1,
+            "terminal_count": 1,
+            "max_range_km": 4000.0,
+            "acquisition_time_s": 0.0,
+            "pointing_accuracy_deg": 0.0,
+            "weather_sensitive": false,
+            "mass_kg": 0.0,
+            "power_w": 0.0,
+            "source": "public_report_assumption"
+          },
+          "attitude_control_system": null,
+          "propulsion_system": null,
+          "visual": {
+            "primitive": "custom_mesh",
+            "dimensions_m": [
+              1.2,
+              1.0,
+              0.8
+            ],
+            "asset_uri": "assets/satellite-research.glb",
+            "color_hex": "#4f93b1",
+            "scale": 1.0
+          },
+          "assumptions": [
+            "Starlink 光链路参数来自公开资料候选值，仅用于初步仿真"
+          ],
+          "metadata": {}
+        },
+        "orbit": {
+          "semi_major_axis_km": 6928.137,
+          "eccentricity": 0.0,
+          "inclination_deg": 53.0,
+          "raan_deg": 0.0,
+          "arg_perigee_deg": 0.0,
+          "anomaly_deg": 0.0,
+          "anomaly_kind": "true",
+          "epoch_utc": null
+        },
+        "role": "client"
+      },
+      {
+        "node_id": "sat-2",
+        "satellite": {
+          "name": "research-satellite-2",
+          "dry_mass_kg": 260.0,
+          "propellant_mass_kg": 0.0,
+          "power_w": 240.0,
+          "drag_coefficient": 2.2,
+          "cross_section_area_m2": 0.85,
+          "storage_gb": 64.0,
+          "body_dimensions_m": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "stowed_dimensions_m": null,
+          "power_system": null,
+          "communication_system": {
+            "name": "starlink_public_optical_isl",
+            "link_kind": "inter_satellite",
+            "band": "optical",
+            "frequency_hz": 193500000000000.0,
+            "channel_bandwidth_mhz": 0.0,
+            "transmit_power_w": 1.0,
+            "transmit_antenna_gain_dbi": 0.0,
+            "receive_antenna_gain_dbi": 0.0,
+            "ground_station_gain_dbi": 30.0,
+            "downlink_rate_mbps": 25000.0,
+            "uplink_rate_mbps": 25000.0,
+            "inter_satellite_link": true,
+            "isl_rate_mbps": 25000.0,
+            "max_simultaneous_links": 1,
+            "terminal_count": 1,
+            "max_range_km": 4000.0,
+            "acquisition_time_s": 0.0,
+            "pointing_accuracy_deg": 0.0,
+            "weather_sensitive": false,
+            "mass_kg": 0.0,
+            "power_w": 0.0,
+            "source": "public_report_assumption"
+          },
+          "attitude_control_system": null,
+          "propulsion_system": null,
+          "visual": {
+            "primitive": "custom_mesh",
+            "dimensions_m": [
+              1.2,
+              1.0,
+              0.8
+            ],
+            "asset_uri": "assets/satellite-research.glb",
+            "color_hex": "#4f93b1",
+            "scale": 1.0
+          },
+          "assumptions": [
+            "Starlink 光链路参数来自公开资料候选值，仅用于初步仿真"
+          ],
+          "metadata": {}
+        },
+        "orbit": {
+          "semi_major_axis_km": 6928.137,
+          "eccentricity": 0.0,
+          "inclination_deg": 53.0,
+          "raan_deg": 30.0,
+          "arg_perigee_deg": 0.0,
+          "anomaly_deg": 120.0,
+          "anomaly_kind": "true",
+          "epoch_utc": null
+        },
+        "role": "client"
+      },
+      {
+        "node_id": "sat-3",
+        "satellite": {
+          "name": "research-satellite-3",
+          "dry_mass_kg": 260.0,
+          "propellant_mass_kg": 0.0,
+          "power_w": 240.0,
+          "drag_coefficient": 2.2,
+          "cross_section_area_m2": 0.85,
+          "storage_gb": 64.0,
+          "body_dimensions_m": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "stowed_dimensions_m": null,
+          "power_system": null,
+          "communication_system": {
+            "name": "starlink_public_optical_isl",
+            "link_kind": "inter_satellite",
+            "band": "optical",
+            "frequency_hz": 193500000000000.0,
+            "channel_bandwidth_mhz": 0.0,
+            "transmit_power_w": 1.0,
+            "transmit_antenna_gain_dbi": 0.0,
+            "receive_antenna_gain_dbi": 0.0,
+            "ground_station_gain_dbi": 30.0,
+            "downlink_rate_mbps": 25000.0,
+            "uplink_rate_mbps": 25000.0,
+            "inter_satellite_link": true,
+            "isl_rate_mbps": 25000.0,
+            "max_simultaneous_links": 1,
+            "terminal_count": 1,
+            "max_range_km": 4000.0,
+            "acquisition_time_s": 0.0,
+            "pointing_accuracy_deg": 0.0,
+            "weather_sensitive": false,
+            "mass_kg": 0.0,
+            "power_w": 0.0,
+            "source": "public_report_assumption"
+          },
+          "attitude_control_system": null,
+          "propulsion_system": null,
+          "visual": {
+            "primitive": "custom_mesh",
+            "dimensions_m": [
+              1.2,
+              1.0,
+              0.8
+            ],
+            "asset_uri": "assets/satellite-research.glb",
+            "color_hex": "#4f93b1",
+            "scale": 1.0
+          },
+          "assumptions": [
+            "Starlink 光链路参数来自公开资料候选值，仅用于初步仿真"
+          ],
+          "metadata": {}
+        },
+        "orbit": {
+          "semi_major_axis_km": 6928.137,
+          "eccentricity": 0.0,
+          "inclination_deg": 53.0,
+          "raan_deg": 60.0,
+          "arg_perigee_deg": 0.0,
+          "anomaly_deg": 240.0,
+          "anomaly_kind": "true",
+          "epoch_utc": null
+        },
+        "role": "client"
+      }
+    ],
+    "infrastructure": {
+      "ground_stations": [
+        {
+          "name": "Beijing",
+          "latitude_deg": 39.9,
+          "longitude_deg": 116.4,
+          "min_elevation_deg": 10.0,
+          "role": "aggregator"
+        },
+        {
+          "name": "California",
+          "latitude_deg": 37.8,
+          "longitude_deg": -122.4,
+          "min_elevation_deg": 10.0,
+          "role": "aggregator"
+        }
+      ],
+      "links": [
+        {
+          "name": "s-band-ground-link",
+          "link_kind": "space_to_ground",
+          "band": "S",
+          "frequency_hz": 2200000000.0,
+          "bandwidth_mhz": 5.0,
+          "data_rate_mbps": 10.0,
+          "max_range_km": 2000.0,
+          "source": "simulation_assumption"
+        },
+        {
+          "name": "starlink-optical-isl",
+          "link_kind": "inter_satellite",
+          "band": "optical",
+          "frequency_hz": 193500000000000.0,
+          "bandwidth_mhz": 0.0,
+          "data_rate_mbps": 25000.0,
+          "max_range_km": 4000.0,
+          "source": "public_report_assumption"
+        }
+      ]
+    },
+    "scheduler": {
+      "policy": "contact_aware",
+      "round_duration_s": 600.0,
+      "participant_fraction": 0.67,
+      "max_clients_per_round": 2,
+      "metadata": {}
+    },
+    "assumptions": [
+      "二体轨道六根数用于初始几何预览，未包含摄动",
+      "公开光链路数据不是 SpaceX 官方持续吞吐规格"
+    ],
+    "metadata": {
+      "source": "local_default",
+      "schema": "learning_task_v1"
+    }
+  }
+}

@@ -17,7 +17,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import math
-from typing import Any
+from typing import Any, ClassVar
 
 # ── 时间分解数据结构 ──────────────────────────────────────────
 
@@ -48,6 +48,7 @@ class TimeBreakdown:
     per_satellite : dict[int, dict]
         每个卫星的细分耗时。
     """
+
     wait_distribution: int = 0
     download: int = 0
     train: int = 0
@@ -85,9 +86,7 @@ class TimeBreakdown:
             "upload": self.upload,
             "aggregation": self.aggregation,
             "total": self.total,
-            "per_satellite": {
-                str(k): v for k, v in self.per_satellite.items()
-            },
+            "per_satellite": {str(k): v for k, v in self.per_satellite.items()},
         }
 
 
@@ -216,7 +215,7 @@ class TimeModel(ABC):
 
     # ── 工厂方法 ──────────────────────────────────────────
 
-    _BUILTIN: dict[str, type[TimeModel]] = {}
+    _BUILTIN: ClassVar[dict[str, type[TimeModel]]] = {}
 
     @classmethod
     def register(cls, name: str, model_cls: type[TimeModel]) -> None:
@@ -259,11 +258,8 @@ class TimeModel(ABC):
             return cls._import_from_file(spec, **kwargs)
 
         # 3. 未知
-        available = list(cls._BUILTIN.keys()) + ["<path/to/file.py:ClassName>"]
-        raise ValueError(
-            f"未知时间模型: '{spec}'。"
-            f"可用: {available}"
-        )
+        available = [*list(cls._BUILTIN.keys()), "<path/to/file.py:ClassName>"]
+        raise ValueError(f"未知时间模型: '{spec}'。可用: {available}")
 
     @classmethod
     def _import_from_file(cls, spec: str, **kwargs: Any) -> TimeModel:
@@ -298,20 +294,14 @@ class TimeModel(ABC):
         # 查找 TimeModel 子类
         if class_name:
             if not hasattr(module, class_name):
-                raise ValueError(
-                    f"模块 {filepath} 中未找到类 '{class_name}'"
-                )
+                raise ValueError(f"模块 {filepath} 中未找到类 '{class_name}'")
             candidate = getattr(module, class_name)
         else:
             # 自动查找第一个 TimeModel 子类
             candidates = []
             for attr_name in dir(module):
                 obj = getattr(module, attr_name)
-                if (
-                    isinstance(obj, type)
-                    and issubclass(obj, TimeModel)
-                    and obj is not TimeModel
-                ):
+                if isinstance(obj, type) and issubclass(obj, TimeModel) and obj is not TimeModel:
                     candidates.append(obj)
             if not candidates:
                 raise ValueError(
@@ -487,9 +477,7 @@ class PhysicsTimeModel(TimeModel):
         """
         if self.compute_gflops <= 0:
             return 0
-        flops_per_sample_total = self.flops_per_sample_forward * (
-            1.0 + self._backward_multiplier
-        )
+        flops_per_sample_total = self.flops_per_sample_forward * (1.0 + self._backward_multiplier)
         total_flops = num_samples * num_epochs * flops_per_sample_total
         train_seconds = total_flops / (self.compute_gflops * 1e9)
         return self._seconds_to_slots(train_seconds)

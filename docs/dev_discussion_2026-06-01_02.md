@@ -141,10 +141,12 @@ config = FLConfig(
     time_model_kwargs={"compute_gflops": 10, "uplink_mbps": 1},
 )
 
+
 # 方式3：自定义实现
 class MyTimeModel(TimeModel):
     def compute_train_slots(self, client_id, num_samples, num_epochs, **kwargs):
         return num_epochs * 2  # 每个 epoch 固定 2 slots
+
     # ... 实现其他方法
 ```
 
@@ -182,22 +184,24 @@ class MyTimeModel(TimeModel):
 # my_time_model.py
 from fl_space.fl.time_model import TimeModel
 
+
 class CustomTimeModel(TimeModel):
     @property
-    def name(self): return "custom"
-    
+    def name(self):
+        return "custom"
+
     def compute_train_slots(self, client_id, num_samples, num_epochs, **kwargs):
         # 你的训练时间计算逻辑
         return ...
-    
+
     def compute_download_slots(self, model_size_bytes, **kwargs):
         # 你的下载时间计算逻辑
         return ...
-    
+
     def compute_upload_slots(self, model_size_bytes, **kwargs):
         # 你的上传时间计算逻辑
         return ...
-    
+
     def get_config_dict(self):
         return {"type": "custom"}
 ```

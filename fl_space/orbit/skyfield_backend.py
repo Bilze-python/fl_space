@@ -32,6 +32,7 @@ try:
     from skyfield.positionlib import ICRF, Geocentric  # noqa: F401
     from skyfield.timelib import Time  # noqa: F401
     from skyfield.toposlib import GeographicPosition
+
     SKYFIELD_AVAILABLE = True
 except ImportError:
     SKYFIELD_AVAILABLE = False
@@ -56,21 +57,27 @@ class SkyfieldProvider:
 
     _instance: Optional["SkyfieldProvider"] = None
 
-    def __init__(self):
+    def __init__(self, load_ephemeris: bool = False):
         if not SKYFIELD_AVAILABLE:
-            raise ImportError(
-                "Skyfield is not installed. Run: pip install skyfield"
-            )
-        self._ts = load.timescale()
-        # 加载 JPL DE421 星历（含太阳、行星、月球）
-        self._planets = load('de421.bsp')
+            raise ImportError("Skyfield is not installed. Run: pip install skyfield")
+        # Built-in delta-T tables keep ordinary SGP4 propagation offline.
+        self._ts = load.timescale(builtin=True)
+        self._planets = None
         self._loaded_body_params = self._extract_body_parameters()
+        if load_ephemeris:
+            self.load_ephemeris()
 
     @classmethod
-    def get_instance(cls) -> "SkyfieldProvider":
+    def get_instance(cls, load_ephemeris: bool = False) -> "SkyfieldProvider":
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = cls(load_ephemeris=load_ephemeris)
+        elif load_ephemeris and cls._instance._planets is None:
+            cls._instance.load_ephemeris()
         return cls._instance
+
+    def load_ephemeris(self) -> None:
+        """Load the optional local/network JPL DE421 ephemeris explicitly."""
+        self._planets = load("de421.bsp")
 
     @property
     def timescale(self) -> "Timescale":
@@ -78,6 +85,10 @@ class SkyfieldProvider:
 
     @property
     def bodies(self):
+        if self._planets is None:
+            raise RuntimeError(
+                "JPL DE421未加载；调用 SkyfieldProvider.get_instance(load_ephemeris=True)"
+            )
         return self._planets
 
     def _extract_body_parameters(self) -> dict[str, dict]:
@@ -88,47 +99,47 @@ class SkyfieldProvider:
         """
         # 基于已知精确值（来自 NASA 资料）补充 Skyfield 的星历
         return {
-            'earth': {
-                'radius_km': 6371.0084,
-                'GM': 398600.435507,
-                'rotation_period_hours': 23.9344696,  # 恒星日
-                'flattening': 1.0 / 298.25642,
-                'atmosphere_height_km': 100.0,
+            "earth": {
+                "radius_km": 6371.0084,
+                "GM": 398600.435507,
+                "rotation_period_hours": 23.9344696,  # 恒星日
+                "flattening": 1.0 / 298.25642,
+                "atmosphere_height_km": 100.0,
             },
-            'mars': {
-                'radius_km': 3389.50,
-                'GM': 42828.375214,
-                'rotation_period_hours': 24.622962,
-                'flattening': 1.0 / 169.8,
-                'atmosphere_height_km': 80.0,
+            "mars": {
+                "radius_km": 3389.50,
+                "GM": 42828.375214,
+                "rotation_period_hours": 24.622962,
+                "flattening": 1.0 / 169.8,
+                "atmosphere_height_km": 80.0,
             },
-            'moon': {
-                'radius_km': 1737.4,
-                'GM': 4902.800066,
-                'rotation_period_hours': 655.728,
-                'flattening': 0.0,
-                'atmosphere_height_km': 0.0,
+            "moon": {
+                "radius_km": 1737.4,
+                "GM": 4902.800066,
+                "rotation_period_hours": 655.728,
+                "flattening": 0.0,
+                "atmosphere_height_km": 0.0,
             },
-            'jupiter': {
-                'radius_km': 69911.0,
-                'GM': 126686534.0,
-                'rotation_period_hours': 9.925,
-                'flattening': 0.06487,
-                'atmosphere_height_km': 5000.0,
+            "jupiter": {
+                "radius_km": 69911.0,
+                "GM": 126686534.0,
+                "rotation_period_hours": 9.925,
+                "flattening": 0.06487,
+                "atmosphere_height_km": 5000.0,
             },
-            'saturn': {
-                'radius_km': 58232.0,
-                'GM': 37931187.0,
-                'rotation_period_hours': 10.656,
-                'flattening': 0.09796,
-                'atmosphere_height_km': 3000.0,
+            "saturn": {
+                "radius_km": 58232.0,
+                "GM": 37931187.0,
+                "rotation_period_hours": 10.656,
+                "flattening": 0.09796,
+                "atmosphere_height_km": 3000.0,
             },
-            'venus': {
-                'radius_km': 6051.8,
-                'GM': 324859.0,
-                'rotation_period_hours': -5832.5,  # 逆行
-                'flattening': 0.0,
-                'atmosphere_height_km': 250.0,
+            "venus": {
+                "radius_km": 6051.8,
+                "GM": 324859.0,
+                "rotation_period_hours": -5832.5,  # 逆行
+                "flattening": 0.0,
+                "atmosphere_height_km": 250.0,
             },
         }
 
@@ -150,17 +161,17 @@ class SkyfieldProvider:
         Skyfield 天体对象 或 None
         """
         name_map = {
-            'earth': 'earth',
-            'mars': 'mars barycenter',
-            'moon': 'moon',
-            'sun': 'sun',
-            'jupiter': 'jupiter barycenter',
-            'saturn': 'saturn barycenter',
-            'venus': 'venus barycenter',
-            'mercury': 'mercury barycenter',
+            "earth": "earth",
+            "mars": "mars barycenter",
+            "moon": "moon",
+            "sun": "sun",
+            "jupiter": "jupiter barycenter",
+            "saturn": "saturn barycenter",
+            "venus": "venus barycenter",
+            "mercury": "mercury barycenter",
         }
         sf_name = name_map.get(name.lower())
-        if sf_name and sf_name in self._planets:
+        if self._planets is not None and sf_name and sf_name in self._planets:
             return self._planets[sf_name]
         return None
 
@@ -168,6 +179,7 @@ class SkyfieldProvider:
 # ============================================================
 # SGP4 卫星包装器
 # ============================================================
+
 
 class _SGP4Satellite:
     """
@@ -188,9 +200,15 @@ class _SGP4Satellite:
         self.satrec = satrec
         self.name = name
 
-    def propagate(self, year: int, month: int, day: int,
-                  hour: float = 0.0, minute: float = 0.0,
-                  second: float = 0.0):
+    def propagate(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        hour: float = 0.0,
+        minute: float = 0.0,
+        second: float = 0.0,
+    ):
         """
         传播到指定 UTC 时刻。
 
@@ -199,8 +217,8 @@ class _SGP4Satellite:
         (error_code, position_eci_km, velocity_eci_km_s) 或 None
         """
         from sgp4.api import jday
-        jd, fr = jday(year, month, day, int(hour),
-                       int(minute), second)
+
+        jd, fr = jday(year, month, day, int(hour), int(minute), second)
         e, r, v = self.satrec.sgp4(jd, fr)
         if e != 0:
             return None
@@ -213,6 +231,7 @@ class _SGP4Satellite:
 # ============================================================
 # Skyfield 轨道后端
 # ============================================================
+
 
 class SkyfieldOrbitBackend:
     """
@@ -236,10 +255,10 @@ class SkyfieldOrbitBackend:
         )
     """
 
-    def __init__(self):
+    def __init__(self, load_ephemeris: bool = False):
         if not SKYFIELD_AVAILABLE:
             raise ImportError("Skyfield required. Run: pip install skyfield")
-        self.provider = SkyfieldProvider.get_instance()
+        self.provider = SkyfieldProvider.get_instance(load_ephemeris=load_ephemeris)
         self.ts = self.provider.timescale
 
     def create_satellite_from_kepler(
@@ -283,6 +302,7 @@ class SkyfieldOrbitBackend:
         """
         if epoch_jd is None:
             from skyfield.api import load
+
             epoch_jd = load.timescale().now().tt
 
         # 平近点角: 对圆轨道 M ≈ TA
@@ -292,7 +312,7 @@ class SkyfieldOrbitBackend:
         semi_major_axis_km = 6371.0 + altitude_km
         GM = 398600.4418
         # n = sqrt(GM/a^3) gives rad/s, multiply by 60 for rad/min
-        mean_motion_rad_per_min = math.sqrt(GM / semi_major_axis_km ** 3) * 60.0
+        mean_motion_rad_per_min = math.sqrt(GM / semi_major_axis_km**3) * 60.0
 
         # 使用 sgp4 底层 Satrec API（避免合成 TLE 的格式解析问题）
         from sgp4.api import WGS84, Satrec
@@ -304,17 +324,18 @@ class SkyfieldOrbitBackend:
         satrec = Satrec()
         satrec.sgp4init(
             WGS84,
-            'i',                      # improved mode
-            0,                        # satnum (auto-assigned)
-            epoch_days,               # epoch (days since 1949-12-31)
-            0.0,                      # bstar (drag coefficient)
-            0.0, 0.0,                 # ndot, nddot (secular perturbations)
-            eccentricity,             # eccentricity
+            "i",  # improved mode
+            0,  # satnum (auto-assigned)
+            epoch_days,  # epoch (days since 1949-12-31)
+            0.0,  # bstar (drag coefficient)
+            0.0,
+            0.0,  # ndot, nddot (secular perturbations)
+            eccentricity,  # eccentricity
             math.radians(arg_perigee_deg),  # argument of perigee (rad)
             math.radians(inclination_deg),  # inclination (rad)
-            mean_anomaly_rad,         # mean anomaly (rad)
+            mean_anomaly_rad,  # mean anomaly (rad)
             mean_motion_rad_per_min,  # mean motion (rad/min!) - NOT rev/day
-            math.radians(raan_deg),   # RAAN (rad)
+            math.radians(raan_deg),  # RAAN (rad)
         )
 
         # 包装为自定义卫星对象
@@ -329,7 +350,9 @@ class SkyfieldOrbitBackend:
     def position_at_time(
         self,
         sat,
-        year: int, month: int, day: int,
+        year: int,
+        month: int,
+        day: int,
         hour: float = 0.0,
     ) -> tuple[float, float, float]:
         """
@@ -344,7 +367,7 @@ class SkyfieldOrbitBackend:
         m = int((hour - h) * 60)
         s = (hour - h - m / 60.0) * 3600
 
-        if hasattr(sat, 'propagate'):
+        if hasattr(sat, "propagate"):
             # _SGP4Satellite: 直接用 sgp4 propagate + ECI-to-geodetic
             result = sat.propagate(year, month, day, h, m, s)
             if result is None:
@@ -365,7 +388,9 @@ class SkyfieldOrbitBackend:
     def position_at_minute(
         self,
         sat,
-        year: int, month: int, day: int,
+        year: int,
+        month: int,
+        day: int,
         minute: float,
     ) -> tuple[float, float, float]:
         """以分钟为粒度计算位置。"""
@@ -377,7 +402,9 @@ class SkyfieldOrbitBackend:
         sat,
         gs_lat_deg: float,
         gs_lon_deg: float,
-        year: int, month: int, day: int,
+        year: int,
+        month: int,
+        day: int,
         hour: float = 0.0,
     ) -> tuple[float, float, float]:
         """
@@ -392,14 +419,27 @@ class SkyfieldOrbitBackend:
         m = int((hour - h) * 60)
         s = (hour - h - m / 60.0) * 3600
 
-        if hasattr(sat, 'propagate'):
+        if hasattr(sat, "propagate"):
             result = sat.propagate(year, month, day, h, m, s)
             if result is None:
                 return (-90.0, 0.0, 1e9)
             r_eci, _ = result
+
+            # 关键修复: SGP4输出的是ECI坐标，必须转换到ECEF才能与地面站坐标比较
+            # 计算当前时刻的GMST（地球自转角度）
+            gmst_rad = _compute_gmst(year, month, day, hour)
+
+            # ECI -> ECEF 坐标转换
+            r_ecef = _eci_to_ecef_simple(r_eci[0], r_eci[1], r_eci[2], gmst_rad)
+
+            # 现在可以安全地在ECEF坐标系中计算地面站仰角
             elev, az, dist = _compute_topocentric(
-                r_eci[0], r_eci[1], r_eci[2],
-                gs_lat_deg, gs_lon_deg, 0.0,
+                r_ecef[0],
+                r_ecef[1],
+                r_ecef[2],
+                gs_lat_deg,
+                gs_lon_deg,
+                0.0,
             )
             return (elev, az, dist)
         else:
@@ -415,14 +455,14 @@ class SkyfieldOrbitBackend:
         sat,
         gs_lat_deg: float,
         gs_lon_deg: float,
-        year: int, month: int, day: int,
+        year: int,
+        month: int,
+        day: int,
         hour: float = 0.0,
         min_elevation_deg: float = 0.0,
     ) -> bool:
         """判断卫星对地面站是否可见。"""
-        elev, _, _ = self.elevation_at(
-            sat, gs_lat_deg, gs_lon_deg, year, month, day, hour
-        )
+        elev, _, _ = self.elevation_at(sat, gs_lat_deg, gs_lon_deg, year, month, day, hour)
         return elev >= min_elevation_deg
 
     def find_visibility_windows(
@@ -430,7 +470,9 @@ class SkyfieldOrbitBackend:
         sat,
         gs_lat_deg: float,
         gs_lon_deg: float,
-        year: int, month: int, day: int,
+        year: int,
+        month: int,
+        day: int,
         duration_hours: float = 24.0,
         min_elevation_deg: float = 0.0,
         step_minutes: float = 1.0,
@@ -465,8 +507,13 @@ class SkyfieldOrbitBackend:
         for t_min in range(0, total_minutes + 1, int(step_minutes)):
             hour = t_min / 60.0
             elev, _, _ = self.elevation_at(
-                sat, gs_lat_deg, gs_lon_deg,
-                year, month, day, hour,
+                sat,
+                gs_lat_deg,
+                gs_lon_deg,
+                year,
+                month,
+                day,
+                hour,
             )
 
             if elev >= min_elevation_deg and not in_window:
@@ -474,25 +521,27 @@ class SkyfieldOrbitBackend:
                 window_start = t_min
             elif elev < min_elevation_deg and in_window:
                 in_window = False
-                windows.append({
-                    'start_min': window_start,
-                    'end_min': t_min,
-                    'duration_min': t_min - window_start,
-                })
+                windows.append(
+                    {
+                        "start_min": window_start,
+                        "end_min": t_min,
+                        "duration_min": t_min - window_start,
+                    }
+                )
 
         # 处理未关闭的窗口
         if in_window:
-            windows.append({
-                'start_min': window_start,
-                'end_min': total_minutes,
-                'duration_min': total_minutes - window_start,
-            })
+            windows.append(
+                {
+                    "start_min": window_start,
+                    "end_min": total_minutes,
+                    "duration_min": total_minutes - window_start,
+                }
+            )
 
         return windows
 
-    def get_body_parameters(
-        self, body_name: str
-    ) -> Optional[dict[str, float]]:
+    def get_body_parameters(self, body_name: str) -> Optional[dict[str, float]]:
         """
         获取来自 JPL 星历的天体精确参数。
 
@@ -512,6 +561,7 @@ class SkyfieldOrbitBackend:
 # ============================================================
 # 辅助函数
 # ============================================================
+
 
 def _eci_to_geodetic(x, y, z):
     """ECI坐标 -> 大地坐标 (纬度°, 经度°, 高度km)。"""
@@ -535,8 +585,127 @@ def _eci_to_geodetic(x, y, z):
     return (math.degrees(lat), math.degrees(lon), h)
 
 
+def _eci_to_ecef_simple(x_eci, y_eci, z_eci, gmst_rad):
+    """
+    简化的ECI到ECEF坐标转换（仅考虑地球自转）。
+
+    此函数将地心惯性坐标系（ECI/GCRF）中的位置转换到
+    地心地固坐标系（ECEF/ITRF）。转换仅考虑地球自转角度（GMST），
+    忽略岁差、章动、极移等高阶效应。
+
+    对于LEO卫星的短期可见性计算，此简化精度足够（误差 < 1 km）。
+    长期高精度应用应使用Skyfield的原生坐标转换。
+
+    Parameters
+    ----------
+    x_eci, y_eci, z_eci : float
+        卫星在ECI坐标系中的位置 (km)
+    gmst_rad : float
+        格林尼治平恒星时（弧度）
+
+    Returns
+    -------
+    (x_ecef, y_ecef, z_ecef) : tuple[float, float, float]
+        卫星在ECEF坐标系中的位置 (km)
+
+    Notes
+    -----
+    转换公式为绕Z轴旋转GMST角度：
+        [x_ecef]   [cos(θ)  sin(θ)  0] [x_eci]
+        [y_ecef] = [-sin(θ) cos(θ)  0] [y_eci]
+        [z_ecef]   [0       0       1] [z_eci]
+    其中 θ = GMST (格林尼治平恒星时)
+    """
+    cos_gmst = math.cos(gmst_rad)
+    sin_gmst = math.sin(gmst_rad)
+
+    x_ecef = cos_gmst * x_eci + sin_gmst * y_eci
+    y_ecef = -sin_gmst * x_eci + cos_gmst * y_eci
+    z_ecef = z_eci
+
+    return (x_ecef, y_ecef, z_ecef)
+
+
+def _compute_gmst(year, month, day, hour):
+    """
+    计算格林尼治平恒星时（GMST）。
+
+    使用简化算法计算给定UTC时刻的GMST，适用于2000-2100年。
+    精度约±0.1秒，对LEO卫星可见性计算足够。
+
+    Parameters
+    ----------
+    year, month, day : int
+        UTC日期
+    hour : float
+        UTC小时（可以是小数，如13.5表示13:30）
+
+    Returns
+    -------
+    float
+        GMST（弧度），范围 [0, 2π)
+
+    References
+    ----------
+    Simplified algorithm from:
+    Vallado, D. A. (2013). Fundamentals of Astrodynamics and Applications, 4th ed.
+    IAU 2000A precession-nutation model (simplified)
+    """
+    # 计算儒略日数
+    if month <= 2:
+        y = year - 1
+        m = month + 12
+    else:
+        y = year
+        m = month
+
+    century = int(y / 100)
+    gregorian_correction = 2 - century + int(century / 4)
+    julian_day = (
+        int(365.25 * (y + 4716)) + int(30.6001 * (m + 1)) + day + gregorian_correction - 1524.5
+    )
+
+    # 将小时转换为儒略日的小数部分
+    julian_day_ut = julian_day + hour / 24.0
+
+    # 从J2000.0纪元开始的儒略世纪数
+    julian_centuries = (julian_day_ut - 2451545.0) / 36525.0
+
+    # GMST at the given UT (IAU 2000 formula)
+    # 这个公式直接给出给定UT时刻的GMST（度）
+    gmst_deg = (
+        280.46061837
+        + 360.98564736629 * (julian_day_ut - 2451545.0)
+        + 0.000387933 * julian_centuries**2
+        - julian_centuries**3 / 38710000.0
+    )
+
+    # 归一化到 [0, 360) 度
+    gmst_deg = gmst_deg % 360.0
+
+    return math.radians(gmst_deg)
+
+
 def _compute_topocentric(x, y, z, gs_lat, gs_lon, gs_alt):
-    """计算卫星相对地面站的仰角/方位角/距离（简化二体模型）。"""
+    """
+    计算卫星相对地面站的仰角/方位角/距离。
+
+    警告: 此函数假设输入坐标 (x, y, z) 已经是 ECEF 坐标系！
+    如果输入是 ECI 坐标，必须先调用 _eci_to_ecef_simple() 转换。
+
+    Parameters
+    ----------
+    x, y, z : float
+        卫星在 ECEF 坐标系中的位置 (km)
+    gs_lat, gs_lon : float
+        地面站大地坐标 (度)
+    gs_alt : float
+        地面站海拔高度 (km)
+
+    Returns
+    -------
+    (elevation_deg, azimuth_deg, distance_km)
+    """
     a = 6378.137
     f = 1.0 / 298.257223563
     e2 = 2 * f - f * f

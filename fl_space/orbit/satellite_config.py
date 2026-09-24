@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from fl_space.environment import CelestialBody
 
@@ -70,7 +70,7 @@ class SatelliteSpec:
     inclination_deg: float = 90.0
     raan_deg: float = 0.0
     true_anomaly_deg: float = 0.0
-    semi_major_axis_km: Optional[float] = None
+    semi_major_axis_km: float | None = None
     eccentricity: float = 0.0
     arg_perigee_deg: float = 0.0
     comm_range_km: float = 0.0
@@ -223,7 +223,7 @@ class MultiClusterConfig:
         return sum(c.num_satellites for c in self.clusters) + len(self.custom_satellites)
 
     def generate_orbits(
-        self, body: Optional[CelestialBody] = None
+        self, body: CelestialBody | None = None
     ) -> tuple[list[KeplerOrbit], dict[str, list[int]]]:
         """生成所有卫星轨道，返回 (轨道列表, {簇名: [卫星索引...]})。
 
@@ -254,8 +254,7 @@ class MultiClusterConfig:
         # 自定义卫星
         if self.custom_satellites:
             custom_start = len(all_orbits)
-            for spec in self.custom_satellites:
-                all_orbits.append(spec.to_orbit(body))
+            all_orbits.extend(spec.to_orbit(body) for spec in self.custom_satellites)
             cluster_map["_custom"] = list(range(custom_start, len(all_orbits)))
 
         return all_orbits, cluster_map
@@ -300,19 +299,33 @@ class MultiClusterConfig:
     @classmethod
     def polar_only(cls, num_sats: int = 6, altitude_km: float = 500.0) -> MultiClusterConfig:
         """纯极轨星座。"""
-        return cls(clusters=[
-            ClusterSpec("polar", num_satellites=num_sats, altitude_km=altitude_km,
-                        inclination_deg=90, distribution="uniform"),
-        ])
+        return cls(
+            clusters=[
+                ClusterSpec(
+                    "polar",
+                    num_satellites=num_sats,
+                    altitude_km=altitude_km,
+                    inclination_deg=90,
+                    distribution="uniform",
+                ),
+            ]
+        )
 
     @classmethod
     def starlink_like(cls, num_sats: int = 20, altitude_km: float = 550.0) -> MultiClusterConfig:
         """Starlink 风格：53度倾角 Walker 分布。"""
-        return cls(clusters=[
-            ClusterSpec("starlink_shell", num_satellites=num_sats, altitude_km=altitude_km,
-                        inclination_deg=53, distribution="walker",
-                        num_planes=max(1, num_sats // 4)),
-        ])
+        return cls(
+            clusters=[
+                ClusterSpec(
+                    "starlink_shell",
+                    num_satellites=num_sats,
+                    altitude_km=altitude_km,
+                    inclination_deg=53,
+                    distribution="walker",
+                    num_planes=max(1, num_sats // 4),
+                ),
+            ]
+        )
 
     @classmethod
     def mixed_orbit(
@@ -322,26 +335,59 @@ class MultiClusterConfig:
         num_eq: int = 2,
     ) -> MultiClusterConfig:
         """混合轨道星座：极轨 + 中倾角 + 赤道。"""
-        return cls(clusters=[
-            ClusterSpec("polar", num_satellites=num_polar, altitude_km=500,
-                        inclination_deg=90, distribution="uniform", raan_offset_deg=0),
-            ClusterSpec("mid_lat", num_satellites=num_mid, altitude_km=550,
-                        inclination_deg=53, distribution="walker",
-                        num_planes=2, raan_offset_deg=15),
-            ClusterSpec("equatorial", num_satellites=num_eq, altitude_km=600,
-                        inclination_deg=0, distribution="uniform", raan_offset_deg=30),
-        ])
+        return cls(
+            clusters=[
+                ClusterSpec(
+                    "polar",
+                    num_satellites=num_polar,
+                    altitude_km=500,
+                    inclination_deg=90,
+                    distribution="uniform",
+                    raan_offset_deg=0,
+                ),
+                ClusterSpec(
+                    "mid_lat",
+                    num_satellites=num_mid,
+                    altitude_km=550,
+                    inclination_deg=53,
+                    distribution="walker",
+                    num_planes=2,
+                    raan_offset_deg=15,
+                ),
+                ClusterSpec(
+                    "equatorial",
+                    num_satellites=num_eq,
+                    altitude_km=600,
+                    inclination_deg=0,
+                    distribution="uniform",
+                    raan_offset_deg=30,
+                ),
+            ]
+        )
 
     @classmethod
     def demo_default(cls) -> MultiClusterConfig:
         """演示用默认配置：极轨 + 中倾角双星簇。"""
-        return cls(clusters=[
-            ClusterSpec("polar", num_satellites=4, altitude_km=500,
-                        inclination_deg=90, distribution="uniform"),
-            ClusterSpec("leo_shell", num_satellites=6, altitude_km=550,
-                        inclination_deg=53, distribution="walker",
-                        num_planes=3, raan_offset_deg=20),
-        ])
+        return cls(
+            clusters=[
+                ClusterSpec(
+                    "polar",
+                    num_satellites=4,
+                    altitude_km=500,
+                    inclination_deg=90,
+                    distribution="uniform",
+                ),
+                ClusterSpec(
+                    "leo_shell",
+                    num_satellites=6,
+                    altitude_km=550,
+                    inclination_deg=53,
+                    distribution="walker",
+                    num_planes=3,
+                    raan_offset_deg=20,
+                ),
+            ]
+        )
 
 
 # ============================================================
@@ -351,7 +397,7 @@ class MultiClusterConfig:
 
 def orbits_from_legacy_config(
     config: ConstellationConfig,
-    body: Optional[CelestialBody] = None,
+    body: CelestialBody | None = None,
 ) -> tuple[list[KeplerOrbit], dict[str, list[int]]]:
     """从旧版 ConstellationConfig 创建轨道（兼容过渡）。
 

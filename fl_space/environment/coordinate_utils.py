@@ -18,6 +18,7 @@ import numpy as np
 
 # ---- 基础角度工具 ----
 
+
 def deg_to_rad(deg: float) -> float:
     """度转弧度。"""
     return math.radians(deg)
@@ -50,9 +51,12 @@ def normalize_longitude_deg(lon: float) -> float:
 
 # ---- 球面距离与角距 ----
 
+
 def haversine_distance_km(
-    lat1_rad: float, lon1_rad: float,
-    lat2_rad: float, lon2_rad: float,
+    lat1_rad: float,
+    lon1_rad: float,
+    lat2_rad: float,
+    lon2_rad: float,
     radius_km: float = 6371.0,
 ) -> float:
     """
@@ -74,17 +78,16 @@ def haversine_distance_km(
     """
     dlat = lat2_rad - lat1_rad
     dlon = lon2_rad - lon1_rad
-    a = (
-        math.sin(dlat / 2) ** 2 +
-        math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-    )
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return radius_km * c
 
 
 def angular_distance_rad(
-    lat1_rad: float, lon1_rad: float,
-    lat2_rad: float, lon2_rad: float,
+    lat1_rad: float,
+    lon1_rad: float,
+    lat2_rad: float,
+    lon2_rad: float,
 ) -> float:
     """
     计算两点之间的大圆角距 (弧度)。
@@ -104,16 +107,15 @@ def angular_distance_rad(
     float
         角距 (弧度)，范围为 [0, π]。
     """
-    cos_dist = (
-        math.sin(lat1_rad) * math.sin(lat2_rad) +
-        math.cos(lat1_rad) * math.cos(lat2_rad) *
-        math.cos(lon1_rad - lon2_rad)
-    )
+    cos_dist = math.sin(lat1_rad) * math.sin(lat2_rad) + math.cos(lat1_rad) * math.cos(
+        lat2_rad
+    ) * math.cos(lon1_rad - lon2_rad)
     cos_dist = max(-1.0, min(1.0, cos_dist))  # 数值稳定性裁剪
     return math.acos(cos_dist)
 
 
 # ---- 地平可见性 ----
+
 
 def horizon_angle_rad(
     planet_radius_km: float,
@@ -140,13 +142,56 @@ def horizon_angle_rad(
     float
         可见半角 (弧度)。
     """
-    effective_radius = planet_radius_km + atmosphere_height_km
-    return math.acos(effective_radius / orbit_radius_km)
+    return ground_central_angle_for_elevation_rad(
+        planet_radius_km,
+        orbit_radius_km,
+        0.0,
+        atmosphere_height_km=atmosphere_height_km,
+    )
+
+
+def ground_central_angle_for_elevation_rad(
+    planet_radius_km: float,
+    orbit_radius_km: float,
+    min_elevation_rad: float,
+    *,
+    station_altitude_km: float = 0.0,
+    atmosphere_height_km: float = 0.0,
+) -> float:
+    """Return the spherical ground central-angle limit for a mask angle.
+
+    The relation is ``psi = acos((R/r) * cos(e)) - e``. ``R`` is the larger
+    of the station radius and the configured effective occulting radius. The
+    latter is a conservative spherical atmosphere/obstruction buffer, not an
+    RF attenuation model.
+
+    Parameters use kilometres and radians. The result is the angle between a
+    station subpoint and the satellite subpoint; it is suitable for the
+    project's spherical Kepler visibility model.
+    """
+    if planet_radius_km <= 0 or orbit_radius_km <= 0:
+        raise ValueError("行星半径和轨道半径必须为正")
+    if station_altitude_km < 0 or atmosphere_height_km < 0:
+        raise ValueError("地面站高度和大气有效高度不能为负")
+    if not 0.0 <= min_elevation_rad <= math.pi / 2:
+        raise ValueError("最小仰角必须在 [0, π/2] 内")
+
+    station_radius_km = planet_radius_km + station_altitude_km
+    occulting_radius_km = planet_radius_km + atmosphere_height_km
+    reference_radius_km = max(station_radius_km, occulting_radius_km)
+    if orbit_radius_km <= reference_radius_km:
+        return 0.0
+
+    cosine_argument = (reference_radius_km / orbit_radius_km) * math.cos(min_elevation_rad)
+    cosine_argument = max(-1.0, min(1.0, cosine_argument))
+    return max(0.0, math.acos(cosine_argument) - min_elevation_rad)
 
 
 def is_visible(
-    sat_lat_rad: float, sat_lon_rad: float,
-    gs_lat_rad: float, gs_lon_rad: float,
+    sat_lat_rad: float,
+    sat_lon_rad: float,
+    gs_lat_rad: float,
+    gs_lon_rad: float,
     planet_radius_km: float,
     orbit_radius_km: float,
     atmosphere_height_km: float = 0.0,
@@ -175,11 +220,17 @@ def is_visible(
     bool
     """
     ang_dist = angular_distance_rad(sat_lat_rad, sat_lon_rad, gs_lat_rad, gs_lon_rad)
-    h_angle = horizon_angle_rad(planet_radius_km, orbit_radius_km, atmosphere_height_km)
-    return ang_dist < (h_angle - min_elevation_rad)
+    threshold = ground_central_angle_for_elevation_rad(
+        planet_radius_km,
+        orbit_radius_km,
+        min_elevation_rad,
+        atmosphere_height_km=atmosphere_height_km,
+    )
+    return ang_dist < threshold
 
 
 # ---- 轨道运动 ----
+
 
 def earth_rotation_offset_deg(elapsed_min: float) -> float:
     """
@@ -221,6 +272,7 @@ def rotation_offset_rad(elapsed_min: float, rotation_period_hours: float = 24.0)
 
 # ---- 轨道周期 ----
 
+
 def orbital_period_min(semi_major_axis_km: float, GM: float) -> float:
     """
     开普勒第三定律 — 轨道周期 (分钟)。
@@ -237,13 +289,15 @@ def orbital_period_min(semi_major_axis_km: float, GM: float) -> float:
     float
         轨道周期 (分钟)。
     """
-    return (2 * math.pi * math.sqrt(semi_major_axis_km ** 3 / GM)) / 60.0
+    return (2 * math.pi * math.sqrt(semi_major_axis_km**3 / GM)) / 60.0
 
 
 # ---- 批量运算 ----
 
+
 def batch_angular_distances_rad(
-    sat_lat_rad: float, sat_lon_rad: float,
+    sat_lat_rad: float,
+    sat_lon_rad: float,
     gs_coords_rad: np.ndarray,  # shape (N, 2): [[lat, lon], ...]
 ) -> np.ndarray:
     """
@@ -264,10 +318,8 @@ def batch_angular_distances_rad(
     gs_lats = gs_coords_rad[:, 0]
     gs_lons = gs_coords_rad[:, 1]
 
-    cos_dists = (
-        np.sin(sat_lat_rad) * np.sin(gs_lats) +
-        np.cos(sat_lat_rad) * np.cos(gs_lats) *
-        np.cos(sat_lon_rad - gs_lons)
-    )
+    cos_dists = np.sin(sat_lat_rad) * np.sin(gs_lats) + np.cos(sat_lat_rad) * np.cos(
+        gs_lats
+    ) * np.cos(sat_lon_rad - gs_lons)
     cos_dists = np.clip(cos_dists, -1.0, 1.0)
     return np.arccos(cos_dists)

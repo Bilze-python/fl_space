@@ -42,6 +42,7 @@ try:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -97,10 +98,7 @@ class AsyncSelector(ClientSelector):
             可参与训练的客户端 ID 列表。
         """
         already_training: set[int] = kwargs.get("already_training", set())
-        connected = [
-            c for c in clients
-            if c.is_connected and c.client_id not in already_training
-        ]
+        connected = [c for c in clients if c.is_connected and c.client_id not in already_training]
         return [c.client_id for c in connected]
 
 
@@ -317,10 +315,7 @@ class BufferAggregator(Aggregator):
                 self._last_aggregate_count = 0
                 return global_weights
 
-            batch_updates = [
-                self._buffer.popleft()
-                for _ in range(self.buffer_size)
-            ]
+            batch_updates = [self._buffer.popleft() for _ in range(self.buffer_size)]
             self._last_aggregate_count = len(batch_updates)
             self._last_batch = list(batch_updates)
 

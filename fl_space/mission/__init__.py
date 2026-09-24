@@ -32,6 +32,7 @@ from .constraints import (
     register_constraint,
 )
 from .models import (
+    ClassicalOrbitalElements,
     DeploymentPlan,
     DeploymentStep,
     LaunchSite,
@@ -79,6 +80,7 @@ from .subsystems import (
     AttitudeControlMode,
     AttitudeControlSystem,
     CommunicationBand,
+    CommunicationLinkKind,
     CommunicationSystem,
     PowerSystem,
     PropellantType,
@@ -90,7 +92,9 @@ __all__ = [
     "FIDELITY_LABEL",
     "AttitudeControlMode",
     "AttitudeControlSystem",
+    "ClassicalOrbitalElements",
     "CommunicationBand",
+    "CommunicationLinkKind",
     "CommunicationSystem",
     "ConstraintResult",
     "ConstraintSeverity",

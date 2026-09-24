@@ -81,13 +81,13 @@ fl_space/
 以下标准轨道力学符号允许违反 `UPPER_SNAKE_CASE` 常量命名规则（已在 Ruff `ignore-names` 中豁免）：
 
 ```python
-GM        # 引力常数 G × M
-M, M0     # 平近点角 (Mean anomaly) 及初值
-E, dE     # 偏近点角 (Eccentric anomaly) 及增量
-cos_E     # cos(偏近点角)
-sin_E     # sin(偏近点角)
-N         # 轨道面内卫星数
-setUp     # unittest 钩子
+GM  # 引力常数 G × M
+M, M0  # 平近点角 (Mean anomaly) 及初值
+E, dE  # 偏近点角 (Eccentric anomaly) 及增量
+cos_E  # cos(偏近点角)
+sin_E  # sin(偏近点角)
+N  # 轨道面内卫星数
+setUp  # unittest 钩子
 tearDown  # unittest 钩子
 ```
 
@@ -108,21 +108,22 @@ tearDown  # unittest 钩子
 
 ```python
 # ✅ 正确 — Python 3.9+ 内置泛型
-def process(data: list[float], mapping: dict[str, int]) -> tuple[float, float]:
-    ...
+def process(data: list[float], mapping: dict[str, int]) -> tuple[float, float]: ...
+
 
 # ✅ 正确 — | 联合类型
-def get_value(key: str | None) -> float | None:
-    ...
+def get_value(key: str | None) -> float | None: ...
+
 
 # ❌ 错误 — 旧式 typing 泛型
 from typing import List, Dict, Tuple, Optional
-def process(data: List[float], mapping: Dict[str, int]) -> Tuple[float, float]:
-    ...
+
+
+def process(data: List[float], mapping: Dict[str, int]) -> Tuple[float, float]: ...
+
 
 # ❌ 错误 — Optional
-def get_value(key: Optional[str]) -> Optional[float]:
-    ...
+def get_value(key: Optional[str]) -> Optional[float]: ...
 ```
 
 > **唯一例外**：`Optional[X]` 仅在 `from __future__ import annotations` 无法使用时保留。
@@ -138,9 +139,9 @@ if TYPE_CHECKING:
     from fl_space.environment.celestial_body import CelestialBody
     from fl_space.environment.ground_station import GroundStationNetwork
 
+
 # 方案2：字符串注解（备选）
-def func(body: "CelestialBody") -> "GroundStationNetwork":
-    ...
+def func(body: "CelestialBody") -> "GroundStationNetwork": ...
 ```
 
 ### 3.3 dataclass 字段类型
@@ -152,7 +153,7 @@ class SatelliteSpec:
     altitude_km: float
     inclination_deg: float
     ground_stations: list[str] = field(default_factory=list)  # 可变默认值
-    optional_param: float | None = None                         # 可选字段
+    optional_param: float | None = None  # 可选字段
 ```
 
 ---
@@ -287,11 +288,7 @@ XXX层 — 简短描述
 """
 
 # 3. __all__ 列表
-__all__ = [
-    "KeplerOrbit",
-    "create_circular_orbit",
-    ...
-]
+__all__ = ["KeplerOrbit", "create_circular_orbit", ...]
 ```
 
 ### 5.3 可选依赖/懒导入
@@ -303,10 +300,12 @@ try:
 except ImportError:
     SkyfieldOrbitBackend = None  # type: ignore
 
+
 # 方案2：在方法内部懒导入（减少启动开销）
 @property
 def rotation_rate_rad_per_min(self) -> float:
     import math
+
     return math.radians(self.rotation_rate_deg_per_min)
 ```
 
@@ -357,19 +356,20 @@ class GroundStation:
 ```python
 # @classmethod 工厂 — 用于预设实例
 @classmethod
-def earth(cls, precise: bool = False) -> "CelestialBody":
-    ...
+def earth(cls, precise: bool = False) -> "CelestialBody": ...
+
 
 # 独立工厂函数 — 用于组合创建
-def create_default_network(n: int = 7) -> GroundStationNetwork:
-    ...
+def create_default_network(n: int = 7) -> GroundStationNetwork: ...
+
 
 def create_circular_orbit(
-    altitude_km: float, inclination_deg: float,
-    raan_deg: float, true_anomaly_deg: float,
+    altitude_km: float,
+    inclination_deg: float,
+    raan_deg: float,
+    true_anomaly_deg: float,
     body: CelestialBody,
-) -> KeplerOrbit:
-    ...
+) -> KeplerOrbit: ...
 ```
 
 ### 6.3 任务与卫星扩展
@@ -387,6 +387,7 @@ def create_circular_orbit(
 ```python
 class SatelliteRegistry:
     """全局卫星注册表单例。"""
+
     _instance: "SatelliteRegistry | None" = None
 
     def __new__(cls) -> "SatelliteRegistry":
@@ -394,6 +395,7 @@ class SatelliteRegistry:
             cls._instance = super().__new__(cls)
             cls._instance._init()
         return cls._instance
+
 
 # 模块级单例
 registry = SatelliteRegistry()
@@ -409,6 +411,7 @@ registry = SatelliteRegistry()
 SKYFIELD_AVAILABLE = False
 try:
     from skyfield.api import load
+
     SKYFIELD_AVAILABLE = True
 except ImportError:
     pass
@@ -528,6 +531,7 @@ def check(name: str, condition: bool, detail: str = "") -> int:
             error_msg += f" — {detail}"
         print(error_msg)
         return 1
+
 
 # 使用
 errors = []
@@ -705,6 +709,7 @@ new_module 模块测试。
 """
 
 import sys
+
 sys.path.insert(0, "..")
 
 from fl_space.new_module import NewFeature
@@ -732,12 +737,13 @@ if __name__ == "__main__":
 ```python
 # ❌ 错误
 from typing import List, Dict, Optional
-def bad(sats: List[str], data: Dict[str, float]) -> Optional[float]:
-    ...
+
+
+def bad(sats: List[str], data: Dict[str, float]) -> Optional[float]: ...
+
 
 # ✅ 正确
-def good(sats: list[str], data: dict[str, float]) -> float | None:
-    ...
+def good(sats: list[str], data: dict[str, float]) -> float | None: ...
 ```
 
 ### B.2 导入顺序错误
@@ -778,6 +784,7 @@ __all__ = ["MyClass"]
 @dataclass
 class Bad:
     items: list[str] = []
+
 
 # ✅ 正确 — 使用 field(default_factory=list)
 @dataclass

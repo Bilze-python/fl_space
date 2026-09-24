@@ -43,6 +43,7 @@ try:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -133,12 +134,8 @@ class ProximalTrainer(LocalTrainer):
 
                 # Proximal term: (μ/2) * Σ||w_local - w_global||²
                 proximal_term = 0.0
-                for local_param, global_param in zip(
-                    local_model.parameters(), global_params
-                ):
-                    proximal_term += torch.sum(
-                        (local_param - global_param) ** 2
-                    )
+                for local_param, global_param in zip(local_model.parameters(), global_params):
+                    proximal_term += torch.sum((local_param - global_param) ** 2)
 
                 loss = ce_loss + (self.mu / 2.0) * proximal_term
 
@@ -150,9 +147,7 @@ class ProximalTrainer(LocalTrainer):
 
         avg_loss = total_loss / actual_epochs
 
-        local_weights = [
-            param.data.clone() for param in local_model.parameters()
-        ]
+        local_weights = [param.data.clone() for param in local_model.parameters()]
 
         return ClientUpdate(
             client_id=client_id,
@@ -261,7 +256,10 @@ class AdaptiveProximalTrainer(ProximalTrainer):
             factor = min(1.0 + excess * 5.0, 10.0)
             self.mu = min(self.base_mu * factor, self.mu_max)
 
-        elif oscillation < self.stability_threshold and len(self._acc_window) >= self._acc_window.maxlen:
+        elif (
+            oscillation < self.stability_threshold
+            and len(self._acc_window) >= self._acc_window.maxlen
+        ):
             # 非常稳定且窗口已满 → 逐步放松约束
             self.mu = max(self.mu * 0.8, self.mu_min)
 

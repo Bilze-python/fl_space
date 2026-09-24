@@ -52,7 +52,9 @@ def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def set_run_font(run, *, size: float | None = None, bold: bool | None = None, color: str | None = None):
+def set_run_font(
+    run, *, size: float | None = None, bold: bool | None = None, color: str | None = None
+):
     font_name = pick_font()
     run.font.name = font_name
     run._element.rPr.rFonts.set(qn("w:ascii"), font_name)
@@ -66,14 +68,16 @@ def set_run_font(run, *, size: float | None = None, bold: bool | None = None, co
         run.font.color.rgb = RGBColor.from_string(color)
 
 
-def add_cn_paragraph(doc: Document, text: str, *, style: str = "Normal", bold_prefix: str | None = None):
+def add_cn_paragraph(
+    doc: Document, text: str, *, style: str = "Normal", bold_prefix: str | None = None
+):
     para = doc.add_paragraph(style=style)
     para.paragraph_format.space_after = Pt(6)
     para.paragraph_format.line_spacing = 1.15
     if bold_prefix and text.startswith(bold_prefix):
         prefix_run = para.add_run(bold_prefix)
         set_run_font(prefix_run, size=11, bold=True, color="1F1F1F")
-        rest_run = para.add_run(text[len(bold_prefix):])
+        rest_run = para.add_run(text[len(bold_prefix) :])
         set_run_font(rest_run, size=11, color="1F1F1F")
     else:
         run = para.add_run(text)
@@ -98,7 +102,9 @@ def build_framework_figure(path: Path) -> None:
     ax.axis("off")
 
     title = "SpaceFL 技术框架与人机协同质控闭环"
-    ax.text(0.5, 0.95, title, ha="center", va="center", fontsize=20, fontweight="bold", color="#103B2A")
+    ax.text(
+        0.5, 0.95, title, ha="center", va="center", fontsize=20, fontweight="bold", color="#103B2A"
+    )
 
     boxes = [
         (
@@ -159,8 +165,19 @@ def build_framework_figure(path: Path) -> None:
             facecolor=face,
         )
         ax.add_patch(patch)
-        ax.text(x + w / 2, y + h * 0.72, heading, ha="center", va="center", fontsize=13, fontweight="bold", color="#173C34")
-        ax.text(x + w / 2, y + h * 0.34, body, ha="center", va="center", fontsize=11, color="#2A2A2A")
+        ax.text(
+            x + w / 2,
+            y + h * 0.72,
+            heading,
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+            color="#173C34",
+        )
+        ax.text(
+            x + w / 2, y + h * 0.34, body, ha="center", va="center", fontsize=11, color="#2A2A2A"
+        )
 
     for i in range(len(boxes) - 1):
         x1 = boxes[i][0] + boxes[i][2]
@@ -268,7 +285,12 @@ def build_summary_figure(path: Path, grid_data: list[dict]) -> None:
     ax3 = fig.add_subplot(gs[1, 0])
     ax4 = fig.add_subplot(gs[1, 1])
 
-    fig.suptitle("SpaceFL 网格实验结果汇总（FedAvg，12 组 GS×SAT 对比）", fontsize=20, fontweight="bold", color="#173C34")
+    fig.suptitle(
+        "SpaceFL 网格实验结果汇总（FedAvg，12 组 GS×SAT 对比）",
+        fontsize=20,
+        fontweight="bold",
+        color="#173C34",
+    )
 
     heat = ax1.imshow(max_acc, cmap="YlGn", vmin=0.35, vmax=0.8, aspect="auto")
     ax1.set_xticks(range(len(sat_values)))
@@ -281,7 +303,16 @@ def build_summary_figure(path: Path, grid_data: list[dict]) -> None:
     for i in range(len(gs_values)):
         for j in range(len(sat_values)):
             color = "#173C34" if max_acc[i, j] > 0.6 else "#FFFFFF"
-            ax1.text(j, i, f"{max_acc[i, j] * 100:.1f}%", ha="center", va="center", fontsize=11, fontweight="bold", color=color)
+            ax1.text(
+                j,
+                i,
+                f"{max_acc[i, j] * 100:.1f}%",
+                ha="center",
+                va="center",
+                fontsize=11,
+                fontweight="bold",
+                color=color,
+            )
     fig.colorbar(heat, ax=ax1, fraction=0.046, pad=0.04)
 
     for sat in sat_values:
@@ -449,7 +480,9 @@ def enhance_docx() -> None:
     run = sub2.add_run("3.4.2 SpaceFL 模型框架展示")
     set_run_font(run, size=13, bold=True, color="000000")
     doc.add_picture(str(FRAMEWORK_PNG), width=Inches(6.2))
-    add_caption(doc, "图：SpaceFL 的环境层-轨道层-模拟层-FL 层整体框架，以及用于人机协同的质控闭环。")
+    add_caption(
+        doc, "图：SpaceFL 的环境层-轨道层-模拟层-FL 层整体框架，以及用于人机协同的质控闭环。"
+    )
     add_cn_paragraph(
         doc,
         "从技术结构看，SpaceFL 并不是单一训练脚本，而是一个分层研究框架：Environment 层提供天体与地面站环境，Orbit 层负责 Kepler 与 Skyfield 双后端轨道力学，Simulator 层把可见性与时隙推进转换为接触矩阵，FL 层再在此基础上运行 FedAvg、FedProx 和 FedBuff。CommunicationScheduler 与 TimeModel 位于模拟层与 FL 层之间，负责把“物理上何时能通信”映射为“训练上何时能推进一轮”。这正是 SpaceFL 相较于普通 FL 仿真代码的核心研究价值所在。",
@@ -460,7 +493,10 @@ def enhance_docx() -> None:
     set_run_font(run, size=13, bold=True, color="000000")
     add_experiment_design_table(doc)
     doc.add_picture(str(SUMMARY_PNG), width=Inches(6.2))
-    add_caption(doc, "图：12 组 FedAvg 网格实验的中文汇总。左上为最高准确率热力图，右上为接触率随 GS 的变化，左下为 SAT=7 时峰值与最终值的落差。")
+    add_caption(
+        doc,
+        "图：12 组 FedAvg 网格实验的中文汇总。左上为最高准确率热力图，右上为接触率随 GS 的变化，左下为 SAT=7 时峰值与最终值的落差。",
+    )
 
     best_item = max(grid_data, key=lambda item: item["max_acc"])
     best_final = max(grid_data, key=lambda item: item["final_acc"])

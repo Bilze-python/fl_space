@@ -46,7 +46,7 @@ def demo_1_celestial_bodies():
 
         # 500km轨道的可见半角
         horizon = body.effective_horizon_angle_for_altitude(500)
-        print(f"    500km轨道可见半角: {horizon*180/3.14159:.1f}°")
+        print(f"    500km轨道可见半角: {horizon * 180 / 3.14159:.1f}°")
 
     # 自定义天体
     custom = CelestialBody(
@@ -74,7 +74,7 @@ def demo_2_orbit_mechanics():
     print("\n  轨道参数:")
     print(f"    高度: {orbit.altitude_km} km")
     print(f"    周期: {orbit.period_min:.1f} 分钟")
-    print(f"    平均运动: {orbit.mean_motion_rad_per_min*180/3.14159:.4f} °/min")
+    print(f"    平均运动: {orbit.mean_motion_rad_per_min * 180 / 3.14159:.4f} °/min")
 
     print("\n  前30分钟星下点轨迹:")
     for t in [0, 5, 10, 15, 20, 25, 30]:
@@ -90,16 +90,18 @@ def demo_3_constellation():
     print("  演示3: 不同星座分布策略")
     print("=" * 60)
 
-    earth = CelestialBody.earth()
+    CelestialBody.earth()
 
     # Walker 5/2/1
     print("\n  [Walker 5/2/1 星座]")
     orbits_w = generate_walker_phases(5, num_planes=2, phasing_factor=1)
     for i, orb in enumerate(orbits_w):
         lat, lon = orb.position_at_time_deg(0)
-        print(f"    SAT-{i}: (lat={lat:+.1f}°, lon={lon:+.1f}°), "
-              f"raan={orb.elements.raan_deg:.1f}°, "
-              f"ta0={orb.elements.true_anomaly_deg:.1f}°")
+        print(
+            f"    SAT-{i}: (lat={lat:+.1f}°, lon={lon:+.1f}°), "
+            f"raan={orb.elements.raan_deg:.1f}°, "
+            f"ta0={orb.elements.true_anomaly_deg:.1f}°"
+        )
 
     # 星簇分布
     print("\n  [星簇分布 5卫星/2簇]")
@@ -107,9 +109,11 @@ def demo_3_constellation():
     for i, orb in enumerate(orbits_c):
         lat, lon = orb.position_at_time_deg(0)
         cluster = i % 2
-        print(f"    SAT-{i} (簇{cluster}): "
-              f"(lat={lat:+.1f}°, lon={lon:+.1f}°), "
-              f"raan={orb.elements.raan_deg:.1f}°")
+        print(
+            f"    SAT-{i} (簇{cluster}): "
+            f"(lat={lat:+.1f}°, lon={lon:+.1f}°), "
+            f"raan={orb.elements.raan_deg:.1f}°"
+        )
 
     input("\n  按 Enter 继续...")
 
@@ -152,15 +156,14 @@ def demo_5_visibility():
     orbit = create_circular_orbit(500, 90, 30, 60, earth)
     engine = VisibilityEngine(earth, orbit, network)
 
-    print(f"\n  地平可见半角: {engine.horizon_angle_rad*180/3.14159:.1f}°")
+    print(f"\n  地平可见半角: {engine.horizon_angle_rad * 180 / 3.14159:.1f}°")
 
     # 查看不同时刻的可见情况
     for t in [0, 15, 30, 60, 90, 120]:
         visible = engine.visible_stations_at_time(t)
         names = [network[gid].name for gid in visible]
         lat, lon = orbit.position_at_time_deg(t)
-        print(f"    t={t:4d}min  ({lat:+7.2f}°, {lon:+7.2f}°) → "
-              f"可见: {names if names else '(无)'}")
+        print(f"    t={t:4d}min  ({lat:+7.2f}°, {lon:+7.2f}°) → 可见: {names if names else '(无)'}")
 
     input("\n  按 Enter 继续...")
 
@@ -189,9 +192,9 @@ def demo_6_orbit_simulator_basic():
     print(f"    SAT-0 通信记录: 共 {len(records)} 个接触窗口")
     if records:
         r = records[0]
-        print(f"      首次接触: TS{r['timeslot']}, "
-              f"基站={r['gs_names']}, "
-              f"位置={r['sat_position_deg']}")
+        print(
+            f"      首次接触: TS{r['timeslot']}, 基站={r['gs_names']}, 位置={r['sat_position_deg']}"
+        )
 
     # 导出
     sim.export("d:/fl_space/examples/test_contact.json")
@@ -212,8 +215,10 @@ def demo_7_orbit_simulator_mars():
     # 对比：同样的配置在地球和火星上的不同
     print("\n  对比分析:")
     print(f"    火星轨道周期: {sim_mars.orbit_period_min:.1f} min")
-    print(f"    地球500km周期: ~{2*3.14159*(6371+500)**1.5/(398600.4418)**0.5/60:.1f} min")
-    print(f"    火星接触率: {sim_mars.stats['contact_rate']*100:.1f}%")
+    print(
+        f"    地球500km周期: ~{2 * 3.14159 * (6371 + 500) ** 1.5 / (398600.4418) ** 0.5 / 60:.1f} min"
+    )
+    print(f"    火星接触率: {sim_mars.stats['contact_rate'] * 100:.1f}%")
 
     # 火星卫星通信记录
     records = sim_mars.get_communication_record(0)
@@ -263,10 +268,9 @@ def demo_9_starlink_like():
     from fl_space.config.defaults import CONSTELLATION_PRESETS
 
     cfg = CONSTELLATION_PRESETS["starlink_like"]
-    const_config = ConstellationConfig(**{
-        k: v for k, v in cfg.items()
-        if k in ConstellationConfig.__dataclass_fields__
-    })
+    const_config = ConstellationConfig(
+        **{k: v for k, v in cfg.items() if k in ConstellationConfig.__dataclass_fields__}
+    )
 
     # 全球分布的15个地面站
     global_gs = [
@@ -303,9 +307,10 @@ def demo_9_starlink_like():
     print(f"\n  SAT-0 全天通信统计: {len(comm)} 个接触窗口")
     # 每个地面站的接触次数
     from collections import Counter
+
     gs_counter = Counter()
     for r in comm:
-        for name in r['gs_names']:
+        for name in r["gs_names"]:
             gs_counter[name] += 1
     print("  各基站联系次数:")
     for name, count in gs_counter.most_common(10):
@@ -341,6 +346,7 @@ def main():
         except Exception as e:
             print(f"\n  [错误] {name}: {e}")
             import traceback
+
             traceback.print_exc()
 
     print()

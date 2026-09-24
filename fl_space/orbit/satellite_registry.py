@@ -30,7 +30,7 @@ Examples
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from fl_space.environment import CelestialBody
@@ -56,20 +56,27 @@ class SatelliteRegistry:
         from .satellite_config import MultiClusterConfig
 
         self._registry["polar_6"] = lambda body=None: MultiClusterConfig.polar_only(6)
-        self._metadata["polar_6"] = {"description": "6颗极轨卫星 (500km, 90deg)", "category": "builtin"}
+        self._metadata["polar_6"] = {
+            "description": "6颗极轨卫星 (500km, 90deg)",
+            "category": "builtin",
+        }
 
         self._registry["starlink_20"] = lambda body=None: MultiClusterConfig.starlink_like(20)
-        self._metadata["starlink_20"] = {"description": "Starlink风格20卫星 (550km, 53deg)", "category": "builtin"}
+        self._metadata["starlink_20"] = {
+            "description": "Starlink风格20卫星 (550km, 53deg)",
+            "category": "builtin",
+        }
 
         self._registry["mixed_10"] = lambda body=None: MultiClusterConfig.mixed_orbit(4, 4, 2)
-        self._metadata["mixed_10"] = {"description": "混合轨道10卫星 (极轨4+中倾角4+赤道2)", "category": "builtin"}
+        self._metadata["mixed_10"] = {
+            "description": "混合轨道10卫星 (极轨4+中倾角4+赤道2)",
+            "category": "builtin",
+        }
 
         self._registry["demo"] = lambda body=None: MultiClusterConfig.demo_default()
         self._metadata["demo"] = {"description": "演示默认: 极轨4+LEO壳6", "category": "builtin"}
 
-    def register(
-        self, name: str, description: str = "", category: str = "custom"
-    ) -> Callable:
+    def register(self, name: str, description: str = "", category: str = "custom") -> Callable:
         """装饰器：注册自定义卫星生成函数。
 
         Parameters
@@ -136,9 +143,7 @@ class SatelliteRegistry:
         self._registry[name] = lambda body=None: config
         self._metadata[name] = {"description": description, "category": "dict"}
 
-    def get(
-        self, name: str, body: Optional[CelestialBody] = None
-    ) -> MultiClusterConfig:
+    def get(self, name: str, body: CelestialBody | None = None) -> MultiClusterConfig:
         """获取指定名称的卫星配置。
 
         Parameters
@@ -159,12 +164,10 @@ class SatelliteRegistry:
         """
         if name not in self._registry:
             available = ", ".join(sorted(self._registry.keys()))
-            raise KeyError(
-                f"Unknown satellite type: '{name}'. Available: {available}"
-            )
+            raise KeyError(f"Unknown satellite type: '{name}'. Available: {available}")
         return self._registry[name](body)
 
-    def list_types(self, category: Optional[str] = None) -> list[dict]:
+    def list_types(self, category: str | None = None) -> list[dict]:
         """列出所有已注册的卫星类型。
 
         Parameters
@@ -180,11 +183,13 @@ class SatelliteRegistry:
         result = []
         for name, meta in self._metadata.items():
             if category is None or meta.get("category") == category:
-                result.append({
-                    "name": name,
-                    "description": meta.get("description", ""),
-                    "category": meta.get("category", "unknown"),
-                })
+                result.append(
+                    {
+                        "name": name,
+                        "description": meta.get("description", ""),
+                        "category": meta.get("category", "unknown"),
+                    }
+                )
         return sorted(result, key=lambda x: x["name"])
 
     def unregister(self, name: str):
@@ -209,9 +214,10 @@ class SatelliteRegistry:
 
     def __repr__(self) -> str:
         types = self.list_types()
-        lines = [f"SatelliteRegistry({len(types)} types):"]
-        for t in types:
-            lines.append(f"  {t['name']:20s} [{t['category']}] {t['description']}")
+        lines = [
+            f"SatelliteRegistry({len(types)} types):",
+            *[f"  {item['name']:20s} [{item['category']}] {item['description']}" for item in types],
+        ]
         return "\n".join(lines)
 
 

@@ -42,10 +42,9 @@ def load_ground_stations(config: list) -> GroundStationNetwork:
 
 def load_constellation_config(config: dict[str, Any]) -> ConstellationConfig:
     """从字典加载星座配置。"""
-    return ConstellationConfig(**{
-        k: v for k, v in config.items()
-        if k in ConstellationConfig.__dataclass_fields__
-    })
+    return ConstellationConfig(
+        **{k: v for k, v in config.items() if k in ConstellationConfig.__dataclass_fields__}
+    )
 
 
 def load_sim_config_from_dict(config: dict[str, Any]) -> dict[str, Any]:
@@ -74,8 +73,14 @@ def load_sim_config_from_dict(config: dict[str, Any]) -> dict[str, Any]:
     elif "num_ground_stations" in config:
         params["num_ground_stations"] = config["num_ground_stations"]
 
-    for k in ("timeslot_duration_min", "num_timeslots", "contact_mode",
-              "random_seed", "verbose", "use_extended_gs"):
+    for k in (
+        "timeslot_duration_min",
+        "num_timeslots",
+        "contact_mode",
+        "random_seed",
+        "verbose",
+        "use_extended_gs",
+    ):
         if k in config:
             params[k] = config[k]
 
@@ -84,6 +89,6 @@ def load_sim_config_from_dict(config: dict[str, Any]) -> dict[str, Any]:
 
 def load_sim_config_from_json(filepath: Union[str, Path]) -> dict[str, Any]:
     """从 JSON 文件加载模拟器配置。"""
-    with open(filepath, encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         config = json.load(f)
     return load_sim_config_from_dict(config)

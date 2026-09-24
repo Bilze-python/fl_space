@@ -8,6 +8,7 @@ SpaceFL 可视化工具 — 实验输出图表和统计
     - 地面站分布地图
     - 接触统计汇总
 """
+
 from __future__ import annotations
 
 import json
@@ -20,15 +21,18 @@ from fl_space.viz.i18n import setup_cjk_font, t, tf
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")  # 无头服务器兼容
     import matplotlib.pyplot as plt
     import matplotlib.ticker as mticker
+
     HAS_MPL = True
 except ImportError:
     HAS_MPL = False
 
 
 # ── 辅助函数 ──────────────────────────────────────────────────
+
 
 def _ensure_dir(path: str) -> None:
     """确保目录存在。"""
@@ -38,6 +42,7 @@ def _ensure_dir(path: str) -> None:
 
 
 # ── 接触统计 ──────────────────────────────────────────────────
+
 
 def get_contact_statistics(sim) -> dict[str, Any]:
     """
@@ -70,26 +75,28 @@ def get_contact_statistics(sim) -> dict[str, Any]:
         gs_contacts = []
         for sat_id in range(n_sats):
             row = mat[sat_id]
-            in_contact = (row == gs_id)
+            in_contact = row == gs_id
             # 找连续接触段（窗口）
             padded = np.concatenate([[False], in_contact, [False]])
             changes = np.diff(padded.astype(int))
             starts = np.where(changes == 1)[0]
             ends = np.where(changes == -1)[0]
             for s, e in zip(starts, ends):
-                gs_contacts.append({
-                    "sat_id": int(sat_id),
-                    "start_ts": int(s),
-                    "end_ts": int(e),
-                    "duration_slots": int(e - s),
-                })
+                gs_contacts.append(
+                    {
+                        "sat_id": int(sat_id),
+                        "start_ts": int(s),
+                        "end_ts": int(e),
+                        "duration_slots": int(e - s),
+                    }
+                )
 
         durations = [c["duration_slots"] for c in gs_contacts]
-        contacted_sats = sorted(set(c["sat_id"] for c in gs_contacts))
+        contacted_sats = sorted({c["sat_id"] for c in gs_contacts})
         per_gs[gs_id] = {
             "gs_name": gs_network.names[gs_id] if gs_id < len(gs_network.names) else f"GS-{gs_id}",
-            "lat": float(gs_network[gs_id].lat_deg) if hasattr(gs_network, '__getitem__') else 0.0,
-            "lon": float(gs_network[gs_id].lon_deg) if hasattr(gs_network, '__getitem__') else 0.0,
+            "lat": float(gs_network[gs_id].lat_deg) if hasattr(gs_network, "__getitem__") else 0.0,
+            "lon": float(gs_network[gs_id].lon_deg) if hasattr(gs_network, "__getitem__") else 0.0,
             "total_contacts": len(gs_contacts),
             "contacted_satellites": contacted_sats,
             "num_contacted_sats": len(contacted_sats),
@@ -103,9 +110,9 @@ def get_contact_statistics(sim) -> dict[str, Any]:
     for sat_id in range(n_sats):
         row = mat[sat_id]
         contact_slots = np.sum(row >= 0)
-        contacted_gs = sorted(set(int(row[ts]) for ts in range(n_slots) if row[ts] >= 0))
+        contacted_gs = sorted({int(row[ts]) for ts in range(n_slots) if row[ts] >= 0})
         # 卫星平均接触窗口时长
-        in_contact = (row >= 0)
+        in_contact = row >= 0
         padded = np.concatenate([[False], in_contact, [False]])
         changes = np.diff(padded.astype(int))
         starts = np.where(changes == 1)[0]
@@ -121,8 +128,7 @@ def get_contact_statistics(sim) -> dict[str, Any]:
         }
 
     avg_contact_min = sim.timeslot_duration_min * (
-        np.mean([g["avg_duration_slots"] for g in per_gs.values()])
-        if per_gs else 0
+        np.mean([g["avg_duration_slots"] for g in per_gs.values()]) if per_gs else 0
     )
 
     return {
@@ -135,15 +141,18 @@ def get_contact_statistics(sim) -> dict[str, Any]:
             "timeslot_duration_min": sim.timeslot_duration_min,
             "contact_rate": sim.stats.get("contact_rate", 0),
             "total_contacts": sim.stats.get("total_contacts", 0),
-            "avg_contact_duration_slots": float(np.mean(
-                [g["avg_duration_slots"] for g in per_gs.values()]
-            )) if per_gs else 0,
+            "avg_contact_duration_slots": float(
+                np.mean([g["avg_duration_slots"] for g in per_gs.values()])
+            )
+            if per_gs
+            else 0,
             "avg_contact_duration_min": float(avg_contact_min),
         },
     }
 
 
 # ── 触矩阵热力图 ──────────────────────────────────────────────
+
 
 def plot_contact_heatmap(
     sim,
@@ -213,11 +222,19 @@ def plot_contact_heatmap(
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
     cbar.set_label(t("Connected Ground Stations", lang), fontsize=9)
 
-    ax.set_xlabel(tf("Time ({hours:.0f}h total, {slot_min}min/slot)", lang,
-                     hours=hours, slot_min=sim.timeslot_duration_min))
+    ax.set_xlabel(
+        tf(
+            "Time ({hours:.0f}h total, {slot_min}min/slot)",
+            lang,
+            hours=hours,
+            slot_min=sim.timeslot_duration_min,
+        )
+    )
     ax.set_ylabel(t("Satellite ID", lang))
-    ax.set_title(f"{tf(title, lang) if lang == 'zh' else title}\n"
-                 f"{t('Contact Rate:', lang)} {sim.stats.get('contact_rate', 0):.1%}")
+    ax.set_title(
+        f"{tf(title, lang) if lang == 'zh' else title}\n"
+        f"{t('Contact Rate:', lang)} {sim.stats.get('contact_rate', 0):.1%}"
+    )
 
     plt.tight_layout()
     _ensure_dir(output_path)
@@ -228,6 +245,7 @@ def plot_contact_heatmap(
 
 
 # ── 准确率对比曲线 ────────────────────────────────────────────
+
 
 def plot_accuracy_comparison(
     spacefl_history: list[dict],
@@ -274,7 +292,9 @@ def plot_accuracy_comparison(
     if baseline_history:
         rounds_base = [h.get("round", i) for i, h in enumerate(baseline_history)]
         acc_base = [h.get("accuracy", 0) for h in baseline_history]
-        ax1.plot(rounds_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang))
+        ax1.plot(
+            rounds_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang)
+        )
 
     ax1.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5, label=t("90% threshold", lang))
     ax1.set_xlabel(t("Round", lang))
@@ -289,8 +309,12 @@ def plot_accuracy_comparison(
     ax2.plot(ts_space, acc_space, "b-o", markersize=3, linewidth=1.2, label=t("SpaceFL", lang))
 
     if baseline_history:
-        ts_base = [h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(baseline_history)]
-        ax2.plot(ts_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang))
+        ts_base = [
+            h.get("timeslot", h.get("round", i) * 10) for i, h in enumerate(baseline_history)
+        ]
+        ax2.plot(
+            ts_base, acc_base, "r--s", markersize=3, linewidth=1.2, label=t("Standard FL", lang)
+        )
 
     ax2.axhline(y=0.9, color="gray", linestyle=":", alpha=0.5)
     ax2.set_xlabel(t("Timeslot", lang))
@@ -310,6 +334,7 @@ def plot_accuracy_comparison(
 
 
 # ── 时间分解图 ─────────────────────────────────────────────────
+
 
 def plot_time_breakdown(
     history: list[dict],
@@ -372,7 +397,7 @@ def plot_time_breakdown(
     bottom = np.zeros(len(rounds))
     colors = ["#3498db", "#2ecc71", "#e74c3c", "#f39c12", "#9b59b6"]
     labels_raw = ["Wait Dist", "Download", "Train", "Wait Return", "Upload"]
-    labels = [t(l, lang) for l in labels_raw]
+    labels = [t(label, lang) for label in labels_raw]
     data = [wait_dist, download, train, wait_return, upload]
 
     for d, color, label in zip(data, colors, labels):
@@ -384,7 +409,7 @@ def plot_time_breakdown(
     ax.set_ylabel(t("Timeslot", lang))
     ax.set_title(tf(title, lang) if lang == "zh" else title)
     ax.legend(fontsize=8, ncol=5, loc="upper right")
-    ax.set_xticks(x[::max(1, len(rounds) // 20)])
+    ax.set_xticks(x[:: max(1, len(rounds) // 20)])
     ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
@@ -396,6 +421,7 @@ def plot_time_breakdown(
 
 
 # ── 地面站分布地图 ────────────────────────────────────────────
+
 
 def plot_ground_station_map(
     sim,
@@ -437,7 +463,9 @@ def plot_ground_station_map(
     # 绘制地面站
     gs_network = sim.ground_network
     for i, gs in enumerate(gs_network):
-        ax.scatter(gs.lon_deg, gs.lat_deg, c="red", s=100, zorder=5, edgecolors="black", linewidths=0.5)
+        ax.scatter(
+            gs.lon_deg, gs.lat_deg, c="red", s=100, zorder=5, edgecolors="black", linewidths=0.5
+        )
         ax.annotate(
             f"GS-{i}\n{gs.name}",
             (gs.lon_deg, gs.lat_deg),
@@ -445,7 +473,7 @@ def plot_ground_station_map(
             xytext=(8, 8),
             fontsize=7,
             fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+            bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.8},
         )
 
     # 显示卫星轨迹（可选）
@@ -484,6 +512,7 @@ def plot_ground_station_map(
 
 
 # ── 实验报告器 ─────────────────────────────────────────────────
+
 
 def save_experiment_report(
     results: dict[str, Any],
@@ -532,7 +561,8 @@ def save_experiment_report(
             # 准确率对比
             if spacefl_hist:
                 plot_accuracy_comparison(
-                    spacefl_hist, baseline_hist,
+                    spacefl_hist,
+                    baseline_hist,
                     output_path=os.path.join(exp_dir, "accuracy.png"),
                     title=f"Accuracy: {exp_name}",
                     lang=lang,
@@ -549,11 +579,13 @@ def save_experiment_report(
 
             # 时空信息图
             exp_config = exp.get("config", {})
-            time_info = [
+            [
                 f"GS={exp.get('gs_count', '?')}, "
                 f"Sats={exp_config.get('num_satellites', '?')}, "
                 f"Rounds={len(spacefl_hist)}, "
-                f"FinalAcc={spacefl_hist[-1].get('accuracy', 0):.3f}" if spacefl_hist else ""
+                f"FinalAcc={spacefl_hist[-1].get('accuracy', 0):.3f}"
+                if spacefl_hist
+                else ""
             ]
             info_path = os.path.join(exp_dir, "info.txt")
             with open(info_path, "w", encoding="utf-8") as f:

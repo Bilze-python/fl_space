@@ -40,6 +40,7 @@ class CommunicationWindow:
     duration_slots : int
         窗口持续时间（timeslot 数）。
     """
+
     sat_id: int
     gs_ids: list[int]
     timeslot_start: int
@@ -95,7 +96,7 @@ class CommunicationScheduler:
 
         for sat_id in range(n_sats):
             windows: list[CommunicationWindow] = []
-            contact_row = self._contact_matrix[sat_id]
+            self._contact_matrix[sat_id]
 
             in_window = False
             window_start = 0
@@ -115,22 +116,26 @@ class CommunicationScheduler:
                 elif not gs_list and in_window:
                     # 窗口结束
                     in_window = False
-                    windows.append(CommunicationWindow(
-                        sat_id=sat_id,
-                        gs_ids=sorted(window_gs),
-                        timeslot_start=window_start,
-                        timeslot_end=ts - 1,
-                        duration_slots=ts - window_start,
-                    ))
+                    windows.append(
+                        CommunicationWindow(
+                            sat_id=sat_id,
+                            gs_ids=sorted(window_gs),
+                            timeslot_start=window_start,
+                            timeslot_end=ts - 1,
+                            duration_slots=ts - window_start,
+                        )
+                    )
                 # 最后一个 timeslot 仍在窗口中
                 if in_window and ts == n_slots - 1:
-                    windows.append(CommunicationWindow(
-                        sat_id=sat_id,
-                        gs_ids=sorted(window_gs),
-                        timeslot_start=window_start,
-                        timeslot_end=ts,
-                        duration_slots=ts - window_start + 1,
-                    ))
+                    windows.append(
+                        CommunicationWindow(
+                            sat_id=sat_id,
+                            gs_ids=sorted(window_gs),
+                            timeslot_start=window_start,
+                            timeslot_end=ts,
+                            duration_slots=ts - window_start + 1,
+                        )
+                    )
 
             self._windows[sat_id] = windows
 
@@ -202,6 +207,61 @@ class CommunicationScheduler:
         """
         return len(self._sim.get_all_contacts(sat_id, timeslot)) > 0
 
+    def find_transfer_window(
+        self,
+        sat_id: int,
+        after_timeslot: int,
+        duration_slots: int,
+        max_timeslot: int | None = None,
+        reservations: dict[int, list[tuple[int, int]]] | None = None,
+    ) -> tuple[int, int, int] | None:
+        """Find a continuous single-ground-station transfer opportunity.
+
+        ``duration_slots`` occupies the half-open interval
+        ``[start, end)``.  A zero-slot transfer still requires one visible
+        slot and returns ``end == start``.  When reservations are supplied,
+        each candidate station is rejected if its interval overlaps an
+        existing reservation.  This is a deterministic capacity model for
+        one terminal per ground station; richer terminal/beam capacities can
+        be added without changing the FL server contract.
+        """
+        if sat_id < 0 or sat_id >= self._sim.num_satellites:
+            return None
+        duration_slots = max(0, int(duration_slots))
+        start = max(0, int(after_timeslot) + 1)
+        stop = (
+            self._sim.num_timeslots
+            if max_timeslot is None
+            else min(self._sim.num_timeslots, max(0, int(max_timeslot)))
+        )
+        if start >= stop:
+            return None
+
+        for candidate in range(start, stop):
+            end = candidate + duration_slots
+            if duration_slots > 0 and end > stop:
+                break
+            required_slots = max(1, duration_slots)
+            common_stations = set(self._sim.get_all_contacts(sat_id, candidate))
+            for ts in range(candidate + 1, candidate + required_slots):
+                common_stations.intersection_update(self._sim.get_all_contacts(sat_id, ts))
+                if not common_stations:
+                    break
+            for gs_id in sorted(common_stations):
+                if reservations and self._reservation_overlaps(
+                    reservations.get(gs_id, []), candidate, end
+                ):
+                    continue
+                return candidate, int(gs_id), end
+        return None
+
+    @staticmethod
+    def _reservation_overlaps(reservations: list[tuple[int, int]], start: int, end: int) -> bool:
+        """Return whether a half-open interval conflicts with a reservation."""
+        if start == end:
+            return any(res_start <= start < res_end for res_start, res_end in reservations)
+        return any(start < res_end and res_start < end for res_start, res_end in reservations)
+
     def get_connectivity_stats(self) -> dict[str, Any]:
         """
         获取通信连通性统计。
@@ -224,9 +284,7 @@ class CommunicationScheduler:
                 "num_windows": len(windows),
                 "total_contact_slots": total_slots,
                 "contact_rate": (
-                    total_slots / self._sim.num_timeslots
-                    if self._sim.num_timeslots > 0
-                    else 0
+                    total_slots / self._sim.num_timeslots if self._sim.num_timeslots > 0 else 0
                 ),
             }
 
@@ -261,10 +319,7 @@ class CommunicationScheduler:
 
         for ts in range(start_timeslot, end_timeslot):
             connected = self.get_connected_sats(ts)
-            sat_to_gs = {
-                sid: self.get_connected_gss(sid, ts)
-                for sid in connected
-            }
+            sat_to_gs = {sid: self.get_connected_gss(sid, ts) for sid in connected}
             yield {
                 "timeslot": ts,
                 "connected_sats": connected,

@@ -60,7 +60,6 @@ try:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import matplotlib.ticker as mticker
 
     HAS_MPL = True
 except ImportError:
@@ -236,16 +235,18 @@ def run_one(
     history_dict = []
     round_ts = []
     for h in history:
-        history_dict.append({
-            "round": h.round_num,
-            "timeslot_start": getattr(h, "timeslot_start", None),
-            "timeslot_end": getattr(h, "timeslot_end", None),
-            "accuracy": h.eval_metrics.get("accuracy", 0),
-            "loss": h.eval_metrics.get("loss", 0),
-            "online_clients": getattr(h, "num_online", None),
-            "selected_clients": getattr(h, "num_selected", None),
-            "train_loss": getattr(h, "train_loss", None),
-        })
+        history_dict.append(
+            {
+                "round": h.round_num,
+                "timeslot_start": getattr(h, "timeslot_start", None),
+                "timeslot_end": getattr(h, "timeslot_end", None),
+                "accuracy": h.eval_metrics.get("accuracy", 0),
+                "loss": h.eval_metrics.get("loss", 0),
+                "online_clients": getattr(h, "num_online", None),
+                "selected_clients": getattr(h, "num_selected", None),
+                "train_loss": getattr(h, "train_loss", None),
+            }
+        )
         round_ts.append(getattr(h, "timeslot_start", h.round_num))
 
     elapsed = _time.time() - t0
@@ -266,9 +267,11 @@ def run_one(
     )
 
     if verbose:
-        print(f"  [{name}] 完成: {len(history_dict)} 轮, "
-              f"Final Acc={result.final_acc:.4f}, Max={result.max_acc:.4f}, "
-              f"耗时={elapsed:.1f}s")
+        print(
+            f"  [{name}] 完成: {len(history_dict)} 轮, "
+            f"Final Acc={result.final_acc:.4f}, Max={result.max_acc:.4f}, "
+            f"耗时={elapsed:.1f}s"
+        )
 
     return result
 
@@ -278,7 +281,6 @@ def run_one(
 
 def compute_contact_stats(sim: OrbitSimulator) -> dict:
     cm = sim.contact_matrix
-    gs_network = sim.ground_network
     n_sats = sim.num_satellites
     n_slots = sim.num_timeslots
     n_gs = sim.num_ground_stations
@@ -320,7 +322,7 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
         return
 
     os.makedirs(output_dir, exist_ok=True)
-    n_algos = len(results)
+    len(results)
 
     # ── 1. 准确率对比 (主图) ──
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
@@ -377,15 +379,36 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
         ck = f"{r.algorithm}_mu{r.mu}" if r.algorithm == "fedprox" else r.algorithm
         colors_list.append(COLORS.get(ck, "#95a5a6"))
 
-    bars1 = ax3.bar(x - width / 2, final_accs, width, label="Final Acc", color=colors_list, edgecolor="white")
-    bars2 = ax3.bar(x + width / 2, max_accs, width, label="Max Acc", color=colors_list, alpha=0.5, edgecolor="white")
+    bars1 = ax3.bar(
+        x - width / 2, final_accs, width, label="Final Acc", color=colors_list, edgecolor="white"
+    )
+    bars2 = ax3.bar(
+        x + width / 2,
+        max_accs,
+        width,
+        label="Max Acc",
+        color=colors_list,
+        alpha=0.5,
+        edgecolor="white",
+    )
 
     for bar, v in zip(bars1, final_accs):
-        ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{v:.3f}",
-                 ha="center", fontsize=8, fontweight="bold")
+        ax3.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{v:.3f}",
+            ha="center",
+            fontsize=8,
+            fontweight="bold",
+        )
     for bar, v in zip(bars2, max_accs):
-        ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{v:.3f}",
-                 ha="center", fontsize=8)
+        ax3.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{v:.3f}",
+            ha="center",
+            fontsize=8,
+        )
 
     ax3.set_xticks(x)
     ax3.set_xticklabels(names, fontsize=9)
@@ -396,9 +419,15 @@ def plot_comparison(results: list[RunResult], output_dir: str) -> None:
     ax3.grid(axis="y", alpha=0.3)
 
     ax4.bar(x, elapsed_min, color=colors_list, edgecolor="white")
-    for i, (bar, v) in enumerate(zip(ax4.patches, elapsed_min)):
-        ax4.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2, f"{v:.1f}min",
-                 ha="center", fontsize=8, fontweight="bold")
+    for _i, (bar, v) in enumerate(zip(ax4.patches, elapsed_min)):
+        ax4.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.2,
+            f"{v:.1f}min",
+            ha="center",
+            fontsize=8,
+            fontweight="bold",
+        )
     ax4.set_xticks(x)
     ax4.set_xticklabels(names, fontsize=9)
     ax4.set_ylabel("Time (minutes)")
@@ -426,12 +455,16 @@ def main():
     parser.add_argument("--local-epochs", type=int, default=2, help="本地 epoch (默认: 2)")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=0.01, help="学习率")
-    parser.add_argument("--mu-values", type=float, nargs="+", default=[0.01, 0.1],
-                        help="FedProx μ 值列表 (默认: 0.01 0.1)")
+    parser.add_argument(
+        "--mu-values",
+        type=float,
+        nargs="+",
+        default=[0.01, 0.1],
+        help="FedProx μ 值列表 (默认: 0.01 0.1)",
+    )
     parser.add_argument("--altitude", type=float, default=500.0, help="轨道高度 km")
     parser.add_argument("--inclination", type=float, default=53.0, help="轨道倾角 °")
-    parser.add_argument("--sim-hours", type=float, default=24.0,
-                        help="模拟时长/小时 (默认: 24)")
+    parser.add_argument("--sim-hours", type=float, default=24.0, help="模拟时长/小时 (默认: 24)")
     parser.add_argument("--timeslot-min", type=float, default=1.0)
     parser.add_argument("--dataset", default="mnist")
     parser.add_argument("--device", default="cpu")
@@ -521,7 +554,7 @@ def main():
         name = f"FedProx (μ={mu_val})"
         if not quiet:
             print(f"\n{'─' * 50}")
-            print(f"  [{idx+1}/{len(args.mu_values)+1}] {name}")
+            print(f"  [{idx + 1}/{len(args.mu_values) + 1}] {name}")
             print(f"{'─' * 50}")
 
         r_prox = run_one(
@@ -587,19 +620,21 @@ def main():
     }
 
     for r in results:
-        summary["results"].append({
-            "name": r.name,
-            "algorithm": r.algorithm,
-            "mu": r.mu,
-            "rounds": len(r.history),
-            "final_acc": round(r.final_acc, 4),
-            "max_acc": round(r.max_acc, 4),
-            "min_acc": round(r.min_acc, 4),
-            "mean_acc": round(r.mean_acc, 4),
-            "std_acc": round(r.std_acc, 4),
-            "elapsed_sec": round(r.elapsed_sec, 1),
-            "elapsed_min": round(r.elapsed_sec / 60, 1),
-        })
+        summary["results"].append(
+            {
+                "name": r.name,
+                "algorithm": r.algorithm,
+                "mu": r.mu,
+                "rounds": len(r.history),
+                "final_acc": round(r.final_acc, 4),
+                "max_acc": round(r.max_acc, 4),
+                "min_acc": round(r.min_acc, 4),
+                "mean_acc": round(r.mean_acc, 4),
+                "std_acc": round(r.std_acc, 4),
+                "elapsed_sec": round(r.elapsed_sec, 1),
+                "elapsed_min": round(r.elapsed_sec / 60, 1),
+            }
+        )
 
     # 计算增益
     if len(results) >= 2:
@@ -620,11 +655,15 @@ def main():
         print(f"\n{'=' * 70}")
         print("  对比结果汇总")
         print(f"{'=' * 70}")
-        print(f"  {'算法':<20} {'最终Acc':>8} {'最高Acc':>8} {'平均Acc':>8} {'标准差':>8} {'耗时':>8}")
+        print(
+            f"  {'算法':<20} {'最终Acc':>8} {'最高Acc':>8} {'平均Acc':>8} {'标准差':>8} {'耗时':>8}"
+        )
         print(f"  {'─' * 60}")
         for r in results:
-            print(f"  {r.name:<20} {r.final_acc:>8.4f} {r.max_acc:>8.4f} "
-                  f"{r.mean_acc:>8.4f} {r.std_acc:>8.4f} {r.elapsed_sec:>7.1f}s")
+            print(
+                f"  {r.name:<20} {r.final_acc:>8.4f} {r.max_acc:>8.4f} "
+                f"{r.mean_acc:>8.4f} {r.std_acc:>8.4f} {r.elapsed_sec:>7.1f}s"
+            )
 
         if len(results) >= 2:
             baseline = results[0]
@@ -632,14 +671,18 @@ def main():
             for r in results[1:]:
                 gain = r.max_acc - baseline.max_acc
                 sign = "+" if gain >= 0 else ""
-                print(f"  {r.name}: Δmax_acc = {sign}{gain:.4f} "
-                      f"({'提升' if gain >= 0 else '下降'} {abs(gain)*100:.2f}%)")
+                print(
+                    f"  {r.name}: Δmax_acc = {sign}{gain:.4f} "
+                    f"({'提升' if gain >= 0 else '下降'} {abs(gain) * 100:.2f}%)"
+                )
 
         print(f"\n  输出目录: {os.path.abspath(args.output)}/")
         print("    summary.json              — 完整对比汇总")
         print("    contact_stats.json        — 接触统计")
         for r in results:
-            fname = r.name.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("=", "")
+            fname = (
+                r.name.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("=", "")
+            )
             print(f"    {fname}_history.json  — {r.name} 逐轮记录")
         if HAS_MPL:
             print("    accuracy_comparison.png   — 准确率对比图")

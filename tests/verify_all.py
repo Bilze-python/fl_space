@@ -1,6 +1,7 @@
 """
 无交互版验证脚本
 """
+
 import os
 import sys
 
@@ -15,6 +16,7 @@ from fl_space.environment import (
     create_extended_network,
 )
 from fl_space.orbit import (
+    SKYFIELD_AVAILABLE,
     ConstellationConfig,
     MultiSatVisibility,
     VisibilityEngine,
@@ -26,6 +28,7 @@ from fl_space.simulator import OrbitSimulator, create_default_simulator, create_
 
 errors = []
 
+
 def check(name, condition, detail=""):
     if condition:
         print(f"  [OK] {name}")
@@ -33,13 +36,16 @@ def check(name, condition, detail=""):
         print(f"  [FAIL] {name} {detail}")
         errors.append(name)
 
+
 print("=" * 60)
 print(" SpaceFL 模块化框架 — 验证测试")
 print("=" * 60)
 
 # ---- 天体 ----
 print("\n[1] 天体参数")
-earth = CelestialBody.earth(); mars = CelestialBody.mars(); moon = CelestialBody.moon()
+earth = CelestialBody.earth()
+mars = CelestialBody.mars()
+moon = CelestialBody.moon()
 check("Earth预设", earth.name == "Earth")
 check("Mars预设", mars.name == "Mars")
 check("Moon预设", moon.name == "Moon")
@@ -114,9 +120,9 @@ comm = sim.get_communication_record(0)
 check("通信记录非空或有合理原因", isinstance(comm, list))
 if comm:
     r = comm[0]
-    check("通信记录含gs_names", 'gs_names' in r)
-    check("通信记录含sat_position", 'sat_position_deg' in r)
-    check("通信记录含timeslot", 'timeslot' in r)
+    check("通信记录含gs_names", "gs_names" in r)
+    check("通信记录含sat_position", "sat_position_deg" in r)
+    check("通信记录含timeslot", "timeslot" in r)
 
 # 卫星轨迹
 traj = sim.get_sat_trajectory(0, [0, 60, 120])
@@ -137,7 +143,7 @@ print("\n[7] 模拟器 — 与 orbit_sim_v2 兼容")
 sim_def = create_default_simulator()
 check("默认3卫星", sim_def.num_satellites == 3)
 check("默认2地面站", sim_def.num_ground_stations == 2)
-check("默认联系率有值", sim_def.stats['contact_rate'] > 0)
+check("默认联系率有值", sim_def.stats["contact_rate"] > 0)
 check("summary包含天体名", "Earth" in sim_def.summary())
 
 # ---- 模拟器 — 火星 ----
@@ -146,43 +152,51 @@ sim_mars = create_mars_simulator()
 check("火星5卫星", sim_mars.num_satellites == 5)
 check("火星5地面站", sim_mars.num_ground_stations == 5)
 check("火星轨道周期>地球", sim_mars.orbit_period_min > 60)
-check("火星联系率有值", sim_mars.stats['contact_rate'] > 0)
+check("火星联系率有值", sim_mars.stats["contact_rate"] > 0)
 comm_m = sim_mars.get_communication_record(0)
 check("火星通信记录生成", isinstance(comm_m, list))
 
 # ---- Skyfield后端 ----
 print("\n[9] Skyfield 高精度后端")
-from fl_space.orbit import SKYFIELD_AVAILABLE
-
 if SKYFIELD_AVAILABLE:
     from fl_space.orbit.skyfield_backend import (
         SkyfieldOrbitBackend,
         get_precise_body_params,
         list_supported_bodies,
     )
+
     check("Skyfield可用", SKYFIELD_AVAILABLE)
     bodies = list_supported_bodies()
-    check("支持天体列表", len(bodies) >= 4 and 'earth' in bodies)
-    params = get_precise_body_params('earth')
-    check("JPL地球参数", params is not None and params['radius_km'] > 6370)
-    check("JPL地球GM精度", abs(params['GM'] - 398600.435) < 1.0)
+    check("支持天体列表", len(bodies) >= 4 and "earth" in bodies)
+    params = get_precise_body_params("earth")
+    check("JPL地球参数", params is not None and params["radius_km"] > 6370)
+    check("JPL地球GM精度", abs(params["GM"] - 398600.435) < 1.0)
 
     sf = SkyfieldOrbitBackend()
     yr, mo, dy = 2024, 6, 1
     import math
-    a = (14 - mo) // 12; y = yr + 4800 - a; m = mo + 12 * a - 3
-    epoch_jd = (dy + (153*m+2)//5 + 365*y + y//4 - y//100 + y//400 - 32045 - 0.5)
+
+    a = (14 - mo) // 12
+    y = yr + 4800 - a
+    m = mo + 12 * a - 3
+    epoch_jd = dy + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045 - 0.5
     sat = sf.create_satellite_from_kepler(500, 90, 30, 60, epoch_jd=epoch_jd)
     check("SGP4卫星创建", sat is not None)
-    check("SGP4周期~94.5min", abs(2*math.pi/sat.satrec.no_kozai - 94.5) < 2.0)
+    check("SGP4周期~94.5min", abs(2 * math.pi / sat.satrec.no_kozai - 94.5) < 2.0)
     lat, lon, alt = sf.position_at_time(sat, yr, mo, dy, 0.0)
     check("SGP4位置高度合理", 300 < alt < 700)
     check("SGP4纬度合理", -90 <= lat <= 90)
 
-    sim_sf = OrbitSimulator(backend="skyfield", num_satellites=3, num_ground_stations=3,
-                            num_timeslots=360, sim_start_date=(2024,6,1), verbose=False)
+    sim_sf = OrbitSimulator(
+        backend="skyfield",
+        num_satellites=3,
+        num_ground_stations=3,
+        num_timeslots=360,
+        sim_start_date=(2024, 6, 1),
+        verbose=False,
+    )
     check("Skyfield后端模拟器", sim_sf.backend_mode == "skyfield")
-    check("Skyfield接触率>0", sim_sf.stats['contact_rate'] > 0)
+    check("Skyfield接触率>0", sim_sf.stats["contact_rate"] > 0)
     check("Skyfield周期~94.5min", abs(sim_sf.orbit_period_min - 94.5) < 2.0)
 else:
     check("Skyfield跳过(未安装)", True)
@@ -206,21 +220,30 @@ check("配置加载地面站数", sim_cfg.num_ground_stations == 2)
 # ---- Starlink风格星座 ----
 print("\n[11] Starlink-like 大星座")
 cfg = CONSTELLATION_PRESETS["starlink_like"]
-const_config = ConstellationConfig(**{k: v for k, v in cfg.items() if k in ConstellationConfig.__dataclass_fields__})
-gs_network = GroundStationNetwork.from_tuples([
-    ("New York", 40.7, -74.0), ("London", 51.5, -0.1),
-    ("Beijing", 39.9, 116.4), ("Tokyo", 35.7, 139.7),
-    ("Sydney", -33.9, 151.2), ("Singapore", 1.3, 103.8),
-])
+const_config = ConstellationConfig(
+    **{k: v for k, v in cfg.items() if k in ConstellationConfig.__dataclass_fields__}
+)
+gs_network = GroundStationNetwork.from_tuples(
+    [
+        ("New York", 40.7, -74.0),
+        ("London", 51.5, -0.1),
+        ("Beijing", 39.9, 116.4),
+        ("Tokyo", 35.7, 139.7),
+        ("Sydney", -33.9, 151.2),
+        ("Singapore", 1.3, 103.8),
+    ]
+)
 sim_star = OrbitSimulator(
-    body=CelestialBody.earth(), constellation_config=const_config,
+    body=CelestialBody.earth(),
+    constellation_config=const_config,
     ground_station_network=gs_network,
-    timeslot_duration_min=1.0, num_timeslots=720,
+    timeslot_duration_min=1.0,
+    num_timeslots=720,
     verbose=False,
 )
 check("Starlink 20卫星", sim_star.num_satellites == 20)
 check("Starlink 6地面站", sim_star.num_ground_stations == 6)
-check("Starlink 联系率>0", sim_star.stats['contact_rate'] > 0)
+check("Starlink 联系率>0", sim_star.stats["contact_rate"] > 0)
 check("Starlink 倾角53°", sim_star.orbit_inclination_deg == 53.0)
 comm_star = sim_star.get_communication_record(0)
 check("Starlink 通信记录", len(comm_star) > 0)

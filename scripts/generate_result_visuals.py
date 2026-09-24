@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate selected charts from a completed SpaceFL result JSON/directory."""
+
 from __future__ import annotations
 
 import argparse
@@ -62,6 +63,7 @@ def main() -> int:
         return 2
 
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -84,7 +86,10 @@ def main() -> int:
 
     if "time" in plots:
         keys = ("wait_distribution", "download", "train", "wait_return", "upload")
-        totals = {k: sum(float((x.get("time_breakdown") or {}).get(k, 0) or 0) for x in hist) for k in keys}
+        totals = {
+            k: sum(float((x.get("time_breakdown") or {}).get(k, 0) or 0) for x in hist)
+            for k in keys
+        }
         if any(totals.values()):
             fig, ax = plt.subplots(figsize=(8, 4.5))
             ax.bar(list(totals), list(totals.values()), color="#00897b")

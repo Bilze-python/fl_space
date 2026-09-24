@@ -94,9 +94,7 @@ class OrbitSimulator:
         constellation_config: Optional[ConstellationConfig] = None,
         distribution: str = "uniform",  # "walker" | "cluster" | "uniform"
         # 地面站
-        ground_station_network: Optional[
-            Union[GroundStationNetwork, list[GroundStation]]
-        ] = None,
+        ground_station_network: Optional[Union[GroundStationNetwork, list[GroundStation]]] = None,
         use_extended_gs: bool = False,
         # 时间参数
         timeslot_duration_min: float = 1.0,
@@ -353,11 +351,7 @@ class OrbitSimulator:
         base_dt = datetime(*self.sim_start_date, tzinfo=timezone.utc)
         ts_start = base_dt + timedelta(minutes=timeslot * self.timeslot_duration_min)
         ts_end = base_dt + timedelta(minutes=(timeslot + 1) * self.timeslot_duration_min)
-        return [
-            w
-            for w in self.isl_windows
-            if w.start_utc < ts_end and w.end_utc > ts_start
-        ]
+        return [w for w in self.isl_windows if w.start_utc < ts_end and w.end_utc > ts_start]
 
     def isl_peers_at(self, sat_name: str, timeslot: int) -> list[str]:
         """查询指定时隙中与某卫星有 ISL 连接的相邻卫星。
@@ -615,9 +609,13 @@ class OrbitSimulator:
         search_chunk = max(search_chunk, 100)  # 至少100个时隙
 
         search_start = max(after_timeslot + 1, self.num_timeslots)
-        search_end = search_start + search_chunk
+        # Keep the safety bound absolute. ``_extend_to`` changes
+        # ``num_timeslots`` on every iteration, so deriving the bound from it
+        # inside the loop would make an unreachable satellite search forever.
+        max_search_end = search_start + search_chunk * 100
+        search_end = min(search_start + search_chunk, max_search_end)
 
-        while True:
+        while search_start < max_search_end:
             self._extend_to(search_end)
             # 在新扩展的范围内查找
             for ts in range(search_start, search_end):
@@ -626,10 +624,9 @@ class OrbitSimulator:
                     return (ts, int(gs_id))
             # 未找到，继续扩展
             search_start = search_end
-            search_end += search_chunk
-            # 安全阀：最多搜索 100 个轨道周期（几十年模拟时间）
-            if search_end > self.num_timeslots + search_chunk * 100:
-                return None
+            search_end = min(search_end + search_chunk, max_search_end)
+
+        return None
 
     def get_satellites_in_contact(self, timeslot: int) -> list[int]:
         """获取某时刻可通信的所有卫星（自动扩展矩阵）。"""

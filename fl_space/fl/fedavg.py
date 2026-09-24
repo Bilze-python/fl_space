@@ -37,6 +37,7 @@ try:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -80,11 +81,7 @@ class RandomSelector(ClientSelector):
         **kwargs: Any,
     ) -> list[int]:
         """随机选择客户端。"""
-        eligible = (
-            [c for c in clients if c.is_connected]
-            if self.connected_only
-            else list(clients)
-        )
+        eligible = [c for c in clients if c.is_connected] if self.connected_only else list(clients)
         if not eligible:
             return []
 
@@ -260,9 +257,7 @@ class FixedEpochTrainer(LocalTrainer):
         avg_loss = total_loss / actual_epochs
 
         # 提取本地训练后的参数
-        local_weights = [
-            param.data.clone() for param in local_model.parameters()
-        ]
+        local_weights = [param.data.clone() for param in local_model.parameters()]
 
         return ClientUpdate(
             client_id=client_id,
@@ -342,10 +337,7 @@ class SyncWeightedAggregator(Aggregator):
             return global_weights
 
         # 初始化聚合结果为零
-        aggregated = [
-            torch.zeros_like(w, dtype=torch.float32)
-            for w in global_weights
-        ]
+        aggregated = [torch.zeros_like(w, dtype=torch.float32) for w in global_weights]
 
         for update in updates:
             weight_ratio = update.data_size / total_size
@@ -353,9 +345,7 @@ class SyncWeightedAggregator(Aggregator):
                 if isinstance(client_w, torch.Tensor):
                     agg_w.add_(client_w.float() * weight_ratio)
                 else:
-                    agg_w.add_(
-                        torch.tensor(client_w, dtype=torch.float32) * weight_ratio
-                    )
+                    agg_w.add_(torch.tensor(client_w, dtype=torch.float32) * weight_ratio)
 
         return aggregated
 

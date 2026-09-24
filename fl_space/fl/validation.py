@@ -143,8 +143,7 @@ def _contract_checks() -> dict[str, dict[str, Any]]:
         },
         "fedbuff_fifo_conservation": {
             "passed": (
-                buffer_status["last_client_ids"] == [0, 1]
-                and buffer_status["current_count"] == 1
+                buffer_status["last_client_ids"] == [0, 1] and buffer_status["current_count"] == 1
             ),
             "first_batch_client_ids": buffer_status["last_client_ids"],
             "remaining_updates": buffer_status["current_count"],
@@ -157,7 +156,9 @@ def _contract_checks() -> dict[str, dict[str, Any]]:
     }
 
 
-def _run_one(algorithm: str, seed: int, rounds: int) -> tuple[dict[str, Any], list[dict], list[dict]]:
+def _run_one(
+    algorithm: str, seed: int, rounds: int
+) -> tuple[dict[str, Any], list[dict], list[dict]]:
     train_loaders, test_loader = _make_dataset(seed)
     model = _make_model(seed)
     common = {
@@ -210,19 +211,11 @@ def _run_one(algorithm: str, seed: int, rounds: int) -> tuple[dict[str, Any], li
     trained_history = [row for row in history if row["round"] >= 0]
     final_row = trained_history[-1]
     aggregate_events = [event for event in events if event["event"] == "server_aggregate"]
-    staleness = [
-        value
-        for event in aggregate_events
-        for value in event.get("staleness", [])
-    ]
+    staleness = [value for event in aggregate_events for value in event.get("staleness", [])]
     client_updates = (
         sum(row["num_clients"] for row in trained_history)
         if algorithm != "fedbuff"
-        else next(
-            event["arrivals"]
-            for event in events
-            if event["event"] == "run_complete"
-        )
+        else next(event["arrivals"] for event in events if event["event"] == "run_complete")
     )
     summary = {
         "algorithm": algorithm,
@@ -314,15 +307,9 @@ def run_algorithm_validation(
         aggregate[algorithm] = {
             "final_accuracy_mean": statistics.mean(accuracies),
             "final_accuracy_std": statistics.pstdev(accuracies),
-            "client_updates_mean": statistics.mean(
-                float(row["client_updates"]) for row in rows
-            ),
-            "final_timeslot_mean": statistics.mean(
-                float(row["final_timeslot"]) for row in rows
-            ),
-            "mean_staleness": statistics.mean(
-                float(row["mean_staleness"]) for row in rows
-            ),
+            "client_updates_mean": statistics.mean(float(row["client_updates"]) for row in rows),
+            "final_timeslot_mean": statistics.mean(float(row["final_timeslot"]) for row in rows),
+            "mean_staleness": statistics.mean(float(row["mean_staleness"]) for row in rows),
         }
     report = {
         "contracts_passed": all(item["passed"] for item in contracts.values()),

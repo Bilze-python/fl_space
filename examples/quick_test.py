@@ -19,6 +19,7 @@ SpaceFL 快速测试 — 10异构卫星 + 5地面站 + FedProxSat (自适应μ, 
     ├── contact_heatmap.png     — 接触热力图
     └── gs_map.png              — 地面站地图
 """
+
 import argparse
 from datetime import datetime
 import json
@@ -49,22 +50,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="SpaceFL 快速测试 — FedProxSat 自适应μ")
     p.add_argument("--output", "-o", default="results", help="输出目录 (默认: results)")
     p.add_argument("--mu", type=float, default=0.01, help="基础 μ / 固定 μ (默认: 0.01)")
-    p.add_argument("--mu-min", type=float, default=0.001,
-                   help="自适应 μ 下限 (默认: 0.001)")
-    p.add_argument("--mu-max", type=float, default=1.0,
-                   help="自适应 μ 上限 (默认: 1.0)")
-    p.add_argument("--oscillation-threshold", type=float, default=0.1,
-                   help="震荡阈值，超过触发 μ↑ (默认: 0.1)")
-    p.add_argument("--stability-threshold", type=float, default=0.03,
-                   help="稳定阈值，低于触发 μ↓ (默认: 0.03)")
-    p.add_argument("--no-adaptive", action="store_true",
-                   help="禁用自适应 μ，使用固定 μ (传统 FedProx)")
+    p.add_argument("--mu-min", type=float, default=0.001, help="自适应 μ 下限 (默认: 0.001)")
+    p.add_argument("--mu-max", type=float, default=1.0, help="自适应 μ 上限 (默认: 1.0)")
+    p.add_argument(
+        "--oscillation-threshold", type=float, default=0.1, help="震荡阈值，超过触发 μ↑ (默认: 0.1)"
+    )
+    p.add_argument(
+        "--stability-threshold", type=float, default=0.03, help="稳定阈值，低于触发 μ↓ (默认: 0.03)"
+    )
+    p.add_argument(
+        "--no-adaptive", action="store_true", help="禁用自适应 μ，使用固定 μ (传统 FedProx)"
+    )
     p.add_argument("--rounds", type=int, default=300, help="最大轮数 (默认: 300)")
     p.add_argument("--epochs", type=int, default=2, help="本地epoch (默认: 2)")
     p.add_argument("--early-stop", type=float, default=0.9, help="早停阈值 (默认: 0.9)")
     p.add_argument("--gs", type=int, default=5, help="地面站数 (默认: 5)")
-    p.add_argument("--lang", choices=["en", "zh"], default="en",
-                   help="输出图表语言 (默认: en)")
+    p.add_argument("--lang", choices=["en", "zh"], default="en", help="输出图表语言 (默认: en)")
     p.add_argument("--quiet", "-q", action="store_true", help="安静模式")
     return p
 
@@ -92,11 +93,13 @@ def run_quick_test(args: argparse.Namespace) -> int:
     gs_network = get_gs_network(gs_count)
 
     sim = OrbitSimulator(
-        body=body, orbits=orbits,
+        body=body,
+        orbits=orbits,
         ground_station_network=gs_network,
         num_timeslots=(168 * 60),
         timeslot_duration_min=1.0,
-        backend="kepler", contact_mode="simple",
+        backend="kepler",
+        contact_mode="simple",
         verbose=False,
     )
     if not args.quiet:
@@ -138,9 +141,12 @@ def run_quick_test(args: argparse.Namespace) -> int:
 
     # ── 生成接触热力图和GS地图 ──
     try:
-        plot_contact_heatmap(sim, os.path.join(output_dir, "contact_heatmap.png"),
-                             title=f"Contact Heatmap (GS={gs_count}, 10 Sats)",
-                             lang=getattr(args, 'lang', 'en'))
+        plot_contact_heatmap(
+            sim,
+            os.path.join(output_dir, "contact_heatmap.png"),
+            title=f"Contact Heatmap (GS={gs_count}, 10 Sats)",
+            lang=getattr(args, "lang", "en"),
+        )
         if not args.quiet:
             print(f"[保存] 热力图 → {output_dir}/contact_heatmap.png")
     except Exception as e:
@@ -148,9 +154,12 @@ def run_quick_test(args: argparse.Namespace) -> int:
             print(f"[警告] 热力图生成失败: {e}")
 
     try:
-        plot_ground_station_map(sim, os.path.join(output_dir, "gs_map.png"),
-                                title=f"Ground Stations (GS={gs_count})",
-                                lang=getattr(args, 'lang', 'en'))
+        plot_ground_station_map(
+            sim,
+            os.path.join(output_dir, "gs_map.png"),
+            title=f"Ground Stations (GS={gs_count})",
+            lang=getattr(args, "lang", "en"),
+        )
         if not args.quiet:
             print(f"[保存] GS地图 → {output_dir}/gs_map.png")
     except Exception as e:
@@ -159,24 +168,38 @@ def run_quick_test(args: argparse.Namespace) -> int:
 
     # ── FL 配置 ──
     config = FLConfig(
-        algorithm="fedprox", num_rounds=args.rounds, num_clients=10,
-        fraction=1.0, local_epochs=args.epochs, batch_size=32,
-        learning_rate=0.01, mu=args.mu, device="cpu", seed=42,
-        time_model="slot", time_model_kwargs={"slots_per_epoch": 1},
-        early_stop_acc=args.early_stop, num_train_workers=1, num_workers=2,
+        algorithm="fedprox",
+        num_rounds=args.rounds,
+        num_clients=10,
+        fraction=1.0,
+        local_epochs=args.epochs,
+        batch_size=32,
+        learning_rate=0.01,
+        mu=args.mu,
+        device="cpu",
+        seed=42,
+        time_model="slot",
+        time_model_kwargs={"slots_per_epoch": 1},
+        early_stop_acc=args.early_stop,
+        num_train_workers=1,
+        num_workers=2,
     )
 
     scheduler = CommunicationScheduler(sim)
 
     selector = CappedSelector(max_count=gs_count, min_clients=1, seed=42)
     if args.no_adaptive:
-        trainer = ProximalTrainer(local_epochs=args.epochs, batch_size=32,
-                                  learning_rate=0.01, mu=args.mu, device="cpu")
+        trainer = ProximalTrainer(
+            local_epochs=args.epochs, batch_size=32, learning_rate=0.01, mu=args.mu, device="cpu"
+        )
     else:
         trainer = AdaptiveProximalTrainer(
-            local_epochs=args.epochs, batch_size=32,
-            learning_rate=0.01, base_mu=args.mu,
-            mu_min=args.mu_min, mu_max=args.mu_max,
+            local_epochs=args.epochs,
+            batch_size=32,
+            learning_rate=0.01,
+            base_mu=args.mu,
+            mu_min=args.mu_min,
+            mu_max=args.mu_max,
             oscillation_threshold=args.oscillation_threshold,
             stability_threshold=args.stability_threshold,
             device="cpu",
@@ -201,7 +224,10 @@ def run_quick_test(args: argparse.Namespace) -> int:
         print(f"  输出: {output_dir}/\n")
 
     history = runner.run(
-        dataset_name="mnist", iid=False, classes_per_client=2, verbose=not args.quiet,
+        dataset_name="mnist",
+        iid=False,
+        classes_per_client=2,
+        verbose=not args.quiet,
     )
 
     # ── 保存训练历史为 JSON ──
@@ -216,19 +242,17 @@ def run_quick_test(args: argparse.Namespace) -> int:
             "summary": {
                 "total_rounds": len(history),
                 "final_accuracy": round(acc, 4),
-                "max_accuracy": round(max(
-                    h.eval_metrics.get("accuracy", 0) for h in history
-                ), 4),
-                "min_accuracy": round(min(
-                    h.eval_metrics.get("accuracy", 0) for h in history
-                ), 4),
-                "virtual_time_slots": history[-1].timeslot_end if hasattr(history[-1], 'timeslot_end') else None,
+                "max_accuracy": round(max(h.eval_metrics.get("accuracy", 0) for h in history), 4),
+                "min_accuracy": round(min(h.eval_metrics.get("accuracy", 0) for h in history), 4),
+                "virtual_time_slots": history[-1].timeslot_end
+                if hasattr(history[-1], "timeslot_end")
+                else None,
             },
             "history": [],
         }
 
         # 附加自适应 μ 统计
-        if hasattr(trainer, 'mu_stats'):
+        if hasattr(trainer, "mu_stats"):
             results_data["mu_stats"] = trainer.mu_stats
 
         for h in history:
@@ -238,9 +262,9 @@ def run_quick_test(args: argparse.Namespace) -> int:
                 "timeslot_end": getattr(h, "timeslot_end", None),
                 "accuracy": h.eval_metrics.get("accuracy", 0),
                 "loss": h.eval_metrics.get("loss", 0),
-                "online_clients": h.num_online if hasattr(h, 'num_online') else None,
-                "selected_clients": h.num_selected if hasattr(h, 'num_selected') else None,
-                "train_loss": h.train_loss if hasattr(h, 'train_loss') else None,
+                "online_clients": h.num_online if hasattr(h, "num_online") else None,
+                "selected_clients": h.num_selected if hasattr(h, "num_selected") else None,
+                "train_loss": h.train_loss if hasattr(h, "train_loss") else None,
             }
             results_data["history"].append(entry)
 
@@ -253,6 +277,7 @@ def run_quick_test(args: argparse.Namespace) -> int:
         # ── 准确率曲线图 ──
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
             import numpy as np
@@ -275,24 +300,39 @@ def run_quick_test(args: argparse.Namespace) -> int:
             # 标注关键统计
             max_acc = max(acc_list)
             max_round = rounds_list[acc_list.index(max_acc)]
-            ax.annotate(f"max={max_acc:.3f} @ R{max_round}",
-                        xy=(max_round, max_acc), fontsize=8,
-                        color="red", fontweight="bold")
+            ax.annotate(
+                f"max={max_acc:.3f} @ R{max_round}",
+                xy=(max_round, max_acc),
+                fontsize=8,
+                color="red",
+                fontweight="bold",
+            )
 
             # 右：准确率分布直方图
             ax = axes[1]
             ax.hist(acc_list, bins=30, color="steelblue", edgecolor="white", alpha=0.8)
-            ax.axvline(x=np.mean(acc_list), color="red", linestyle="--",
-                       label=f"mean={np.mean(acc_list):.3f}")
-            ax.axvline(x=np.median(acc_list), color="orange", linestyle="--",
-                       label=f"median={np.median(acc_list):.3f}")
+            ax.axvline(
+                x=np.mean(acc_list),
+                color="red",
+                linestyle="--",
+                label=f"mean={np.mean(acc_list):.3f}",
+            )
+            ax.axvline(
+                x=np.median(acc_list),
+                color="orange",
+                linestyle="--",
+                label=f"median={np.median(acc_list):.3f}",
+            )
             ax.set_xlabel("Accuracy")
             ax.set_ylabel("Frequency")
             ax.set_title(f"Accuracy Distribution (σ={np.std(acc_list):.3f})")
             ax.legend(fontsize=8)
 
-            fig.suptitle(f"SpaceFL FedProx — {gs_count}GS × 10 Sats (2 classes/sat)",
-                         fontsize=13, fontweight="bold")
+            fig.suptitle(
+                f"SpaceFL FedProx — {gs_count}GS × 10 Sats (2 classes/sat)",
+                fontsize=13,
+                fontweight="bold",
+            )
             plt.tight_layout()
 
             curve_path = os.path.join(output_dir, "accuracy_curve.png")
@@ -305,14 +345,14 @@ def run_quick_test(args: argparse.Namespace) -> int:
                 print(f"[警告] 曲线图生成失败: {e}")
 
         if not args.quiet:
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"输出目录: {os.path.abspath(output_dir)}/")
             print("  experiment_config.json   — 实验配置")
             print("  experiment_results.json  — 完整训练历史")
             print("  accuracy_curve.png       — 准确率曲线")
             print("  contact_heatmap.png      — 接触热力图")
             print("  gs_map.png               — 地面站地图")
-            print(f"{'='*50}")
+            print(f"{'=' * 50}")
         return 0
     else:
         if not args.quiet:

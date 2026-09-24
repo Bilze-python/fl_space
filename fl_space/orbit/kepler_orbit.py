@@ -200,6 +200,23 @@ class KeplerOrbit:
             # 椭圆轨道: 开普勒方程
             return self._true_anomaly_elliptical(time_min)
 
+    def radius_at_time_km(self, time_min: float) -> float:
+        """Return the instantaneous orbital radius at ``time_min`` (km).
+
+        For an elliptic orbit this is ``a(1-e²)/(1+e cos(nu))``. Keeping
+        this separate from ``orbit_radius_km`` preserves the latter's legacy
+        meaning as the nominal semi-major-axis radius.
+        """
+        eccentricity = self.elements.eccentricity
+        if self.elements.is_circular:
+            return self._orbit_radius_km
+        true_anomaly = self.true_anomaly_at_time(time_min)
+        return (
+            self._orbit_radius_km
+            * (1.0 - eccentricity**2)
+            / (1.0 + eccentricity * math.cos(true_anomaly))
+        )
+
     def _true_anomaly_elliptical(self, time_min: float) -> float:
         """
         椭圆轨道的真近点角求解。
@@ -318,7 +335,7 @@ class KeplerOrbit:
             ECEF 坐标 (km)。
         """
         lat_rad, lon_rad = self.position_at_time(time_min)
-        r = self._orbit_radius_km
+        r = self.radius_at_time_km(time_min)
         cos_lat = math.cos(lat_rad)
         x = r * cos_lat * math.cos(lon_rad)
         y = r * cos_lat * math.sin(lon_rad)

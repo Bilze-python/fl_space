@@ -65,6 +65,7 @@ class AtmosphereModel:
 
 class NoAtmosphere(AtmosphereModel):
     """无大气层模型（适用于月球等无大气天体）。"""
+
     def __init__(self):
         super().__init__(name="vacuum")
 
@@ -137,9 +138,7 @@ class ExponentialAtmosphere(AtmosphereModel):
     def density_at_altitude(self, altitude_km: float) -> float:
         if altitude_km > self.cutoff_height_km:
             return 0.0
-        return self.base_density_kgm3 * math.exp(
-            -altitude_km / self.scale_height_km
-        )
+        return self.base_density_kgm3 * math.exp(-altitude_km / self.scale_height_km)
 
 
 def create_atmosphere_for_body(body_name: str) -> AtmosphereModel:

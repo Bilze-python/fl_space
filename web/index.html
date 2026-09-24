@@ -22,6 +22,7 @@
       <nav id="main-nav">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>总览</button>
         <button class="nav-item" data-view="config"><span class="nav-icon">⌘</span>实验配置</button>
+        <button class="nav-item" data-view="study"><span class="nav-icon">◇</span>学习任务</button>
         <button class="nav-item" data-view="experiments"><span class="nav-icon">≋</span>实验档案</button>
         <button class="nav-item" data-view="orbit"><span class="nav-icon">◎</span>轨道视图</button>
         <button class="nav-item" data-view="library"><span class="nav-icon">▤</span>文献库</button>
@@ -203,6 +204,101 @@
               </div>
             </form>
           </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-study">
+        <div class="study-layout">
+          <section class="panel study-editor-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">LEARNING TASK</p><h2>任务定义</h2></div>
+              <span class="status-badge green">服务端快照</span>
+            </div>
+            <form id="study-task-form">
+              <label>任务名称<input id="study-name" type="text" maxlength="160" required></label>
+              <div class="form-grid">
+                <label>数据集名称<input id="study-dataset-name" type="text" maxlength="120" required></label>
+                <label>数据类型<input id="study-dataset-type" type="text" maxlength="40"></label>
+                <label>数据分布<select id="study-dataset-distribution">
+                  <option value="iid">IID</option>
+                  <option value="non_iid_label_skew">Non-IID 标签偏斜</option>
+                  <option value="non_iid_quantity_skew">Non-IID 数量偏斜</option>
+                  <option value="custom">自定义</option>
+                </select></label>
+                <label>模型名称<input id="study-model-name" type="text" maxlength="120" required></label>
+                <label>模型框架<input id="study-model-framework" type="text" maxlength="40"></label>
+                <label>调度策略<select id="study-scheduler-policy">
+                  <option value="contact_aware">接触感知</option>
+                  <option value="energy_aware">能量感知</option>
+                  <option value="round_robin">轮询基线</option>
+                  <option value="fedleo">FedLEO</option>
+                  <option value="custom">自定义</option>
+                </select></label>
+                <label>训练轮时长 s<input id="study-round-duration" type="number" min="1" step="1"></label>
+                <label>参与比例<input id="study-participant-fraction" type="number" min="0.01" max="1" step="0.01"></label>
+              </div>
+              <div class="study-actions">
+                <button type="button" class="button secondary" id="study-reset-button">恢复默认任务</button>
+                <button type="submit" class="button primary">保存学习任务</button>
+              </div>
+              <p class="study-sync-note" id="study-sync-note">尚未加载任务快照</p>
+            </form>
+          </section>
+
+          <section class="panel study-summary-panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">CANONICAL SNAPSHOT</p><h2>任务总览</h2></div>
+              <button type="button" class="icon-button" id="study-refresh-button" title="重新读取任务">↻</button>
+            </div>
+            <div class="study-metric-grid">
+              <div class="detail-metric"><span>航天器节点</span><strong id="study-sat-count">--</strong></div>
+              <div class="detail-metric"><span>地面站</span><strong id="study-gs-count">--</strong></div>
+              <div class="detail-metric"><span>通信链路</span><strong id="study-link-count">--</strong></div>
+              <div class="detail-metric"><span>每轮更新 MB</span><strong id="study-update-volume">--</strong></div>
+            </div>
+            <div class="study-summary-lines" id="study-summary-lines"></div>
+            <details class="study-json-details">
+              <summary>查看规范化任务 JSON</summary>
+              <pre id="study-json"></pre>
+            </details>
+          </section>
+        </div>
+
+        <section class="panel study-orbit-panel">
+          <div class="panel-head">
+            <div><p class="panel-kicker">TWO-BODY ORBIT PREVIEW</p><h2>轨道六根数与节点</h2></div>
+            <span class="field-note">示意图使用服务端任务快照中的六根数</span>
+          </div>
+          <div class="study-orbit-content">
+            <svg id="study-orbit-canvas" role="img" aria-label="学习任务二体轨道六根数预览" viewBox="0 0 640 340"></svg>
+            <div class="table-wrap">
+              <table class="study-node-table">
+                <thead><tr><th>节点</th><th>a km</th><th>e</th><th>i °</th><th>RAAN °</th><th>ω °</th><th>近点角 °</th><th>外观</th></tr></thead>
+                <tbody id="study-node-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <div class="study-bottom-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">GROUND / ISL</p><h2>基础设施与链路</h2></div>
+            </div>
+            <div class="table-wrap">
+              <table class="study-link-table">
+                <thead><tr><th>链路</th><th>类型</th><th>频段</th><th>带宽</th><th>速率</th><th>距离</th><th>来源</th></tr></thead>
+                <tbody id="study-link-rows"></tbody>
+              </table>
+            </div>
+            <div class="study-stations" id="study-stations"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">ASSUMPTIONS</p><h2>调度与假设</h2></div>
+            </div>
+            <div id="study-assumptions" class="study-assumptions"></div>
+          </section>
         </div>
       </section>
 

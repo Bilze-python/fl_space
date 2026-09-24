@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import sqlite3
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -19,7 +20,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request as HttpRequest
+from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Request as HttpRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -34,6 +36,7 @@ LITERATURE_CONFIG_FILE = PROJECT_DIR / ".literature_config.json"
 AI_CONFIG_FILE = PROJECT_DIR / ".spacefl_ai_config.json"
 EXPERIMENT_METADATA_FILE = PROJECT_DIR / ".spacefl_experiment_metadata.json"
 EXPERIMENT_REGISTRY_FILE = PROJECT_DIR / ".spacefl_experiment_registry.json"
+LEARNING_TASK_FILE = PROJECT_DIR / ".spacefl_learning_task.json"
 CC_SWITCH_DB = Path.home() / ".cc-switch" / "cc-switch.db"
 VALIDATION_SCRIPT = PROJECT_DIR / "scripts" / "validate_fedleo_offloading.py"
 LIBRARY_SUFFIXES = {".md", ".markdown", ".pdf", ".txt"}
@@ -51,6 +54,15 @@ MAX_LIBRARY_FILE_SIZE = 30 * 1024 * 1024
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
+LEARNING_TASK_LOCK = threading.Lock()
+
+
+class LearningTaskRevisionConflictError(ValueError):
+    """学习任务快照版本落后。"""
+
+    def __init__(self, current: dict[str, Any]) -> None:
+        super().__init__("学习任务已被其他页面更新，请重新加载后再保存")
+        self.current = current
 
 
 def _read_json(path: Path, default: Any = None) -> Any:
@@ -66,6 +78,237 @@ def _write_json(path: Path, data: Any) -> None:
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _learning_task_revision(task_data: dict[str, Any]) -> str:
+    """为学习任务快照生成稳定内容版本号。"""
+    encoded = json.dumps(
+        task_data,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
+def _default_learning_task():
+    """创建可直接用于可视化的默认学习任务。"""
+    from fl_space.integrations import public_starlink_optical_link_profile
+    from fl_space.mission import (
+        ClassicalOrbitalElements,
+        CommunicationSystem,
+        SatelliteDesign,
+        VisualAppearance,
+    )
+    from fl_space.study import (
+        CommunicationLinkSpec,
+        DatasetSpec,
+        GroundStationSpec,
+        InfrastructureSpec,
+        LearningTaskScenario,
+        ModelSpec,
+        SchedulerSpec,
+        SpaceNodeSpec,
+    )
+
+    optical_profile = public_starlink_optical_link_profile()
+    nodes = []
+    for index in range(3):
+        communication = CommunicationSystem.from_dict(optical_profile.to_dict())
+        nodes.append(
+            SpaceNodeSpec(
+                node_id=f"sat-{index + 1}",
+                satellite=SatelliteDesign(
+                    name=f"research-satellite-{index + 1}",
+                    dry_mass_kg=260.0,
+                    power_w=240.0,
+                    cross_section_area_m2=0.85,
+                    communication_system=communication,
+                    visual=VisualAppearance(
+                        primitive="custom_mesh",
+                        dimensions_m=(1.2, 1.0, 0.8),
+                        asset_uri="assets/satellite-research.glb",
+                        color_hex="#4f93b1",
+                    ),
+                    assumptions=[
+                        "Starlink 光链路参数来自公开资料候选值，仅用于初步仿真",
+                    ],
+                ),
+                orbit=ClassicalOrbitalElements.from_circular_altitude(
+                    550.0,
+                    inclination_deg=53.0,
+                    raan_deg=index * 30.0,
+                    anomaly_deg=index * 120.0,
+                ),
+            )
+        )
+
+    return LearningTaskScenario(
+        name="Starlink 光链路联邦学习初评",
+        dataset=DatasetSpec(
+            name="earth-observation-demo",
+            data_type="image",
+            distribution="non_iid_label_skew",
+            sample_count=30_000,
+            size_mb=512.0,
+            shard_count=3,
+        ),
+        model=ModelSpec(
+            name="tiny-resnet",
+            task_kind="classification",
+            framework="pytorch",
+            parameter_count=250_000,
+            model_size_mb=2.0,
+            update_size_mb=2.0,
+        ),
+        nodes=nodes,
+        infrastructure=InfrastructureSpec(
+            ground_stations=[
+                GroundStationSpec(
+                    name="Beijing",
+                    latitude_deg=39.9,
+                    longitude_deg=116.4,
+                    min_elevation_deg=10.0,
+                ),
+                GroundStationSpec(
+                    name="California",
+                    latitude_deg=37.8,
+                    longitude_deg=-122.4,
+                    min_elevation_deg=10.0,
+                ),
+            ],
+            links=[
+                CommunicationLinkSpec(
+                    name="s-band-ground-link",
+                    link_kind="space_to_ground",
+                    band="S",
+                    frequency_hz=2.2e9,
+                    bandwidth_mhz=5.0,
+                    data_rate_mbps=10.0,
+                    max_range_km=2_000.0,
+                    source="simulation_assumption",
+                ),
+                CommunicationLinkSpec(
+                    name="starlink-optical-isl",
+                    link_kind="inter_satellite",
+                    band="optical",
+                    frequency_hz=193.5e12,
+                    bandwidth_mhz=0.0,
+                    data_rate_mbps=25_000.0,
+                    max_range_km=4_000.0,
+                    source="public_report_assumption",
+                ),
+            ],
+        ),
+        scheduler=SchedulerSpec(
+            policy="contact_aware",
+            round_duration_s=600.0,
+            participant_fraction=0.67,
+            max_clients_per_round=2,
+        ),
+        assumptions=[
+            "二体轨道六根数用于初始几何预览，未包含摄动",
+            "公开光链路数据不是 SpaceX 官方持续吞吐规格",
+        ],
+        metadata={"source": "local_default", "schema": "learning_task_v1"},
+    )
+
+
+def _learning_task_envelope(task, *, updated_at: str | None = None) -> dict[str, Any]:
+    """把学习任务转换成带版本号的规范化快照。"""
+    task_data = task.to_dict()
+    return {
+        "schema_version": "learning_task_v1",
+        "revision": _learning_task_revision(task_data),
+        "updated_at": updated_at or datetime.now(timezone.utc).isoformat(),
+        "task": task_data,
+    }
+
+
+def _read_learning_task_record_unlocked() -> tuple[dict[str, Any], Any]:
+    from fl_space.study import LearningTaskScenario
+
+    raw = _read_json(LEARNING_TASK_FILE, None)
+    if raw is None:
+        task = _default_learning_task()
+        record = _learning_task_envelope(task)
+        _write_json(LEARNING_TASK_FILE, record)
+        return record, task
+
+    task_data = raw.get("task") if isinstance(raw, dict) else None
+    if not isinstance(task_data, dict):
+        task_data = raw if isinstance(raw, dict) else {}
+    try:
+        task = LearningTaskScenario.from_dict(task_data)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"学习任务快照无效: {exc}") from exc
+
+    record = _learning_task_envelope(
+        task,
+        updated_at=str(raw.get("updated_at") or "") if isinstance(raw, dict) else None,
+    )
+    if isinstance(raw, dict) and raw.get("revision") == record["revision"]:
+        record["revision"] = str(raw["revision"])
+    return record, task
+
+
+def _learning_task_response(record: dict[str, Any], task) -> dict[str, Any]:
+    """构造前端消费的学习任务响应，所有数据来自同一快照。"""
+    task_data = record["task"]
+    nodes = task_data["nodes"]
+    links = task_data["infrastructure"]["links"]
+    stations = task_data["infrastructure"]["ground_stations"]
+    return {
+        **record,
+        "summary": {
+            "satellite_count": len(nodes),
+            "ground_station_count": len(stations),
+            "link_count": len(links),
+            "bands": sorted({str(link["band"]) for link in links}),
+            "scheduler": task_data["scheduler"]["policy"],
+            "dataset": task_data["dataset"]["name"],
+            "model": task_data["model"]["name"],
+            "per_round_update_volume_mb": round(task.per_round_update_volume_mb, 6),
+        },
+        "orbit_preview": [
+            {
+                "node_id": node["node_id"],
+                "satellite_name": node["satellite"]["name"],
+                "orbit": node["orbit"],
+                "visual": node["satellite"]["visual"],
+                "communication": node["satellite"].get("communication_system"),
+            }
+            for node in nodes
+        ],
+    }
+
+
+def _load_learning_task_response() -> dict[str, Any]:
+    with LEARNING_TASK_LOCK:
+        record, task = _read_learning_task_record_unlocked()
+    return _learning_task_response(record, task)
+
+
+def _update_learning_task_record(
+    task_data: dict[str, Any],
+    *,
+    expected_revision: str = "",
+) -> dict[str, Any]:
+    """校验并保存学习任务，返回保存后的规范化响应。"""
+    from fl_space.study import LearningTaskScenario
+
+    with LEARNING_TASK_LOCK:
+        current_record, _ = _read_learning_task_record_unlocked()
+        if expected_revision and expected_revision != current_record["revision"]:
+            current_response = _learning_task_response(
+                current_record,
+                LearningTaskScenario.from_dict(current_record["task"]),
+            )
+            raise LearningTaskRevisionConflictError(current_response)
+        task = LearningTaskScenario.from_dict(task_data)
+        record = _learning_task_envelope(task)
+        _write_json(LEARNING_TASK_FILE, record)
+    return _learning_task_response(record, task)
 
 
 def _experiment_metadata() -> dict[str, dict[str, Any]]:
@@ -107,9 +350,7 @@ def _write_experiment_registry(entries: list[dict[str, Any]]) -> None:
 
 def _register_archive(entry: dict[str, Any]) -> None:
     """写入/覆盖一条“＋新建档案”登记（按 id 去重）。"""
-    registry = [
-        item for item in _experiment_registry() if str(item.get("id")) != str(entry["id"])
-    ]
+    registry = [item for item in _experiment_registry() if str(item.get("id")) != str(entry["id"])]
     registry.append(entry)
     _write_experiment_registry(registry)
 
@@ -186,7 +427,9 @@ def _validate_satellite_profiles(
             probability = float(raw_profile.get("preference_probability", 0.8))
             max_samples = int(raw_profile.get("max_samples", 0))
         except (TypeError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 画像含无效数值") from exc
+            raise HTTPException(
+                status_code=422, detail=f"卫星 {satellite_id} 画像含无效数值"
+            ) from exc
         if any(value < 0 for value in preferred_classes):
             raise HTTPException(status_code=422, detail=f"卫星 {satellite_id} 类别不得为负数")
         if not 0 <= probability <= 1:
@@ -345,9 +588,7 @@ def _experiment_from_summary(path: Path) -> dict[str, Any] | None:
         "rounds": config.get("num_rounds"),
         "dataset": config.get("dataset", "mnist"),
         "accuracy": fedleo.get("final_accuracy"),
-        "accuracy_delta": (
-            fedleo.get("final_accuracy", 0) - baseline.get("final_accuracy", 0)
-        ),
+        "accuracy_delta": (fedleo.get("final_accuracy", 0) - baseline.get("final_accuracy", 0)),
         "balance_delta": None,
         "offloaded": fedleo.get("total_offloaded", 0),
         "elapsed_sec": fedleo.get("elapsed_sec"),
@@ -455,14 +696,10 @@ def _experiment_detail(experiment_id: str) -> dict[str, Any]:
     if experiment["kind"] == "fedleo_validation" and relative:
         base = _safe_project_path(relative).parent
         detail["history_on"] = _as_list(
-            _as_dict(_read_json(base / "offload_on" / "fedleo_offload.json", {})).get(
-                "history"
-            )
+            _as_dict(_read_json(base / "offload_on" / "fedleo_offload.json", {})).get("history")
         )
         detail["history_off"] = _as_list(
-            _as_dict(_read_json(base / "offload_off" / "fedleo_no_offload.json", {})).get(
-                "history"
-            )
+            _as_dict(_read_json(base / "offload_off" / "fedleo_no_offload.json", {})).get("history")
         )
     else:
         detail["history_on"] = _as_list(_as_dict(data.get("fedleo")).get("history"))
@@ -535,11 +772,15 @@ def _scan_library() -> list[dict[str, Any]]:
                 {
                     "id": f"{root_index}:{relative}",
                     "title": path.stem,
-                    "type": "md" if path.suffix.lower() == ".markdown" else path.suffix.lower().lstrip("."),
+                    "type": "md"
+                    if path.suffix.lower() == ".markdown"
+                    else path.suffix.lower().lstrip("."),
                     "path": f"{root_index}:{relative}",
                     "source": source,
                     "size": path.stat().st_size,
-                    "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                    "modified_at": datetime.fromtimestamp(
+                        path.stat().st_mtime, tz=timezone.utc
+                    ).isoformat(),
                     "tags": tags,
                 }
             )
@@ -577,10 +818,7 @@ def _read_cc_switch_provider() -> dict[str, str]:
     app_type = str(row[2])
     if app_type == "codex":
         token = str(
-            auth.get("OPENAI_API_KEY")
-            or auth.get("api_key")
-            or env.get("OPENAI_API_KEY")
-            or ""
+            auth.get("OPENAI_API_KEY") or auth.get("api_key") or env.get("OPENAI_API_KEY") or ""
         ).strip()
         base_url = _config_value(config, "base_url") or "https://api.openai.com/v1"
         model = str(settings.get("model") or _config_value(config, "model") or "gpt-5.5").strip()
@@ -588,7 +826,9 @@ def _read_cc_switch_provider() -> dict[str, str]:
     else:
         token = str(env.get("ANTHROPIC_AUTH_TOKEN") or env.get("ANTHROPIC_API_KEY") or "").strip()
         base_url = str(env.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com").strip()
-        model = str(settings.get("model") or env.get("ANTHROPIC_MODEL") or "claude-sonnet-4-5").strip()
+        model = str(
+            settings.get("model") or env.get("ANTHROPIC_MODEL") or "claude-sonnet-4-5"
+        ).strip()
         protocol = "anthropic"
     if not token:
         raise RuntimeError("CC Switch 当前供应商没有可用的认证令牌")
@@ -800,11 +1040,13 @@ def _openai_responses_analysis(
 
     content = data.get("output_text") if isinstance(data, dict) else None
     if not content and isinstance(data, dict):
-        chunks: list[str] = []
-        for item in data.get("output", []):
-            for block in item.get("content", []) if isinstance(item, dict) else []:
-                if isinstance(block, dict) and block.get("type") in {"output_text", "text"}:
-                    chunks.append(str(block.get("text", "")))
+        chunks: list[str] = [
+            str(block.get("text", ""))
+            for item in data.get("output", [])
+            if isinstance(item, dict)
+            for block in item.get("content", [])
+            if isinstance(block, dict) and block.get("type") in {"output_text", "text"}
+        ]
         content = "".join(chunks)
     if not str(content or "").strip():
         raise RuntimeError("CC Switch 供应商返回了无法识别的响应")
@@ -990,8 +1232,8 @@ def build_orbit_data(
         for sample_index in range(trajectory_samples):
             time_min = sim.orbit_period_min * sample_index / (trajectory_samples - 1)
             lat, lon = sim.orbits[satellite_id].position_at_time_deg(time_min)
-            earth_rotation_deg = time_min * 360 / (
-                sim.orbits[satellite_id].body.rotation_period_hours * 60
+            earth_rotation_deg = (
+                time_min * 360 / (sim.orbits[satellite_id].body.rotation_period_hours * 60)
             )
             lon = (lon + earth_rotation_deg + 180) % 360 - 180
             points.append(
@@ -1046,9 +1288,7 @@ def build_orbit_data(
         timeslots.append(
             {
                 "ts": slot_index,
-                "time": (
-                    base_dt + timedelta(minutes=slot_index * timeslot_min)
-                ).isoformat(),
+                "time": (base_dt + timedelta(minutes=slot_index * timeslot_min)).isoformat(),
                 "positions": positions,
                 "contacts": contacts,
                 "isl_links": isl_links,
@@ -1086,17 +1326,11 @@ def build_experiment_orbit_data(
     history = detail.get("history_on") or detail.get("history_off") or []
     total_sats = config.get("total_sats")
     if not total_sats:
-        total_sats = int(config.get("num_planes", 0)) * int(
-            config.get("sats_per_plane", 0)
-        )
+        total_sats = int(config.get("num_planes", 0)) * int(config.get("sats_per_plane", 0))
     sats = max(1, int(satellites or total_sats or mount.get("sats", 12)))
     stations = max(
         1,
-        int(
-            ground_stations
-            or config.get("num_ground_stations")
-            or mount.get("stations", 5)
-        ),
+        int(ground_stations or config.get("num_ground_stations") or mount.get("stations", 5)),
     )
     projection_days = min(max(float(projection_days), 1 / 24), 30.0)
     timeslot_min = min(max(float(projection_step_min), 1.0), 180.0)
@@ -1104,8 +1338,7 @@ def build_experiment_orbit_data(
     resolved_isl = (
         bool(isl_enabled)
         if isl_enabled is not None
-        else str(config.get("isl", mount.get("isl", "disabled"))).lower()
-        != "disabled"
+        else str(config.get("isl", mount.get("isl", "disabled"))).lower() != "disabled"
     )
 
     orbit = build_orbit_data(
@@ -1113,9 +1346,7 @@ def build_experiment_orbit_data(
         sats=sats,
         gs=stations,
         altitude_km=float(config.get("altitude_km") or mount.get("altitude", 500)),
-        inclination_deg=float(
-            config.get("inclination_deg") or mount.get("inclination", 53)
-        ),
+        inclination_deg=float(config.get("inclination_deg") or mount.get("inclination", 53)),
         timeslot_min=timeslot_min,
         isl_enabled=resolved_isl,
         isl_buffer=float(mount.get("isl_buffer", 0)),
@@ -1161,21 +1392,17 @@ def build_experiment_orbit_data(
         "status": detail.get("status"),
     }
     orbit["parameter_sources"] = {
-        "satellites": "projection.override" if satellites else (
-            "experiment.config" if total_sats else "session.mount"
-        ),
+        "satellites": "projection.override"
+        if satellites
+        else ("experiment.config" if total_sats else "session.mount"),
         "timeslot": "projection",
         "ground_stations": (
-            "projection.override" if ground_stations else (
-                "experiment.config"
-                if config.get("num_ground_stations")
-                else "session.mount"
-            )
+            "projection.override"
+            if ground_stations
+            else ("experiment.config" if config.get("num_ground_stations") else "session.mount")
         ),
         "altitude": "experiment.config" if config.get("altitude_km") else "session.mount",
-        "inclination": (
-            "experiment.config" if config.get("inclination_deg") else "session.mount"
-        ),
+        "inclination": ("experiment.config" if config.get("inclination_deg") else "session.mount"),
     }
     return orbit
 
@@ -1189,7 +1416,9 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
-    app.mount("/vendor/d3", StaticFiles(directory=NODE_MODULES_DIR / "d3" / "dist"), name="vendor-d3")
+    app.mount(
+        "/vendor/d3", StaticFiles(directory=NODE_MODULES_DIR / "d3" / "dist"), name="vendor-d3"
+    )
     app.mount(
         "/vendor/topojson",
         StaticFiles(directory=NODE_MODULES_DIR / "topojson-client" / "dist"),
@@ -1254,12 +1483,57 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             "mean_accuracy_delta": sum(deltas) / len(deltas) if deltas else 0,
             "latest": latest,
             "session": _load_session(),
+            "study_task": _load_learning_task_response()["summary"],
             "implementation": {
                 "level": "轻量级离散仿真",
                 "supported": ["真实样本卸载", "同轨/跨轨分层聚合", "多种子开关消融"],
                 "limitations": ["KKT 功率优化", "动态链路竞争", "论文级连续时延模型"],
             },
         }
+
+    @app.get("/api/study/task")
+    async def study_task() -> dict[str, Any]:
+        """返回学习任务的规范化快照和可视化摘要。"""
+        try:
+            return _load_learning_task_response()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.put("/api/study/task")
+    async def update_study_task(
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """以 revision 乐观锁更新学习任务，避免旧页面覆盖新配置。"""
+        task_data = payload.get("task")
+        if not isinstance(task_data, dict):
+            raise HTTPException(status_code=422, detail="task 必须是 JSON 对象")
+        expected_revision = str(payload.get("expected_revision") or "").strip()
+        try:
+            return _update_learning_task_record(
+                task_data,
+                expected_revision=expected_revision,
+            )
+        except LearningTaskRevisionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current": exc.current,
+                },
+            ) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"学习任务参数无效: {exc}") from exc
+
+    @app.post("/api/study/task/reset")
+    async def reset_study_task() -> dict[str, Any]:
+        """恢复默认学习任务，并返回新的规范化快照。"""
+        with LEARNING_TASK_LOCK:
+            task = _default_learning_task()
+            record = _learning_task_envelope(task)
+            _write_json(LEARNING_TASK_FILE, record)
+        return _learning_task_response(record, task)
 
     @app.get("/api/settings")
     async def settings() -> dict[str, Any]:
@@ -1416,9 +1690,13 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         return _experiment_detail(experiment_id)
 
     @app.put("/api/experiments/{experiment_id}/name")
-    async def rename_experiment(experiment_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    async def rename_experiment(
+        experiment_id: str, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
         # Resolve first so arbitrary project files cannot receive metadata.
-        experiment = next((item for item in _scan_experiments() if item["id"] == experiment_id), None)
+        experiment = next(
+            (item for item in _scan_experiments() if item["id"] == experiment_id), None
+        )
         if experiment is None:
             raise HTTPException(status_code=404, detail="Experiment not found")
         name = str(payload.get("name", "")).strip()
@@ -1431,7 +1709,9 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
     @app.delete("/api/experiments/{experiment_id}")
     async def delete_experiment(experiment_id: str) -> dict[str, Any]:
-        experiment = next((item for item in _scan_experiments() if item["id"] == experiment_id), None)
+        experiment = next(
+            (item for item in _scan_experiments() if item["id"] == experiment_id), None
+        )
         if experiment is None:
             raise HTTPException(status_code=404, detail="Experiment not found")
         registry = _experiment_registry()
@@ -1452,7 +1732,12 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         archive_file = _safe_project_path(relative)
         archive_dir = archive_file.parent.resolve()
         # Only remove generated archive directories, never an arbitrary path.
-        allowed = archive_dir.parent.name in {"validation_results", "test_outputs"} or archive_dir.name.startswith(("fedleo_", "fedleo-local", "fedleo_local", "fedleo_web_validation_", "manual_"))
+        allowed = archive_dir.parent.name in {
+            "validation_results",
+            "test_outputs",
+        } or archive_dir.name.startswith(
+            ("fedleo_", "fedleo-local", "fedleo_local", "fedleo_web_validation_", "manual_")
+        )
         if not allowed or archive_dir == PROJECT_DIR:
             if registered:
                 # 手工登记的用户数据目录：只撤销登记，绝不删除。
@@ -1611,8 +1896,7 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         return [
             item
             for item in items
-            if needle in item["title"].casefold()
-            or needle in " ".join(item["tags"]).casefold()
+            if needle in item["title"].casefold() or needle in " ".join(item["tags"]).casefold()
         ]
 
     @app.get("/api/library/settings")

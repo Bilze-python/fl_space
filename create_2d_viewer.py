@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 PROJECT_DIR = Path(__file__).resolve().parent
 REQUIRED_ASSETS = {
     "viewer": PROJECT_DIR / "web" / "orbit_2d_viewer.html",
@@ -15,15 +14,14 @@ REQUIRED_ASSETS = {
     / "topojson-client"
     / "dist"
     / "topojson-client.min.js",
-    "world_map": PROJECT_DIR
-    / "node_modules"
-    / "world-atlas"
-    / "countries-110m.json",
+    "world_map": PROJECT_DIR / "node_modules" / "world-atlas" / "countries-110m.json",
 }
 
 
 def validate_assets() -> list[str]:
-    errors = [f"Missing {name}: {path}" for name, path in REQUIRED_ASSETS.items() if not path.is_file()]
+    errors = [
+        f"Missing {name}: {path}" for name, path in REQUIRED_ASSETS.items() if not path.is_file()
+    ]
     world_path = REQUIRED_ASSETS["world_map"]
     if world_path.is_file():
         try:

@@ -1,6 +1,6 @@
 # SpaceFL Project Map
 
-Last verified: 2026-08-16
+Last verified: 2026-09-20
 
 ## Purpose
 
@@ -9,6 +9,9 @@ SpaceFL is a modular research framework for federated learning in space and LEO 
 ## Architecture
 
 ```text
+integrations -> study -> mission
+                  |        |
+                  v        v
 config -> environment + orbit -> simulator -> FL core -> experiments/results
                               |              |
                               v              v
@@ -26,9 +29,10 @@ config -> environment + orbit -> simulator -> FL core -> experiments/results
 | Simulation | Contacts and scheduling | `fl_space/simulator/` | Orbit simulation and contact matrix; scheduling-related utilities |
 | Inter-satellite links | ISL abstraction | `fl_space/isl/` | LOS and intra-cluster link behavior |
 | Mission | Launch and spacecraft domain | `fl_space/mission/` | Launch vehicles and staging, satellite designs and subsystems, launch windows, deployment plans, constraints, first-order physics/budget |
+| Study | Top-level research scenario | `fl_space/study/` | Dataset, model, spacecraft/orbit, infrastructure, links, and scheduler declarations |
 | FL core | Algorithms and timing | `fl_space/fl/` | FedAvg, FedProx, FedBuff, scheduler, time model, runner, validation |
 | FedLEO | Research extension | `fl_space/fedleo/` | Decentralized offloading planner, aggregation, metrics, experiment, conformance metadata |
-| Integrations | External adapters | `fl_space/integrations/flower/` | Flower adapter |
+| Integrations | External adapters | `fl_space/integrations/` | Flower adapter and read-only r-spacex catalog mapping |
 | Interfaces | CLI, web, visualization | `fl_space/cli.py`, `web/`, `fl_space/viz/` | Experiment and visualization access paths |
 
 ## Evidence And Entry Points
@@ -42,8 +46,29 @@ config -> environment + orbit -> simulator -> FL core -> experiments/results
 | FedLEO tests | `tests/test_fedleo_offloading.py`, `tests/test_fedleo_conformance.py` | Planner and boundary metadata coverage |
 | CLI and web workflows | `tests/test_cli_params.py`, `tests/test_web_*.py` | Parameter and session/orbit flow coverage |
 | Launch/deployment foundation | `tests/test_mission_framework.py`, `examples/mission_deployment_demo.py` | Domain models, constraint gates, first-order launch budget and deployed `KeplerOrbit` integration |
+| Learning-task snapshot | `fl_space/study/`, `tests/test_learning_task_framework.py`, `tests/test_web_learning_task.py` | Revisioned server snapshot for data/model/nodes/infrastructure/scheduler visualization |
+| SpaceX catalog boundary | `fl_space/integrations/spacex_api.py`, `docs/knowledge/spacex_public_data.md` | OMM/payload mapping and explicitly assumed optical-link profile; no operational contact telemetry |
+| Quality and contact-model audit | `docs/CODE_QUALITY_AUDIT_2026-09-18.md` | Current Ruff/test gate, contact pipeline, resolved frame issue, remaining defects, and Starlink gap assessment |
 | Coding standards | `CODING_STANDARDS.md`, `pyproject.toml` | Ruff is the only formatter/linter |
 | Change provenance | `WORKLOG.md` | Historical implementation and validation notes |
+
+## Satellite-Ground Contact Boundary
+
+The current runtime computes a sampled geometric visibility matrix. The Kepler path compares the
+ground-station central angle with the exact spherical elevation-mask relation and instantaneous
+Kepler radius; the optional Skyfield path samples topocentric elevation after a simplified
+GMST-based ECI/TEME-to-ECEF rotation for generated SGP4 satellites. `ContactMatrix` stores either
+the first visible station or all visible stations. `CommunicationScheduler` merges consecutive
+visible slots and can find a continuous single-station transfer interval with a per-round
+one-terminal reservation guard.
+
+This is still not a full link-availability or traffic-delivery model. Frequency, bandwidth, rate,
+terminal count, link acquisition, weather, beam capacity, interference, handover, and routing are
+declared in the mission/study layers but are not all coupled to contact generation. FL transfer
+time must now fit one continuous geometric window and station reservations prevent same-round
+overlap on one station, but the rate is still supplied by the selected time model. Treat current
+results as relative algorithm experiments using sampled geometric opportunity, not as Starlink
+network capacity or service availability.
 
 ## Research Assets
 
@@ -62,12 +87,29 @@ It deliberately approximates discrete ratio search, divergence, ring aggregation
 
 ## Near-Term Direction
 
-1. Implement communication compression as a bounded experiment, beginning with a measurable byte/time model and a no-compression control. The literature guide proposes integration points in `fl_space/fedleo/aggregator.py`, `fl_space/isl/base.py`, `fl_space/fl/fedbuff.py`, `fl_space/fl/scheduler.py`, and `fl_space/fl/time_model.py`.
-2. Improve dynamic topology and contact realism before making stronger decentralized-FL claims.
-3. Use multi-seed controlled experiments to measure accuracy, convergence time, transmitted bytes, delay/staleness, fairness, and resource cost together.
-4. Retain clear separation between simulator fidelity and operational satellite feasibility.
-5. Extend the mission layer with explicit vehicle staging, payload allocation, and research/visual
+1. Connect study/mission link parameters to the simulator and FL time model.
+2. Replace the bounded one-terminal reservation guard with continuous-window capacity accounting,
+   including transfer splitting when explicitly enabled.
+4. Implement communication compression as a bounded experiment, beginning with a measurable byte/time model and a no-compression control. The literature guide proposes integration points in `fl_space/fedleo/aggregator.py`, `fl_space/isl/base.py`, `fl_space/fl/fedbuff.py`, `fl_space/fl/scheduler.py`, and `fl_space/fl/time_model.py`.
+5. Improve dynamic topology and contact realism before making stronger decentralized-FL claims.
+6. Use multi-seed controlled experiments to measure accuracy, convergence time, transmitted bytes, delay/staleness, fairness, and resource cost together.
+7. Retain clear separation between simulator fidelity and operational satellite feasibility.
+8. Extend the mission layer with explicit vehicle staging, payload allocation, and research/visual
    asset plugins without embedding game rules in orbit propagation.
+
+## Quality Gate
+
+The verified local gate is:
+
+```powershell
+$env:PYTHONPATH = ""
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = "1"
+.\venv\Scripts\python.exe -m ruff check .
+.\venv\Scripts\python.exe -m ruff format --check .
+.\venv\Scripts\python.exe -m pytest -q
+```
+
+The 2026-09-20 run reported zero Ruff findings, 222 formatted files, and 54 passing tests.
 
 ## Maintenance Rules
 

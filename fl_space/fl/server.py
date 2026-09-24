@@ -574,12 +574,13 @@ class FLServer:
             if self.scheduler is not None:
                 upload_slots = self.time_model.compute_upload_slots(model_size_bytes)
                 for client in self._clients:
-                    first_contact = self._get_next_contact_for_client(
+                    download_window = self._find_transfer_window_for_client(
                         client.client_id,
                         round_start - 1,
+                        download_slots,
                         self._sim_time_limit,
                     )
-                    if first_contact is None:
+                    if download_window is None:
                         continue
                     candidate_samples = client_data_sizes.get(client.client_id, 100)
                     candidate_train_slots = self.time_model.compute_train_slots(
@@ -587,14 +588,15 @@ class FLServer:
                         candidate_samples,
                         self.config.local_epochs,
                     )
-                    candidate_end = first_contact[0] + download_slots + candidate_train_slots
-                    return_contact = self._get_next_contact_for_client(
+                    candidate_train_end = download_window[2] + candidate_train_slots
+                    upload_window = self._find_transfer_window_for_client(
                         client.client_id,
-                        candidate_end - 1,
+                        candidate_train_end - 1,
+                        upload_slots,
                         self._sim_time_limit,
                     )
-                    if return_contact is not None:
-                        selection_scores[client.client_id] = return_contact[0] + upload_slots
+                    if upload_window is not None:
+                        selection_scores[client.client_id] = upload_window[2]
 
             selected_ids = self.selector.select(
                 self._clients,
@@ -612,24 +614,32 @@ class FLServer:
             download_times: list[int] = []
             train_end_times: list[int] = []
             round_complete = True
+            reservations: dict[int, list[tuple[int, int]]] = {}
 
             for cid in selected_ids:
                 if self.scheduler is None:
                     download_ts = round_start
+                    download_window = None
                 else:
-                    contact = self._get_next_contact_for_client(
+                    download_window = self._find_transfer_window_for_client(
                         cid,
                         round_start - 1,
+                        download_slots,
                         self._sim_time_limit,
+                        reservations,
                     )
-                    if contact is None:
+                    if download_window is None:
                         round_complete = False
                         break
-                    download_ts = contact[0]
+                    download_ts = download_window[0]
 
                 n_samples = client_data_sizes.get(cid, 100)
                 actual_epochs = self.config.local_epochs
-                train_start_ts = download_ts + download_slots
+                train_start_ts = (
+                    download_window[2]
+                    if download_window is not None
+                    else download_ts + download_slots
+                )
                 if (
                     self.config.algorithm.lower() == "fedprox"
                     and self.config.contact_adaptive_epochs
@@ -664,16 +674,19 @@ class FLServer:
 
                 if self.scheduler is None:
                     arrival_ts = train_end_ts + upload_slots
+                    upload_window = None
                 else:
-                    upload_contact = self._get_next_contact_for_client(
+                    upload_window = self._find_transfer_window_for_client(
                         cid,
                         train_end_ts - 1,
+                        upload_slots,
                         self._sim_time_limit,
+                        reservations,
                     )
-                    if upload_contact is None:
+                    if upload_window is None:
                         round_complete = False
                         break
-                    arrival_ts = upload_contact[0] + upload_slots
+                    arrival_ts = upload_window[2]
 
                 if self._sim_time_limit is not None and arrival_ts >= self._sim_time_limit:
                     round_complete = False
@@ -700,6 +713,12 @@ class FLServer:
                         "actual_local_epochs": actual_epochs,
                     }
                 )
+                if download_window is not None:
+                    self._reserve_transfer(reservations, download_window)
+                    update.metadata["download_ground_station"] = download_window[1]
+                if upload_window is not None:
+                    self._reserve_transfer(reservations, upload_window)
+                    update.metadata["upload_ground_station"] = upload_window[1]
                 updates.append(update)
                 arrival_times.append(arrival_ts)
                 download_times.append(download_ts)
@@ -860,6 +879,34 @@ class FLServer:
                 return (ts, int(gs_id))
         return None
 
+    def _find_transfer_window_for_client(
+        self,
+        sat_id: int,
+        after_ts: int,
+        duration_slots: int,
+        max_timeslot: int | None = None,
+        reservations: dict[int, list[tuple[int, int]]] | None = None,
+    ) -> tuple[int, int, int] | None:
+        """Find a continuous, capacity-aware link window for one client."""
+        if self.scheduler is None:
+            return None
+        return self.scheduler.find_transfer_window(
+            sat_id=sat_id,
+            after_timeslot=after_ts,
+            duration_slots=duration_slots,
+            max_timeslot=max_timeslot,
+            reservations=reservations,
+        )
+
+    @staticmethod
+    def _reserve_transfer(
+        reservations: dict[int, list[tuple[int, int]]],
+        window: tuple[int, int, int],
+    ) -> None:
+        """Reserve a station interval; even an instant transfer occupies its slot."""
+        start, gs_id, end = window
+        reservations.setdefault(gs_id, []).append((start, max(end, start + 1)))
+
     def _get_next_contact_window_start(
         self,
         sat_id: int,
@@ -874,9 +921,7 @@ class FLServer:
         if max_timeslot is not None:
             stop_ts = min(stop_ts, max_timeslot)
         start_ts = max(0, after_ts + 1)
-        was_connected = (
-            sim.contact_matrix.get_first_contact(sat_id, max(0, start_ts - 1)) >= 0
-        )
+        was_connected = sim.contact_matrix.get_first_contact(sat_id, max(0, start_ts - 1)) >= 0
         for ts in range(start_ts, stop_ts):
             gs_id = sim.contact_matrix.get_first_contact(sat_id, ts)
             connected = gs_id >= 0
@@ -964,9 +1009,8 @@ class FLServer:
                     }
                 )
 
-                while (
-                    global_version < self.config.num_rounds
-                    and buffer_agg.should_aggregate([], global_version)
+                while global_version < self.config.num_rounds and buffer_agg.should_aggregate(
+                    [], global_version
                 ):
                     before_version = global_version
                     global_weights = [
@@ -984,8 +1028,7 @@ class FLServer:
 
                     status = buffer_agg.buffer_status()
                     should_evaluate = (
-                        global_version % eval_every == 0
-                        or global_version == self.config.num_rounds
+                        global_version % eval_every == 0 or global_version == self.config.num_rounds
                     )
                     eval_metrics = (
                         self.evaluator.evaluate(

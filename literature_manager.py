@@ -6,7 +6,6 @@ import argparse
 import json
 from pathlib import Path
 
-
 PROJECT_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = PROJECT_DIR / ".literature_config.json"
 SUPPORTED_SUFFIXES = {".md", ".markdown", ".pdf", ".txt"}
@@ -39,13 +38,17 @@ def scan_literature() -> list[Path]:
     if not root.is_dir():
         return []
     return sorted(
-        path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
     )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Manage the SpaceFL literature directory")
-    parser.add_argument("--set-default", metavar="PATH", help="Set an existing default literature directory")
+    parser.add_argument(
+        "--set-default", metavar="PATH", help="Set an existing default literature directory"
+    )
     parser.add_argument("--list", action="store_true", help="List indexed literature files")
     args = parser.parse_args()
 

@@ -8,6 +8,7 @@ SpaceFL 日志解析工具 — 将终端输出转为 JSON
     # 从管道解析
     cat experiment.log | python examples/parse_log.py --output results/
 """
+
 import argparse
 from datetime import datetime
 import json
@@ -39,16 +40,18 @@ def parse_log(text: str) -> dict:
     for line in text.split("\n"):
         m = LOG_PATTERN.search(line)
         if m:
-            rounds.append({
-                "round": int(m.group(1)),
-                "total_rounds": int(m.group(2)),
-                "ts_start": int(m.group(3)),
-                "ts_end": int(m.group(4)),
-                "duration": m.group(5),
-                "online_clients": int(m.group(6)),
-                "selected_clients": int(m.group(7)),
-                "accuracy": float(m.group(8)),
-            })
+            rounds.append(
+                {
+                    "round": int(m.group(1)),
+                    "total_rounds": int(m.group(2)),
+                    "ts_start": int(m.group(3)),
+                    "ts_end": int(m.group(4)),
+                    "duration": m.group(5),
+                    "online_clients": int(m.group(6)),
+                    "selected_clients": int(m.group(7)),
+                    "accuracy": float(m.group(8)),
+                }
+            )
             continue
 
         m = EARLY_STOP_PATTERN.search(line)

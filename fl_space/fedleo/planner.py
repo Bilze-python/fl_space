@@ -26,12 +26,12 @@ import numpy as np
 class OffloadAction:
     """单次卸载动作。"""
 
-    from_sat: int          # 源卫星 ID
-    to_sat: int            # 目标卫星 ID
-    offload_ratio: float   # 卸载比例 (0.0 ~ 1.0)
-    offload_samples: int   # 实际卸载样本数
-    comm_cost_slots: int   # 通信开销 (timeslots)
-    score: float = 0.0     # 综合评分（越高越好）
+    from_sat: int  # 源卫星 ID
+    to_sat: int  # 目标卫星 ID
+    offload_ratio: float  # 卸载比例 (0.0 ~ 1.0)
+    offload_samples: int  # 实际卸载样本数
+    comm_cost_slots: int  # 通信开销 (timeslots)
+    score: float = 0.0  # 综合评分（越高越好）
 
 
 @dataclass
@@ -274,9 +274,7 @@ class FedLEOPlanner:
 
             # Δdelay
             new_slowest = max(
-                (s / max(p, 0.01))
-                for s, p in zip(sim_sizes, compute_powers)
-                if s > 0
+                (s / max(p, 0.01)) for s, p in zip(sim_sizes, compute_powers) if s > 0
             )
             delta_delay = old_slowest_delay - new_slowest  # 正数 = 改善
 
@@ -289,9 +287,7 @@ class FedLEOPlanner:
 
             # 综合打分
             score = (
-                self.w_delay * delta_delay
-                + self.w_div * delta_balance
-                - self.w_comm * comm_cost
+                self.w_delay * delta_delay + self.w_div * delta_balance - self.w_comm * comm_cost
             )
 
             if score > best_score:

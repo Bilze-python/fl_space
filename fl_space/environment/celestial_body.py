@@ -48,6 +48,7 @@ class CelestialBody:
     surface_gravity_ms2 : float
         表面重力加速度 (m/s²)。
     """
+
     name: str
     radius_km: float
     GM: float
@@ -59,9 +60,7 @@ class CelestialBody:
     def __post_init__(self):
         if self.surface_gravity_ms2 is None:
             # g = GM / R² (转换为 m/s²)
-            self.surface_gravity_ms2 = (
-                self.GM / (self.radius_km ** 2)
-            ) * 1000.0
+            self.surface_gravity_ms2 = (self.GM / (self.radius_km**2)) * 1000.0
 
     @property
     def rotation_rate_deg_per_min(self) -> float:
@@ -72,6 +71,7 @@ class CelestialBody:
     def rotation_rate_rad_per_min(self) -> float:
         """自转角速度 (rad/min)。"""
         import math
+
         return math.radians(self.rotation_rate_deg_per_min)
 
     @property
@@ -82,6 +82,7 @@ class CelestialBody:
         考虑大气层高度后，可见范围会略微增大。
         """
         import math
+
         effective_radius = self.radius_km + self.atmosphere_height_km
         return math.acos(self.radius_km / effective_radius)
 
@@ -100,9 +101,14 @@ class CelestialBody:
             可见半角 (弧度)。
         """
         import math
+
+        if altitude_km <= 0:
+            raise ValueError("轨道高度必须为正")
         orbit_radius = self.radius_km + altitude_km
-        effective_radius = self.radius_km + self.atmosphere_height_km
-        return math.acos(effective_radius / orbit_radius)
+        # This is geometric horizon visibility. Atmospheric attenuation or
+        # refraction belongs to the link model and must not enlarge the solid
+        # body used for line-of-sight screening.
+        return math.acos(self.radius_km / orbit_radius)
 
     def __repr__(self) -> str:
         return (
@@ -133,12 +139,10 @@ class CelestialBody:
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('earth')
+
+                jpl = get_precise_body_params("earth")
                 if jpl:
-                    params.update({
-                        k: v for k, v in jpl.items()
-                        if k in cls.__dataclass_fields__
-                    })
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)
@@ -158,20 +162,16 @@ class CelestialBody:
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('mars')
+
+                jpl = get_precise_body_params("mars")
                 if jpl:
-                    params.update({
-                        k: v for k, v in jpl.items()
-                        if k in cls.__dataclass_fields__
-                    })
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)
 
     @classmethod
-    def from_name(
-        cls, name: str, precise: bool = False
-    ) -> Optional["CelestialBody"]:
+    def from_name(cls, name: str, precise: bool = False) -> Optional["CelestialBody"]:
         """
         按名称创建天体，自动选择最精确的可用参数。
 
@@ -191,12 +191,12 @@ class CelestialBody:
         """
         name_lower = name.lower()
         builtin = {
-            'earth': cls.earth,
-            'mars': cls.mars,
-            'moon': cls.moon,
-            'jupiter': cls.jupiter,
-            'saturn': cls.saturn,
-            'venus': cls.venus,
+            "earth": cls.earth,
+            "mars": cls.mars,
+            "moon": cls.moon,
+            "jupiter": cls.jupiter,
+            "saturn": cls.saturn,
+            "venus": cls.venus,
         }
         factory = builtin.get(name_lower)
         if factory:
@@ -207,17 +207,21 @@ class CelestialBody:
     def moon(cls, precise: bool = False) -> "CelestialBody":
         """月球。"""
         params = {
-            "name": "Moon", "radius_km": 1737.4, "GM": 4902.8,
-            "rotation_period_hours": 27.32 * 24, "flattening": 0.0,
-            "atmosphere_height_km": 0.0, "surface_gravity_ms2": 1.62,
+            "name": "Moon",
+            "radius_km": 1737.4,
+            "GM": 4902.8,
+            "rotation_period_hours": 27.32 * 24,
+            "flattening": 0.0,
+            "atmosphere_height_km": 0.0,
+            "surface_gravity_ms2": 1.62,
         }
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('moon')
+
+                jpl = get_precise_body_params("moon")
                 if jpl:
-                    params.update({k: v for k, v in jpl.items()
-                                   if k in cls.__dataclass_fields__})
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)
@@ -226,17 +230,20 @@ class CelestialBody:
     def jupiter(cls, precise: bool = False) -> "CelestialBody":
         """木星。"""
         params = {
-            "name": "Jupiter", "radius_km": 69911.0, "GM": 126686534.0,
-            "rotation_period_hours": 9.925, "flattening": 0.06487,
+            "name": "Jupiter",
+            "radius_km": 69911.0,
+            "GM": 126686534.0,
+            "rotation_period_hours": 9.925,
+            "flattening": 0.06487,
             "atmosphere_height_km": 5000.0,
         }
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('jupiter')
+
+                jpl = get_precise_body_params("jupiter")
                 if jpl:
-                    params.update({k: v for k, v in jpl.items()
-                                   if k in cls.__dataclass_fields__})
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)
@@ -245,17 +252,20 @@ class CelestialBody:
     def saturn(cls, precise: bool = False) -> "CelestialBody":
         """土星。"""
         params = {
-            "name": "Saturn", "radius_km": 58232.0, "GM": 37931187.0,
-            "rotation_period_hours": 10.656, "flattening": 0.09796,
+            "name": "Saturn",
+            "radius_km": 58232.0,
+            "GM": 37931187.0,
+            "rotation_period_hours": 10.656,
+            "flattening": 0.09796,
             "atmosphere_height_km": 3000.0,
         }
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('saturn')
+
+                jpl = get_precise_body_params("saturn")
                 if jpl:
-                    params.update({k: v for k, v in jpl.items()
-                                   if k in cls.__dataclass_fields__})
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)
@@ -264,17 +274,20 @@ class CelestialBody:
     def venus(cls, precise: bool = False) -> "CelestialBody":
         """金星。"""
         params = {
-            "name": "Venus", "radius_km": 6051.8, "GM": 324859.0,
-            "rotation_period_hours": -5832.5, "flattening": 0.0,
+            "name": "Venus",
+            "radius_km": 6051.8,
+            "GM": 324859.0,
+            "rotation_period_hours": -5832.5,
+            "flattening": 0.0,
             "atmosphere_height_km": 250.0,
         }
         if precise:
             try:
                 from fl_space.orbit.skyfield_backend import get_precise_body_params
-                jpl = get_precise_body_params('venus')
+
+                jpl = get_precise_body_params("venus")
                 if jpl:
-                    params.update({k: v for k, v in jpl.items()
-                                   if k in cls.__dataclass_fields__})
+                    params.update({k: v for k, v in jpl.items() if k in cls.__dataclass_fields__})
             except Exception:
                 pass
         return cls(**params)

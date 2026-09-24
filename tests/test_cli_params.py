@@ -3,11 +3,11 @@
 CLI参数全面测试脚本
 测试所有 tune、mount、run 命令的参数可用性
 """
+
 import json
 import os
 import subprocess
 import sys
-from typing import Tuple
 
 # 测试结果统计
 passed = 0
@@ -15,16 +15,14 @@ failed = 0
 errors = []
 
 
-def run_cli(*args) -> Tuple[int, str, str]:
+def run_cli(*args) -> tuple[int, str, str]:
     """运行CLI命令并返回结果"""
-    cmd = ["python", "-m", "fl_space.cli"] + list(args)
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, encoding="utf-8"
-    )
+    cmd = ["python", "-m", "fl_space.cli", *list(args)]
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     return result.returncode, result.stdout, result.stderr
 
 
-def test_command(name: str, *args, expect_success=True) -> bool:
+def run_command_case(name: str, *args, expect_success=True) -> bool:
     """测试单个命令"""
     global passed, failed
 
@@ -38,13 +36,15 @@ def test_command(name: str, *args, expect_success=True) -> bool:
     else:
         failed += 1
         print(f"  ✗ {name}")
-        errors.append({
-            "test": name,
-            "args": args,
-            "returncode": returncode,
-            "stdout": stdout[:200],
-            "stderr": stderr[:200]
-        })
+        errors.append(
+            {
+                "test": name,
+                "args": args,
+                "returncode": returncode,
+                "stdout": stdout[:200],
+                "stderr": stderr[:200],
+            }
+        )
         return False
 
 
@@ -59,107 +59,119 @@ def main():
 
     # ========== 1. 基础命令测试 ==========
     print("\n【1. 基础命令测试】")
-    test_command("help", "help")
-    test_command("info", "info")
+    run_command_case("help", "help")
+    run_command_case("info", "info")
 
     # ========== 2. tune 参数测试 ==========
     print("\n【2. tune 参数测试】")
-    test_command("tune lr", "tune", "lr", "0.001")
-    test_command("tune rounds", "tune", "rounds", "500")
-    test_command("tune epochs", "tune", "epochs", "10")
-    test_command("tune batch", "tune", "batch", "64")
-    test_command("tune mu", "tune", "mu", "0.1")
-    test_command("tune buffer-size", "tune", "buffer-size", "10")
-    test_command("tune seed", "tune", "seed", "2024")
-    test_command("tune dataset mnist", "tune", "dataset", "mnist")
-    test_command("tune dataset cifar10", "tune", "dataset", "cifar10")
-    test_command("tune dataset femnist", "tune", "dataset", "femnist")
-    test_command("tune scale small", "tune", "scale", "small")
-    test_command("tune scale medium", "tune", "scale", "medium")
-    test_command("tune scale large", "tune", "scale", "large")
-    test_command("tune early-stop", "tune", "early-stop", "0.95")
-    test_command("tune workers", "tune", "workers", "4")
-    test_command("tune data-workers", "tune", "data-workers", "2")
-    test_command("tune non-iid on", "tune", "non-iid", "on")
-    test_command("tune non-iid off", "tune", "non-iid", "off")
-    test_command("tune alpha", "tune", "alpha", "0.3")
-    test_command("tune device cpu", "tune", "device", "cpu")
-    test_command("tune device cuda", "tune", "device", "cuda")
-    test_command("tune classes-per-client", "tune", "classes-per-client", "3")
-    test_command("tune max-samples", "tune", "max-samples", "500")
-    test_command("tune partition-strategy iid", "tune", "partition-strategy", "iid")
-    test_command("tune partition-strategy dirichlet", "tune", "partition-strategy", "dirichlet")
-    test_command("tune partition-strategy shard", "tune", "partition-strategy", "shard")
-    test_command("tune partition-strategy probability", "tune", "partition-strategy", "probability")
-    test_command("tune class-probability", "tune", "class-probability", "0.7")
-    test_command("tune data-dir", "tune", "data-dir", "./mydata")
-    test_command("tune preference-mode client_window", "tune", "preference-mode", "client_window")
-    test_command("tune preference-mode class_balanced", "tune", "preference-mode", "class_balanced")
-    test_command("tune preferred-clients-per-class", "tune", "preferred-clients-per-class", "2")
-    test_command("tune sample-cap-strategy preserve", "tune", "sample-cap-strategy", "preserve")
-    test_command("tune sample-cap-strategy balanced", "tune", "sample-cap-strategy", "balanced")
-    test_command("tune show", "tune", "show")
+    run_command_case("tune lr", "tune", "lr", "0.001")
+    run_command_case("tune rounds", "tune", "rounds", "500")
+    run_command_case("tune epochs", "tune", "epochs", "10")
+    run_command_case("tune batch", "tune", "batch", "64")
+    run_command_case("tune mu", "tune", "mu", "0.1")
+    run_command_case("tune buffer-size", "tune", "buffer-size", "10")
+    run_command_case("tune seed", "tune", "seed", "2024")
+    run_command_case("tune dataset mnist", "tune", "dataset", "mnist")
+    run_command_case("tune dataset cifar10", "tune", "dataset", "cifar10")
+    run_command_case("tune dataset femnist", "tune", "dataset", "femnist")
+    run_command_case("tune scale small", "tune", "scale", "small")
+    run_command_case("tune scale medium", "tune", "scale", "medium")
+    run_command_case("tune scale large", "tune", "scale", "large")
+    run_command_case("tune early-stop", "tune", "early-stop", "0.95")
+    run_command_case("tune workers", "tune", "workers", "4")
+    run_command_case("tune data-workers", "tune", "data-workers", "2")
+    run_command_case("tune non-iid on", "tune", "non-iid", "on")
+    run_command_case("tune non-iid off", "tune", "non-iid", "off")
+    run_command_case("tune alpha", "tune", "alpha", "0.3")
+    run_command_case("tune device cpu", "tune", "device", "cpu")
+    run_command_case("tune device cuda", "tune", "device", "cuda")
+    run_command_case("tune classes-per-client", "tune", "classes-per-client", "3")
+    run_command_case("tune max-samples", "tune", "max-samples", "500")
+    run_command_case("tune partition-strategy iid", "tune", "partition-strategy", "iid")
+    run_command_case("tune partition-strategy dirichlet", "tune", "partition-strategy", "dirichlet")
+    run_command_case("tune partition-strategy shard", "tune", "partition-strategy", "shard")
+    run_command_case(
+        "tune partition-strategy probability", "tune", "partition-strategy", "probability"
+    )
+    run_command_case("tune class-probability", "tune", "class-probability", "0.7")
+    run_command_case("tune data-dir", "tune", "data-dir", "./mydata")
+    run_command_case(
+        "tune preference-mode client_window", "tune", "preference-mode", "client_window"
+    )
+    run_command_case(
+        "tune preference-mode class_balanced", "tune", "preference-mode", "class_balanced"
+    )
+    run_command_case("tune preferred-clients-per-class", "tune", "preferred-clients-per-class", "2")
+    run_command_case("tune sample-cap-strategy preserve", "tune", "sample-cap-strategy", "preserve")
+    run_command_case("tune sample-cap-strategy balanced", "tune", "sample-cap-strategy", "balanced")
+    run_command_case("tune show", "tune", "show")
 
     # ========== 3. mount 参数测试 ==========
     print("\n【3. mount 参数测试】")
-    test_command("mount algo fedavg", "mount", "algo", "fedavg")
-    test_command("mount algo fedprox", "mount", "algo", "fedprox")
-    test_command("mount algo fedbuff", "mount", "algo", "fedbuff")
-    test_command("mount isl disabled", "mount", "isl", "disabled")
-    test_command("mount isl wgs84", "mount", "isl", "wgs84")
-    test_command("mount isl-buffer", "mount", "isl-buffer", "80")
-    test_command("mount isl-step", "mount", "isl-step", "30")
-    test_command("mount time-model slot", "mount", "time-model", "slot")
-    test_command("mount time-model physics", "mount", "time-model", "physics")
-    test_command("mount time-model-args", "mount", "time-model-args", '{"key":"value"}')
-    test_command("mount backend kepler", "mount", "backend", "kepler")
-    test_command("mount backend skyfield", "mount", "backend", "skyfield")
-    test_command("mount body earth", "mount", "body", "earth")
-    test_command("mount body mars", "mount", "body", "mars")
-    test_command("mount body moon", "mount", "body", "moon")
-    test_command("mount body jupiter", "mount", "body", "jupiter")
-    test_command("mount body saturn", "mount", "body", "saturn")
-    test_command("mount body venus", "mount", "body", "venus")
-    test_command("mount distribution uniform", "mount", "distribution", "uniform")
-    test_command("mount distribution walker", "mount", "distribution", "walker")
-    test_command("mount distribution cluster", "mount", "distribution", "cluster")
-    test_command("mount staleness on", "mount", "staleness", "on")
-    test_command("mount staleness off", "mount", "staleness", "off")
-    test_command("mount sats", "mount", "sats", "10")
-    test_command("mount stations", "mount", "stations", "5")
-    test_command("mount sim-hours", "mount", "sim-hours", "48")
-    test_command("mount timeslot-min", "mount", "timeslot-min", "2.0")
-    test_command("mount altitude", "mount", "altitude", "550")
-    test_command("mount inclination", "mount", "inclination", "45")
-    test_command("mount show", "mount", "show")
+    run_command_case("mount algo fedavg", "mount", "algo", "fedavg")
+    run_command_case("mount algo fedprox", "mount", "algo", "fedprox")
+    run_command_case("mount algo fedbuff", "mount", "algo", "fedbuff")
+    run_command_case("mount isl disabled", "mount", "isl", "disabled")
+    run_command_case("mount isl wgs84", "mount", "isl", "wgs84")
+    run_command_case("mount isl-buffer", "mount", "isl-buffer", "80")
+    run_command_case("mount isl-step", "mount", "isl-step", "30")
+    run_command_case("mount time-model slot", "mount", "time-model", "slot")
+    run_command_case("mount time-model physics", "mount", "time-model", "physics")
+    run_command_case("mount time-model-args", "mount", "time-model-args", '{"key":"value"}')
+    run_command_case("mount backend kepler", "mount", "backend", "kepler")
+    run_command_case("mount backend skyfield", "mount", "backend", "skyfield")
+    run_command_case("mount body earth", "mount", "body", "earth")
+    run_command_case("mount body mars", "mount", "body", "mars")
+    run_command_case("mount body moon", "mount", "body", "moon")
+    run_command_case("mount body jupiter", "mount", "body", "jupiter")
+    run_command_case("mount body saturn", "mount", "body", "saturn")
+    run_command_case("mount body venus", "mount", "body", "venus")
+    run_command_case("mount distribution uniform", "mount", "distribution", "uniform")
+    run_command_case("mount distribution walker", "mount", "distribution", "walker")
+    run_command_case("mount distribution cluster", "mount", "distribution", "cluster")
+    run_command_case("mount staleness on", "mount", "staleness", "on")
+    run_command_case("mount staleness off", "mount", "staleness", "off")
+    run_command_case("mount sats", "mount", "sats", "10")
+    run_command_case("mount stations", "mount", "stations", "5")
+    run_command_case("mount sim-hours", "mount", "sim-hours", "48")
+    run_command_case("mount timeslot-min", "mount", "timeslot-min", "2.0")
+    run_command_case("mount altitude", "mount", "altitude", "550")
+    run_command_case("mount inclination", "mount", "inclination", "45")
+    run_command_case("mount show", "mount", "show")
 
     # ========== 4. run 命令测试 ==========
     print("\n【4. run 命令测试】")
-    test_command("run show", "run", "show")
-    test_command("run list presets", "run", "list", "presets")
-    test_command("run list models", "run", "list", "models")
-    test_command("run list satellites", "run", "list", "satellites")
-    test_command("run list experiments", "run", "list", "experiments")
+    run_command_case("run show", "run", "show")
+    run_command_case("run list presets", "run", "list", "presets")
+    run_command_case("run list models", "run", "list", "models")
+    run_command_case("run list satellites", "run", "list", "satellites")
+    run_command_case("run list experiments", "run", "list", "experiments")
 
     # ========== 5. 参数边界测试 ==========
     print("\n【5. 参数边界测试】")
-    test_command("tune lr 负数 (应失败)", "tune", "lr", "-0.01", expect_success=False)
-    test_command("tune rounds 0 (应失败)", "tune", "rounds", "0", expect_success=False)
-    test_command("tune alpha 负数 (应失败)", "tune", "alpha", "-0.5", expect_success=False)
-    test_command("tune early-stop >1 (应失败)", "tune", "early-stop", "1.5", expect_success=False)
-    test_command("mount sats 0 (应失败)", "mount", "sats", "0", expect_success=False)
-    test_command("mount inclination >180 (应失败)", "mount", "inclination", "200", expect_success=False)
-    test_command("mount algo 无效值 (应失败)", "mount", "algo", "invalid", expect_success=False)
-    test_command("tune dataset 无效值 (应失败)", "tune", "dataset", "invalid", expect_success=False)
+    run_command_case("tune lr 负数 (应失败)", "tune", "lr", "-0.01", expect_success=False)
+    run_command_case("tune rounds 0 (应失败)", "tune", "rounds", "0", expect_success=False)
+    run_command_case("tune alpha 负数 (应失败)", "tune", "alpha", "-0.5", expect_success=False)
+    run_command_case(
+        "tune early-stop >1 (应失败)", "tune", "early-stop", "1.5", expect_success=False
+    )
+    run_command_case("mount sats 0 (应失败)", "mount", "sats", "0", expect_success=False)
+    run_command_case(
+        "mount inclination >180 (应失败)", "mount", "inclination", "200", expect_success=False
+    )
+    run_command_case("mount algo 无效值 (应失败)", "mount", "algo", "invalid", expect_success=False)
+    run_command_case(
+        "tune dataset 无效值 (应失败)", "tune", "dataset", "invalid", expect_success=False
+    )
 
     # ========== 6. Session持久化测试 ==========
     print("\n【6. Session持久化测试】")
     global passed, failed, errors
 
-    test_command("设置多个参数", "tune", "lr", "0.005")
-    test_command("设置多个参数", "tune", "rounds", "100")
-    test_command("设置多个参数", "mount", "algo", "fedprox")
-    test_command("设置多个参数", "mount", "sats", "20")
+    run_command_case("设置多个参数", "tune", "lr", "0.005")
+    run_command_case("设置多个参数", "tune", "rounds", "100")
+    run_command_case("设置多个参数", "mount", "algo", "fedprox")
+    run_command_case("设置多个参数", "mount", "sats", "20")
 
     # 验证session文件存在
     if os.path.exists(".fls_session.json"):
@@ -179,8 +191,8 @@ def main():
 
     # ========== 7. reset 和 clear 测试 ==========
     print("\n【7. 重置功能测试】")
-    test_command("tune reset", "tune", "reset")
-    test_command("mount clear", "mount", "clear")
+    run_command_case("tune reset", "tune", "reset")
+    run_command_case("mount clear", "mount", "clear")
 
     # 验证重置后的值
     with open(".fls_session.json", encoding="utf-8") as f:
@@ -197,28 +209,22 @@ def main():
     print("\n【8. JSON配置加载测试】")
     # 创建测试配置文件
     test_config = {
-        "tune": {
-            "lr": 0.002,
-            "rounds": 200,
-            "dataset": "cifar10"
-        },
-        "mount": {
-            "algo": "fedprox",
-            "sats": 15,
-            "stations": 7
-        }
+        "tune": {"lr": 0.002, "rounds": 200, "dataset": "cifar10"},
+        "mount": {"algo": "fedprox", "sats": 15, "stations": 7},
     }
     with open("test_config.json", "w", encoding="utf-8") as f:
         json.dump(test_config, f, indent=2)
 
-    test_command("mount config", "mount", "config", "test_config.json")
+    run_command_case("mount config", "mount", "config", "test_config.json")
 
     # 验证加载
     with open(".fls_session.json", encoding="utf-8") as f:
         session = json.load(f)
-        if (session["tune"]["lr"] == 0.002 and
-            session["tune"]["rounds"] == 200 and
-            session["mount"]["sats"] == 15):
+        if (
+            session["tune"]["lr"] == 0.002
+            and session["tune"]["rounds"] == 200
+            and session["mount"]["sats"] == 15
+        ):
             passed += 1
             print("  ✓ JSON配置加载验证")
         else:
@@ -243,10 +249,10 @@ def main():
         print("\n失败的测试详情:")
         for i, err in enumerate(errors, 1):
             print(f"\n{i}. {err['test']}")
-            if 'args' in err:
+            if "args" in err:
                 print(f"   命令: python -m fl_space.cli {' '.join(err['args'])}")
                 print(f"   返回码: {err['returncode']}")
-                if err['stderr']:
+                if err["stderr"]:
                     print(f"   错误: {err['stderr']}")
 
     print("\n" + "=" * 70)

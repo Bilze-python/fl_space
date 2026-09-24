@@ -18,6 +18,7 @@ from typing import Any
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -61,7 +62,7 @@ def compute_weight_divergence(
         a = torch.as_tensor(wa, dtype=torch.float32)
         b = torch.as_tensor(wb, dtype=torch.float32)
         diff_sq += float(torch.sum((a - b) ** 2))
-        norm_b_sq += float(torch.sum(b ** 2))
+        norm_b_sq += float(torch.sum(b**2))
 
     if norm_b_sq < 1e-12:
         return math.sqrt(diff_sq) if diff_sq > 0 else 0.0
@@ -180,12 +181,7 @@ class FedLEOMetrics:
     @property
     def system_delay(self) -> float:
         """系统总时延 = 卸载 + 训练 + 同轨聚合 + 跨轨聚合"""
-        return (
-            self.offload_delay
-            + self.train_delay
-            + self.intra_agg_delay
-            + self.inter_agg_delay
-        )
+        return self.offload_delay + self.train_delay + self.intra_agg_delay + self.inter_agg_delay
 
     def to_dict(self) -> dict[str, Any]:
         return {

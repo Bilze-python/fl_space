@@ -1,6 +1,6 @@
 # SpaceFL 航天任务扩展框架
 
-**状态**：领域模型 v0.2（卫星分系统、火箭分级、发射窗口、部署顺序、任务约束）
+**状态**：领域模型 v0.3（学习任务顶层、六根数、链路参数、卫星分系统、火箭分级）
 **定位**：研究、教学和开放式模拟，不是飞行认证软件
 **保真度标签**：`first_order`（一阶/低阶模型）
 
@@ -21,6 +21,9 @@
 
 ```text
 fl_space/
+├── study/
+│   ├── models.py       # 学习任务：数据、模型、卫星轨道、基础设施、调度
+│   └── __init__.py     # 学习任务公开导出
 ├── mission/
 │   ├── models.py       # 火箭级、运载火箭、卫星设计、目标轨道、发射窗口、部署计划、任务场景
 │   ├── subsystems.py   # 电源、通信、姿态控制、推进分系统
@@ -44,7 +47,9 @@ physics  ←  budget            ←  constraints  ←  models
                     现有 orbit / simulator / FL / web
 ```
 
-任务层可以调用现有 `environment` 和 `orbit`，但现有 FL 和轨道核心不需要依赖
+`study` 层是新的顶层组合入口，负责把学习任务、轨道、基础设施和调度组织在
+一起；`mission` 层继续负责发射、部署和卫星工程对象。任务层可以调用现有
+`environment` 和 `orbit`，但现有 FL 和轨道核心不需要依赖
 SpaceX API。这样用户可以离线构造自己的火箭和卫星，不被外部网络服务锁定。
 `budget` / `constraints` 只在类型检查时引用 `models`（`TYPE_CHECKING`），
 运行时没有循环导入。
@@ -101,10 +106,15 @@ satellite = SatelliteDesign(
 scenario = MissionScenario(
     launch_vehicle=LaunchVehicle(
         stages=[
-            RocketStage(name="booster", dry_mass_kg=25_000, propellant_mass_kg=180_000,
-                        specific_impulse_s=300),
-            RocketStage(name="upper", dry_mass_kg=4_000, propellant_mass_kg=35_000,
-                        specific_impulse_s=350),
+            RocketStage(
+                name="booster",
+                dry_mass_kg=25_000,
+                propellant_mass_kg=180_000,
+                specific_impulse_s=300,
+            ),
+            RocketStage(
+                name="upper", dry_mass_kg=4_000, propellant_mass_kg=35_000, specific_impulse_s=350
+            ),
         ],
         payload_capacity_kg=2_000,
         fairing_inner_diameter_m=4.6,
@@ -133,6 +143,21 @@ for constraint in result.constraint_results:
 
 ## 领域模型要点
 
+### 学习任务（`fl_space.study.LearningTaskScenario`）
+
+导师建议已落成新的顶层模型：
+
+| 关注点 | 对象 |
+| --- | --- |
+| 数据 | `DatasetSpec`（类型、分布、样本量、大小、分片） |
+| 模型 | `ModelSpec`（任务类型、框架、参数量、模型/更新大小） |
+| 卫星/轨道 | `SpaceNodeSpec`（`SatelliteDesign` + `ClassicalOrbitalElements`） |
+| 基础设施 | `InfrastructureSpec`（地面站 + 星地/星间链路） |
+| 调度 | `SchedulerSpec`（接触感知、能量感知、FedLEO、自定义策略） |
+
+学习任务是研究场景的最高级单元。发射部署任务可以作为前置阶段，生成参与学习
+的卫星节点和初始轨道；经营规则和 UI 模式可以读取学习任务对象，但不改写物理层。
+
 ### 卫星（`SatelliteDesign`）
 
 | 关注点 | 字段/分系统 |
@@ -148,8 +173,25 @@ for constraint in result.constraint_results:
 `body_dimensions_m`（物理）与 `VisualAppearance.dimensions_m`（渲染）是
 两套独立参数：更换渲染模型不会隐式改变质量、阻力和功率，反之亦然。
 
-无法从公开资料核实的工程参数必须写进 `SatelliteDesign.assumptions`，
+`CommunicationSystem` 还支持 `channel_bandwidth_mhz`、`terminal_count`、
+`max_range_km`、`acquisition_time_s`、`pointing_accuracy_deg` 和 `source`，
+用于星地/星间链路初评。无法从公开资料核实的工程参数必须写进
+`SatelliteDesign.assumptions` 或链路 `source`，
 不要把宣传峰值当作持续可用能力。
+
+### 轨道（`ClassicalOrbitalElements` / `OrbitalTarget`）
+
+`ClassicalOrbitalElements` 使用二体轨道六根数描述航天器轨道：
+
+- 半长轴；
+- 偏心率；
+- 倾角；
+- 升交点赤经；
+- 近地点幅角；
+- 真近点角或平近点角。
+
+`OrbitalTarget` 作为发射任务的一阶目标轨道继续保留。新研究场景优先使用六根数，
+需要兼容旧流程时调用 `to_orbital_target()`。
 
 ### 火箭（`LaunchVehicle` / `RocketStage`）
 
@@ -237,6 +279,10 @@ for constraint in result.constraint_results:
 - API 数据用于任务目录、历史记录、载荷质量和轨道元数据的研究输入；
 - 外部记录不能直接视为实时状态或飞行认证数据；
 - `payload` 记录没有统一外形、迎风面积和功率字段，适配器会使用明确的研究默认值；
+- `starlink` 记录可通过 `orbital_elements_from_starlink()` 提取 Space-Track
+  OMM 字段并转换为二体六根数；
+- Starlink 光链路公开资料可通过 `public_starlink_optical_link_profile()` 作为
+  assumption 配置，不代表官方工程规格；
 - 重要实验应保存 API 快照、访问时间、资源版本和转换后的配置。
 
 ## 验证入口

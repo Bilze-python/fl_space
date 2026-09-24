@@ -84,7 +84,6 @@ def demo1_multi_cluster(lang: str = "en"):
         body=earth,
         orbits=orbits,
         ground_station_network=gss,
-
         backend="kepler",
         verbose=False,
     )
@@ -104,7 +103,6 @@ def demo1_multi_cluster(lang: str = "en"):
         orbits=orbits,
         ground_stations=gss,
         contact_matrix=sim.contact_matrix._simple,
-
         snapshot_time_min=0.0,
         gs_labels=gs_labels,
         cluster_map=cluster_map,
@@ -131,14 +129,30 @@ def demo2_custom_registry(lang: str = "en"):
             body = CelestialBody.earth()
         return MultiClusterConfig(
             clusters=[
-                ClusterSpec("high_lat", num_satellites=3, altitude_km=600,
-                           inclination_deg=85, distribution="uniform"),
-                ClusterSpec("mid_lat", num_satellites=5, altitude_km=450,
-                           inclination_deg=45, distribution="walker",
-                           num_planes=2, raan_offset_deg=30),
-                ClusterSpec("low_lat", num_satellites=4, altitude_km=550,
-                           inclination_deg=20, distribution="uniform",
-                           raan_offset_deg=60),
+                ClusterSpec(
+                    "high_lat",
+                    num_satellites=3,
+                    altitude_km=600,
+                    inclination_deg=85,
+                    distribution="uniform",
+                ),
+                ClusterSpec(
+                    "mid_lat",
+                    num_satellites=5,
+                    altitude_km=450,
+                    inclination_deg=45,
+                    distribution="walker",
+                    num_planes=2,
+                    raan_offset_deg=30,
+                ),
+                ClusterSpec(
+                    "low_lat",
+                    num_satellites=4,
+                    altitude_km=550,
+                    inclination_deg=20,
+                    distribution="uniform",
+                    raan_offset_deg=60,
+                ),
             ]
         )
 
@@ -147,8 +161,13 @@ def demo2_custom_registry(lang: str = "en"):
         "dict_geo_cluster",
         {
             "clusters": [
-                {"name": "geo_belt", "num_satellites": 3, "altitude_km": 35786,
-                 "inclination_deg": 0, "distribution": "uniform"},
+                {
+                    "name": "geo_belt",
+                    "num_satellites": 3,
+                    "altitude_km": 35786,
+                    "inclination_deg": 0,
+                    "distribution": "uniform",
+                },
             ]
         },
         description="3颗GEO同步轨道卫星",
@@ -165,8 +184,11 @@ def demo2_custom_registry(lang: str = "en"):
 
     gss = create_default_network(7)
     sim = OrbitSimulator(
-        body=earth, orbits=orbits, ground_station_network=gss,
-         backend="kepler", verbose=False,
+        body=earth,
+        orbits=orbits,
+        ground_station_network=gss,
+        backend="kepler",
+        verbose=False,
     )
     print(f"Contact rate: {sim.stats['contact_rate']:.1%}")
 
@@ -175,7 +197,6 @@ def demo2_custom_registry(lang: str = "en"):
         orbits=orbits,
         ground_stations=gss,
         contact_matrix=sim.contact_matrix._simple,
-
         snapshot_time_min=0.0,
         cluster_map=cluster_map,
         title=tf("Demo 2: Custom Research Constellation (via Registry)", lang),
@@ -198,9 +219,14 @@ def demo3_custom_satellites(lang: str = "en"):
 
     config = MultiClusterConfig(
         clusters=[
-            ClusterSpec("walker_shell", num_satellites=5, altitude_km=500,
-                       inclination_deg=53, distribution="walker",
-                       num_planes=2),
+            ClusterSpec(
+                "walker_shell",
+                num_satellites=5,
+                altitude_km=500,
+                inclination_deg=53,
+                distribution="walker",
+                num_planes=2,
+            ),
         ],
         custom_satellites=[
             SatelliteSpec(
@@ -229,8 +255,11 @@ def demo3_custom_satellites(lang: str = "en"):
 
     gss = create_default_network(9)
     sim = OrbitSimulator(
-        body=earth, orbits=orbits, ground_station_network=gss,
-         backend="kepler", verbose=False,
+        body=earth,
+        orbits=orbits,
+        ground_station_network=gss,
+        backend="kepler",
+        verbose=False,
     )
     print(f"Contact rate: {sim.stats['contact_rate']:.1%}")
 
@@ -243,7 +272,6 @@ def demo3_custom_satellites(lang: str = "en"):
         orbits=orbits,
         ground_stations=gss,
         contact_matrix=sim.contact_matrix._simple,
-
         snapshot_time_min=0.0,
         sat_labels=sat_labels,
         cluster_map=cluster_map,
@@ -277,15 +305,18 @@ def demo4_comparison(lang: str = "en"):
     for name, config in configs:
         orbits, _cmap = config.generate_orbits(earth)
         sim = OrbitSimulator(
-            body=earth, orbits=orbits, ground_station_network=gss,
-             backend="kepler", verbose=False,
+            body=earth,
+            orbits=orbits,
+            ground_station_network=gss,
+            backend="kepler",
+            verbose=False,
         )
         results.append((name, sim, _cmap, len(orbits)))
         print(f"  {name:30s} | Contact: {sim.stats['contact_rate']:6.1%} | {len(orbits)} sats")
 
     # 对比图：2x2 子图
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), facecolor="#0d1117")
-    viz = OrbitVisualizer()
+    OrbitVisualizer()
 
     for ax, (name, sim, _cmap, _n_sats) in zip(axes.flat, results):
         from fl_space.viz.orbit_plot import (
@@ -313,23 +344,42 @@ def demo4_comparison(lang: str = "en"):
         for j in range(len(gss)):
             gs = gss[j]
             if gs:
-                ax.scatter(gs.lon_deg, gs.lat_deg,
-                          c=GS_COLOR, s=40, marker="^",
-                          edgecolors="white", linewidths=0.5)
+                ax.scatter(
+                    gs.lon_deg,
+                    gs.lat_deg,
+                    c=GS_COLOR,
+                    s=40,
+                    marker="^",
+                    edgecolors="white",
+                    linewidths=0.5,
+                )
 
         ax.set_xlim(-180, 180)
         ax.set_ylim(-90, 90)
         ax.set_facecolor("#1a3a5c")
         ax.tick_params(colors="white", labelsize=7)
         ax.grid(True, alpha=0.1, color="white")
-        ax.set_title(f"{name}\nContact: {sim.stats['contact_rate']:.1%}",
-                    color="white", fontsize=10, fontweight="bold")
+        ax.set_title(
+            f"{name}\nContact: {sim.stats['contact_rate']:.1%}",
+            color="white",
+            fontsize=10,
+            fontweight="bold",
+        )
 
-    fig.suptitle(tf("Demo 4: Constellation Comparison", lang),
-                color="white", fontsize=13, fontweight="bold", y=0.99)
+    fig.suptitle(
+        tf("Demo 4: Constellation Comparison", lang),
+        color="white",
+        fontsize=13,
+        fontweight="bold",
+        y=0.99,
+    )
     fig.tight_layout()
-    fig.savefig(os.path.join(OUTPUT_DIR, "demo4_comparison.png"),
-               dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
+    fig.savefig(
+        os.path.join(OUTPUT_DIR, "demo4_comparison.png"),
+        dpi=150,
+        facecolor=fig.get_facecolor(),
+        bbox_inches="tight",
+    )
     plt.close(fig)
     print("Saved: demo4_comparison.png")
 
@@ -341,19 +391,34 @@ def demo5_ground_track(lang: str = "en"):
     print("=" * 60)
 
     earth = CelestialBody.earth()
-    config = MultiClusterConfig(clusters=[
-        ClusterSpec("polar", num_satellites=3, altitude_km=500,
-                   inclination_deg=90, distribution="uniform"),
-        ClusterSpec("mid", num_satellites=3, altitude_km=550,
-                   inclination_deg=30, distribution="uniform",
-                   raan_offset_deg=120),
-    ])
+    config = MultiClusterConfig(
+        clusters=[
+            ClusterSpec(
+                "polar",
+                num_satellites=3,
+                altitude_km=500,
+                inclination_deg=90,
+                distribution="uniform",
+            ),
+            ClusterSpec(
+                "mid",
+                num_satellites=3,
+                altitude_km=550,
+                inclination_deg=30,
+                distribution="uniform",
+                raan_offset_deg=120,
+            ),
+        ]
+    )
     orbits, _cmap = config.generate_orbits(earth)
     gss = create_default_network(7)
 
     sim = OrbitSimulator(
-        body=earth, orbits=orbits, ground_station_network=gss,
-         backend="kepler", verbose=False,
+        body=earth,
+        orbits=orbits,
+        ground_station_network=gss,
+        backend="kepler",
+        verbose=False,
     )
 
     # 绘制单星星下点轨迹（带接触高亮）
@@ -375,7 +440,8 @@ def demo5_ground_track(lang: str = "en"):
 
         # 高亮显示有接触的时刻
         contact_slots = [
-            ts for ts in range(sim.contact_matrix.num_timeslots)
+            ts
+            for ts in range(sim.contact_matrix.num_timeslots)
             if sim.contact_matrix._simple[sat_id, ts] >= 0
         ]
 
@@ -387,32 +453,58 @@ def demo5_ground_track(lang: str = "en"):
                 lat, lon = orbit.position_at_time(t)
                 mark_lats.append(lat)
                 mark_lons.append(_wrap_lon(lon))
-            ax.scatter(mark_lons, mark_lats, c="#51cf66", s=8, alpha=0.7,
-                      zorder=5, label=f"{len(contact_slots)} contacts")
+            ax.scatter(
+                mark_lons,
+                mark_lats,
+                c="#51cf66",
+                s=8,
+                alpha=0.7,
+                zorder=5,
+                label=f"{len(contact_slots)} contacts",
+            )
 
         # 地面站
         for j in range(len(gss)):
             gs = gss[j]
             if gs:
-                ax.scatter(gs.lon_deg, gs.lat_deg,
-                          c="#ff6b6b", s=50, marker="^",
-                          edgecolors="white", linewidths=0.5)
+                ax.scatter(
+                    gs.lon_deg,
+                    gs.lat_deg,
+                    c="#ff6b6b",
+                    s=50,
+                    marker="^",
+                    edgecolors="white",
+                    linewidths=0.5,
+                )
 
         ax.set_xlim(-180, 180)
         ax.set_ylim(-90, 90)
         ax.set_facecolor("#1a3a5c")
         ax.tick_params(colors="white", labelsize=7)
         ax.grid(True, alpha=0.1, color="white")
-        ax.set_title(f"SAT-{sat_id} ({orbits[sat_id].elements.inclination_deg:.0f}deg incl.)",
-                    color="white", fontsize=10, fontweight="bold")
-        ax.legend(fontsize=7, loc="lower left", facecolor="#0d1117",
-                 labelcolor="white", framealpha=0.5)
+        ax.set_title(
+            f"SAT-{sat_id} ({orbits[sat_id].elements.inclination_deg:.0f}deg incl.)",
+            color="white",
+            fontsize=10,
+            fontweight="bold",
+        )
+        ax.legend(
+            fontsize=7, loc="lower left", facecolor="#0d1117", labelcolor="white", framealpha=0.5
+        )
 
-    fig.suptitle(tf("Demo 5: Ground Tracks with Contact Highlights", lang),
-                color="white", fontsize=12, fontweight="bold")
+    fig.suptitle(
+        tf("Demo 5: Ground Tracks with Contact Highlights", lang),
+        color="white",
+        fontsize=12,
+        fontweight="bold",
+    )
     fig.tight_layout()
-    fig.savefig(os.path.join(OUTPUT_DIR, "demo5_ground_tracks.png"),
-               dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
+    fig.savefig(
+        os.path.join(OUTPUT_DIR, "demo5_ground_tracks.png"),
+        dpi=150,
+        facecolor=fig.get_facecolor(),
+        bbox_inches="tight",
+    )
     plt.close(fig)
     print("Saved: demo5_ground_tracks.png")
 
@@ -433,14 +525,14 @@ def main(lang: str = "en"):
     print(" Files generated:")
     for f in sorted(os.listdir(OUTPUT_DIR)):
         size = os.path.getsize(os.path.join(OUTPUT_DIR, f))
-        print(f"   {f} ({size/1024:.1f} KB)")
+        print(f"   {f} ({size / 1024:.1f} KB)")
     print("=" * 60)
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lang", choices=["en", "zh"], default="en",
-                        help="语言 (默认: en)")
+    parser.add_argument("--lang", choices=["en", "zh"], default="en", help="语言 (默认: en)")
     args = parser.parse_args()
     main(lang=args.lang)

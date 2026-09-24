@@ -104,13 +104,28 @@ def test_local_trainers_accept_contact_epoch_override() -> None:
     model, dataset, weights = _single_client_problem()
     loader = DataLoader(dataset, batch_size=8, shuffle=False)
     avg = FixedEpochTrainer(local_epochs=5, learning_rate=0.05).train(
-        0, model, loader, weights, 0, local_epochs_override=2,
+        0,
+        model,
+        loader,
+        weights,
+        0,
+        local_epochs_override=2,
     )
     prox = ProximalTrainer(local_epochs=5, learning_rate=0.05, mu=0.1).train(
-        0, model, loader, weights, 0, local_epochs_override=3,
+        0,
+        model,
+        loader,
+        weights,
+        0,
+        local_epochs_override=3,
     )
     async_update = AsyncTrainer(local_epochs=5, learning_rate=0.05, mu=0.1).train(
-        0, model, loader, weights, 0, local_epochs_override=4,
+        0,
+        model,
+        loader,
+        weights,
+        0,
+        local_epochs_override=4,
     )
     assert avg.metadata["actual_local_epochs"] == 2
     assert prox.metadata["actual_local_epochs"] == 3

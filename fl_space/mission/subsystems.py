@@ -35,6 +35,7 @@ PropellantType = Literal[
     "electric",
 ]
 CommunicationBand = Literal["UHF", "L", "S", "X", "Ka", "optical"]
+CommunicationLinkKind = Literal["space_to_ground", "inter_satellite", "crosslink"]
 AttitudeControlMode = Literal["none", "spin", "gravity_gradient", "three_axis"]
 
 
@@ -131,8 +132,10 @@ class CommunicationSystem:
     """
 
     name: str = "s_band_transceiver"
+    link_kind: CommunicationLinkKind = "space_to_ground"
     band: CommunicationBand = "S"
     frequency_hz: float = 2.2e9
+    channel_bandwidth_mhz: float = 0.0
     transmit_power_w: float = 5.0
     transmit_antenna_gain_dbi: float = 3.0
     receive_antenna_gain_dbi: float = 3.0
@@ -142,8 +145,14 @@ class CommunicationSystem:
     inter_satellite_link: bool = False
     isl_rate_mbps: float = 0.0
     max_simultaneous_links: int = 1
+    terminal_count: int = 1
+    max_range_km: float = 0.0
+    acquisition_time_s: float = 0.0
+    pointing_accuracy_deg: float = 0.0
+    weather_sensitive: bool = False
     mass_kg: float = 0.0
     power_w: float = 0.0
+    source: str = "assumption"
 
     def __post_init__(self) -> None:
         """验证通信参数。"""
@@ -151,23 +160,30 @@ class CommunicationSystem:
             raise ValueError("通信分系统名称不能为空")
         if self.frequency_hz <= 0:
             raise ValueError("通信频率必须为正")
+        if self.channel_bandwidth_mhz < 0:
+            raise ValueError("信道带宽不能为负")
         if self.transmit_power_w <= 0:
             raise ValueError("发射功率必须为正")
         if self.downlink_rate_mbps <= 0 or self.uplink_rate_mbps <= 0:
             raise ValueError("上下行速率必须为正")
         if self.max_simultaneous_links < 1:
             raise ValueError("并发链路数至少为 1")
+        if self.terminal_count < 1:
+            raise ValueError("通信终端数量至少为 1")
         if self.inter_satellite_link and self.isl_rate_mbps <= 0:
             raise ValueError("启用星间链路时必须给出 isl_rate_mbps")
         if any(
             value < 0
             for value in (
                 self.isl_rate_mbps,
+                self.max_range_km,
+                self.acquisition_time_s,
+                self.pointing_accuracy_deg,
                 self.mass_kg,
                 self.power_w,
             )
         ):
-            raise ValueError("链路速率、质量和功耗不能为负")
+            raise ValueError("链路速率、距离、捕获时间、指向精度、质量和功耗不能为负")
 
     @property
     def eirp_dbw(self) -> float:
@@ -184,8 +200,10 @@ class CommunicationSystem:
         """序列化为字典。"""
         return {
             "name": self.name,
+            "link_kind": self.link_kind,
             "band": self.band,
             "frequency_hz": self.frequency_hz,
+            "channel_bandwidth_mhz": self.channel_bandwidth_mhz,
             "transmit_power_w": self.transmit_power_w,
             "transmit_antenna_gain_dbi": self.transmit_antenna_gain_dbi,
             "receive_antenna_gain_dbi": self.receive_antenna_gain_dbi,
@@ -195,8 +213,14 @@ class CommunicationSystem:
             "inter_satellite_link": self.inter_satellite_link,
             "isl_rate_mbps": self.isl_rate_mbps,
             "max_simultaneous_links": self.max_simultaneous_links,
+            "terminal_count": self.terminal_count,
+            "max_range_km": self.max_range_km,
+            "acquisition_time_s": self.acquisition_time_s,
+            "pointing_accuracy_deg": self.pointing_accuracy_deg,
+            "weather_sensitive": self.weather_sensitive,
             "mass_kg": self.mass_kg,
             "power_w": self.power_w,
+            "source": self.source,
         }
 
     @classmethod
@@ -389,6 +413,7 @@ __all__ = [
     "AttitudeControlMode",
     "AttitudeControlSystem",
     "CommunicationBand",
+    "CommunicationLinkKind",
     "CommunicationSystem",
     "PowerSystem",
     "PropellantType",

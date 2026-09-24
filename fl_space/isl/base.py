@@ -13,7 +13,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 import numpy as np
 
@@ -42,7 +41,7 @@ class ISLWindow:
 
     satellite_a: str
     satellite_b: str
-    cluster_id: Optional[str]
+    cluster_id: str | None
     start_utc: datetime
     end_utc: datetime
     min_range_km: float
@@ -117,7 +116,7 @@ class ISLCalculator(ABC):
     def compute(
         self,
         ecef_positions: dict[str, np.ndarray],
-        cluster_assignments: dict[str, Optional[str]],
+        cluster_assignments: dict[str, str | None],
         sample_times: Sequence[datetime],
         **kwargs,
     ) -> list[ISLWindow]:
@@ -154,7 +153,7 @@ class NoISLCalculator(ISLCalculator):
     def compute(
         self,
         ecef_positions: dict[str, np.ndarray],
-        cluster_assignments: dict[str, Optional[str]],
+        cluster_assignments: dict[str, str | None],
         sample_times: Sequence[datetime],
         **kwargs,
     ) -> list[ISLWindow]:

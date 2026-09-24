@@ -242,9 +242,7 @@ def get_preset_config(
     elif algorithm == "fedbuff":
         config = fedbuff_config()
     else:
-        raise ValueError(
-            f"未知算法: '{algorithm}'，支持: fedavg, fedprox, fedbuff"
-        )
+        raise ValueError(f"未知算法: '{algorithm}'，支持: fedavg, fedprox, fedbuff")
 
     # 应用规模预设
     if scale in SCALE_PRESETS:
@@ -292,9 +290,7 @@ EXPERIMENT_PRESETS: list[dict[str, Any]] = [
     },
     {
         "name": "fedbuff_medium_cifar10",
-        "config": lambda: get_preset_config(
-            "fedbuff", "medium", "cifar10", buffer_size=5
-        ),
+        "config": lambda: get_preset_config("fedbuff", "medium", "cifar10", buffer_size=5),
         "description": "FedBuff + 中型 + CIFAR-10 — 异步图像分类",
     },
 ]
