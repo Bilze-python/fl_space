@@ -12,11 +12,13 @@ const state = {
   satelliteProfiles: {},
   studyTask: null,
   studyLoading: false,
+  localClusterResult: null,
 };
 
 const viewTitles = {
   overview: ["SPACE FEDERATED LEARNING", "实验总览"],
   config: ["EXPERIMENT CONTROL", "实验配置"],
+  "local-cluster": ["ISOLATED CLUSTER LAB", "局部星簇"],
   study: ["LEARNING TASK MODEL", "学习任务"],
   experiments: ["RESULT ARCHIVE", "实验档案"],
   orbit: ["CONSTELLATION VIEW", "轨道视图"],
@@ -90,7 +92,108 @@ function setView(name) {
   if (name === "orbit" && !state.orbit && !state.orbitLoading) loadOrbit();
   if (name === "library" && !state.library.length) loadLibrary();
   if (name === "study" && !state.studyTask && !state.studyLoading) loadStudyTask();
+  if (name === "local-cluster" && !state.localClusterDefaults) loadLocalClusterDefaults();
   requestAnimationFrame(resizeCanvases);
+}
+
+async function loadLocalClusterDefaults() {
+  try {
+    const response = await api("/api/local-cluster/default");
+    state.localClusterDefaults = response.config;
+    applyLocalClusterConfig(response.config);
+  } catch (error) {
+    toast(`局部星簇默认值读取失败：${error.message}`, "error");
+  }
+}
+
+function applyLocalClusterConfig(config) {
+  const link = config.link || {};
+  const values = {
+    "cluster-satellites": config.num_satellites,
+    "cluster-radius": config.cluster_radius_km,
+    "cluster-altitude": config.altitude_km,
+    "cluster-topology": config.topology,
+    "cluster-gflops": config.compute_gflops,
+    "cluster-dataset": config.dataset,
+    "cluster-samples": config.samples_per_satellite,
+    "cluster-rounds": config.rounds,
+    "cluster-aperture": link.aperture_diameter_cm,
+    "cluster-distance": link.link_distance_km,
+    "cluster-parallel": link.parallel_links,
+    "cluster-channels": link.channels_per_link,
+    "cluster-rate": link.rate_per_channel_gbps,
+    "cluster-pointing": link.pointing_accuracy_urad,
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const element = $(`#${id}`);
+    if (element && value != null) element.value = value;
+  });
+}
+
+function collectLocalClusterConfig() {
+  return {
+    enabled: true,
+    name: "web-local-cluster",
+    num_satellites: Number($("#cluster-satellites").value),
+    cluster_radius_km: Number($("#cluster-radius").value),
+    altitude_km: Number($("#cluster-altitude").value),
+    topology: $("#cluster-topology").value,
+    compute_gflops: Number($("#cluster-gflops").value),
+    dataset: $("#cluster-dataset").value,
+    samples_per_satellite: Number($("#cluster-samples").value),
+    rounds: Number($("#cluster-rounds").value),
+    link: {
+      aperture_diameter_cm: Number($("#cluster-aperture").value),
+      link_distance_km: Number($("#cluster-distance").value),
+      parallel_links: Number($("#cluster-parallel").value),
+      channels_per_link: Number($("#cluster-channels").value),
+      rate_per_channel_gbps: Number($("#cluster-rate").value),
+      pointing_accuracy_urad: Number($("#cluster-pointing").value),
+    },
+  };
+}
+
+function renderLocalClusterResult(result) {
+  state.localClusterResult = result;
+  $("#local-cluster-empty").classList.add("hidden");
+  $("#local-cluster-result").classList.remove("hidden");
+  $("#local-cluster-status").className = "status-badge green";
+  $("#local-cluster-status").textContent = "已完成";
+  $("#cluster-score").textContent = Number(result.cluster_score).toFixed(1);
+  $("#cluster-bandwidth").textContent = `${Number(result.effective_bandwidth_gbps).toFixed(2)} Gbps`;
+  $("#cluster-latency").textContent = `${Number(result.per_round_latency_s).toFixed(2)} s`;
+  $("#cluster-throughput").textContent = Number(result.samples_per_second).toFixed(1);
+  const rows = [
+    ["名义单向带宽", `${Number(result.nominal_bandwidth_gbps).toFixed(2)} Gbps`],
+    ["接收功率", `${Number(result.received_power_mw).toFixed(6)} mW`],
+    ["链路余量", `${Number(result.link_margin_db).toFixed(2)} dB`],
+    ["训练 / 轮", `${Number(result.training_time_per_round_s).toFixed(4)} s`],
+    ["聚合 / 轮", `${Number(result.aggregation_time_per_round_s).toFixed(4)} s`],
+    ["总实验时长", `${Number(result.total_time_s).toFixed(2)} s`],
+  ];
+  $("#local-cluster-summary").innerHTML = rows.map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`).join("");
+  $("#local-cluster-json").textContent = JSON.stringify(result, null, 2);
+  $("#local-cluster-profile-note").textContent = "profile 只在用户显式传入全局实验时生效";
+}
+
+async function runLocalCluster(event) {
+  event.preventDefault();
+  const button = $("#local-cluster-run");
+  button.disabled = true;
+  $("#local-cluster-status").textContent = "计算中";
+  try {
+    const result = await api("/api/local-cluster/run", {
+      method: "POST",
+      body: JSON.stringify(collectLocalClusterConfig()),
+    });
+    renderLocalClusterResult(result);
+    toast("局部星簇测试完成；结果未写入主训练 Session");
+  } catch (error) {
+    $("#local-cluster-status").textContent = "失败";
+    toast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function studyTaskData() {
@@ -1111,6 +1214,20 @@ function bindEvents() {
   $("#study-task-form").addEventListener("submit", saveStudyTask);
   $("#study-reset-button").addEventListener("click", resetStudyTask);
   $("#study-refresh-button").addEventListener("click", loadStudyTask);
+  $("#local-cluster-form").addEventListener("submit", runLocalCluster);
+  $("#local-cluster-reset").addEventListener("click", () => {
+    if (state.localClusterDefaults) applyLocalClusterConfig(state.localClusterDefaults);
+  });
+  $("#local-cluster-copy-profile").addEventListener("click", async () => {
+    const profile = state.localClusterResult?.federated_profile;
+    if (!profile) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(profile, null, 2));
+      toast("全局调用 profile 已复制");
+    } catch (error) {
+      toast(`复制失败：${error.message}`, "error");
+    }
+  });
   $("#add-satellite-profile").addEventListener("click", addSatelliteProfile);
   $("#protocol-mode").addEventListener("change", applyProtocolPreset);
   $('[name="mount.sats"]').addEventListener("change", () => {

@@ -254,6 +254,7 @@ def run_fedleo_experiment(
     seed: int = 42,
     verbose: bool = True,
     output_dir: str | None = None,
+    cluster_profile: dict[str, Any] | None = None,
 ) -> ExperimentResult:
     """
     运行单个 FedLEO 实验。
@@ -289,6 +290,14 @@ def run_fedleo_experiment(
     """
     if not TORCH_AVAILABLE:
         raise ImportError("FedLEO 实验需要 PyTorch")
+    if cluster_profile:
+        from fl_space.local_cluster import profile_to_fedleo_overrides
+
+        overrides = profile_to_fedleo_overrides(cluster_profile)
+        num_planes = int(overrides.get("num_planes", num_planes))
+        sats_per_plane = int(overrides.get("sats_per_plane", sats_per_plane))
+        bandwidth_mbps = float(overrides.get("bandwidth_mbps", bandwidth_mbps))
+        timeslot_duration_sec = float(overrides.get("timeslot_duration_sec", timeslot_duration_sec))
     if verbose:
         print(f"\n{'=' * 60}")
         print(f"FedLEO 实验: {num_planes}轨面 × {sats_per_plane}星/面")
@@ -421,6 +430,7 @@ def run_fedleo_experiment(
             "sample_imbalance": sample_imbalance,
             "dataset": dataset,
             "seed": seed,
+            "cluster_profile": cluster_profile,
         },
         history=[m.to_dict() for m in history],
         final_accuracy=round(final_acc, 6),

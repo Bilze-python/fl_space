@@ -22,6 +22,7 @@
       <nav id="main-nav">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>总览</button>
         <button class="nav-item" data-view="config"><span class="nav-icon">⌘</span>实验配置</button>
+        <button class="nav-item" data-view="local-cluster"><span class="nav-icon">▦</span>局部星簇</button>
         <button class="nav-item" data-view="study"><span class="nav-icon">◇</span>学习任务</button>
         <button class="nav-item" data-view="experiments"><span class="nav-icon">≋</span>实验档案</button>
         <button class="nav-item" data-view="orbit"><span class="nav-icon">◎</span>轨道视图</button>
@@ -204,6 +205,60 @@
               </div>
             </form>
           </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-local-cluster">
+        <div class="local-cluster-layout">
+          <section class="panel">
+            <div class="panel-head">
+              <div><p class="panel-kicker">ISOLATED CLUSTER LAB</p><h2>局部星簇构建</h2></div>
+              <span class="status-badge amber">独立实验</span>
+            </div>
+            <p class="field-note local-cluster-note">
+              该实验只计算局部星簇的链路、训练和聚合效率，不修改全局 Session，也不会自动启动主训练。
+            </p>
+            <form id="local-cluster-form">
+              <div class="form-grid">
+                <label>卫星数量<input id="cluster-satellites" type="number" min="2" max="256" value="81"></label>
+                <label>星簇半径 km<input id="cluster-radius" type="number" min="0.01" step="0.01" value="1"></label>
+                <label>平均轨道高度 km<input id="cluster-altitude" type="number" min="100" max="2000" value="650"></label>
+                <label>拓扑<select id="cluster-topology"><option value="ring">环形</option><option value="grid">网格</option><option value="mesh">全连接近似</option></select></label>
+                <label>卫星算力 GFLOPS<input id="cluster-gflops" type="number" min="0.01" step="0.1" value="10"></label>
+                <label>数据集<select id="cluster-dataset"><option value="mnist">MNIST</option><option value="fashion_mnist">Fashion-MNIST</option><option value="cifar10">CIFAR-10</option><option value="femnist">FEMNIST</option></select></label>
+                <label>每星样本数<input id="cluster-samples" type="number" min="1" value="1000"></label>
+                <label>实验轮次<input id="cluster-rounds" type="number" min="1" max="1000" value="10"></label>
+              </div>
+              <div class="subsection-heading local-cluster-subheading"><div><h3>光学星间链路</h3><p>论文参考值可修改；实际工程参数需另行标注来源。</p></div></div>
+              <div class="form-grid">
+                <label>望远镜口径 cm<input id="cluster-aperture" type="number" min="0.1" step="0.1" value="10"></label>
+                <label>卫星间距离 km<input id="cluster-distance" type="number" min="0.01" step="0.01" value="5"></label>
+                <label>并行链路数<input id="cluster-parallel" type="number" min="1" max="256" value="1"></label>
+                <label>每链路 DWDM 通道数<input id="cluster-channels" type="number" min="1" max="128" value="24"></label>
+                <label>单通道速率 Gbps<input id="cluster-rate" type="number" min="0.001" step="0.001" value="0.4"></label>
+                <label>指向误差 μrad<input id="cluster-pointing" type="number" min="0" step="0.1" value="1"></label>
+              </div>
+              <div class="form-actions">
+                <button class="button secondary" type="button" id="local-cluster-reset">恢复论文参考值</button>
+                <button class="button primary" type="submit" id="local-cluster-run">运行局部测试</button>
+              </div>
+            </form>
+          </section>
+          <section class="panel local-cluster-result-panel">
+            <div class="panel-head"><div><p class="panel-kicker">CLUSTER RESULT</p><h2>量化结果</h2></div><span id="local-cluster-status" class="status-badge amber">尚未运行</span></div>
+            <div id="local-cluster-empty" class="empty-state compact">运行一次局部测试后，这里显示链路预算、训练效率和可供全局训练调用的 profile。</div>
+            <div id="local-cluster-result" class="hidden">
+              <div class="metric-grid local-cluster-metrics">
+                <article class="metric-panel accent"><span>星簇评分</span><strong id="cluster-score">--</strong><small>研究排序指标 / 100</small></article>
+                <article class="metric-panel"><span>有效单向带宽</span><strong id="cluster-bandwidth">--</strong><small>预算折减后</small></article>
+                <article class="metric-panel"><span>单轮时延</span><strong id="cluster-latency">--</strong><small>训练 + 聚合</small></article>
+                <article class="metric-panel"><span>样本吞吐</span><strong id="cluster-throughput">--</strong><small>samples / s</small></article>
+              </div>
+              <div class="table-wrap local-cluster-summary-table"><table><tbody id="local-cluster-summary"></tbody></table></div>
+              <div class="local-cluster-profile-actions"><button class="button secondary" type="button" id="local-cluster-copy-profile">复制全局调用 profile</button><span id="local-cluster-profile-note" class="field-note"></span></div>
+              <details class="study-json-details"><summary>查看完整结果 JSON</summary><pre id="local-cluster-json"></pre></details>
+            </div>
+          </section>
         </div>
       </section>
 

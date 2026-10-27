@@ -1990,6 +1990,25 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         kwargs.update(sim_kwargs)
         return build_orbit_data(**kwargs)
 
+    @app.get("/api/local-cluster/default")
+    async def local_cluster_default() -> dict[str, Any]:
+        """Return the disabled-by-default paper reference cluster template."""
+        from fl_space.local_cluster import DATASET_PROFILES, LocalClusterConfig
+
+        config = LocalClusterConfig.paper_reference()
+        return {"config": config.to_dict(), "datasets": DATASET_PROFILES}
+
+    @app.post("/api/local-cluster/run")
+    async def local_cluster_run(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Run an isolated analytical local-cluster benchmark."""
+        from fl_space.local_cluster import LocalClusterConfig, run_local_cluster
+
+        try:
+            config = LocalClusterConfig.from_dict(payload)
+            return run_local_cluster(config).to_dict()
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     return app
 
 

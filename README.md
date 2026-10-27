@@ -58,6 +58,27 @@ python examples/mission_deployment_demo.py
 该层是 `first_order` 研究模型，不代表真实 SpaceX 运载火箭性能或飞行认证结果。
 设计边界和扩展路线见 [`docs/SPACE_MISSION_FRAMEWORK.md`](docs/SPACE_MISSION_FRAMEWORK.md)。
 
+### 独立局部星簇实验
+
+`fl_space.local_cluster` 是与主训练隔离的局部星簇实验模块。它支持论文
+arXiv:2511.19468v2 中的 81 星、650 km、1 km 星簇半径、10 cm 口径、5 km
+光链路、24 路 DWDM 和并行链路等参数，并输出链路预算、训练/聚合时延、样本吞吐
+以及 `local_cluster_profile_v1`。该 profile 只有在调用全局 FedLEO 时显式传入才会
+生效，默认不会改变既有全局实验参数。
+
+```python
+from fl_space.local_cluster import LocalClusterConfig, OpticalLinkConfig, run_local_cluster
+
+result = run_local_cluster(
+    LocalClusterConfig.paper_reference(link=OpticalLinkConfig(parallel_links=4))
+)
+profile = result.to_federated_profile()
+```
+
+Web 控制台的“局部星簇”页面对应 `/api/local-cluster/run`。当前模块是可重复的解析式
+效率基准，不宣称已经完成真实数据训练精度验证；后续可接入现有数据加载器作为独立
+训练回调。
+
 **双后端设计：**
 | 后端 | 精度 | 依赖 | 适用场景 |
 |------|------|------|---------|

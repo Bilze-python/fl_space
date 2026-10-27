@@ -30,6 +30,7 @@ config -> environment + orbit -> simulator -> FL core -> experiments/results
 | Inter-satellite links | ISL abstraction | `fl_space/isl/` | LOS and intra-cluster link behavior |
 | Mission | Launch and spacecraft domain | `fl_space/mission/` | Launch vehicles and staging, satellite designs and subsystems, launch windows, deployment plans, constraints, first-order physics/budget |
 | Study | Top-level research scenario | `fl_space/study/` | Dataset, model, spacecraft/orbit, infrastructure, links, and scheduler declarations |
+| Local cluster lab | Isolated paper-inspired cluster benchmark | `fl_space/local_cluster/` | Optical-link budget, analytical local workload, quantified profile, and opt-in global adapter |
 | FL core | Algorithms and timing | `fl_space/fl/` | FedAvg, FedProx, FedBuff, scheduler, time model, runner, validation |
 | FedLEO | Research extension | `fl_space/fedleo/` | Decentralized offloading planner, aggregation, metrics, experiment, conformance metadata |
 | Integrations | External adapters | `fl_space/integrations/` | Flower adapter and read-only r-spacex catalog mapping |
@@ -48,6 +49,7 @@ config -> environment + orbit -> simulator -> FL core -> experiments/results
 | Launch/deployment foundation | `tests/test_mission_framework.py`, `examples/mission_deployment_demo.py` | Domain models, constraint gates, first-order launch budget and deployed `KeplerOrbit` integration |
 | Learning-task snapshot | `fl_space/study/`, `tests/test_learning_task_framework.py`, `tests/test_web_learning_task.py` | Revisioned server snapshot for data/model/nodes/infrastructure/scheduler visualization |
 | SpaceX catalog boundary | `fl_space/integrations/spacex_api.py`, `docs/knowledge/spacex_public_data.md` | OMM/payload mapping and explicitly assumed optical-link profile; no operational contact telemetry |
+| Local cluster benchmark | `fl_space/local_cluster/`, `tests/test_local_cluster.py`, `/api/local-cluster/run` | Independent cluster construction and `local_cluster_profile_v1`; no global-session side effects |
 | Quality and contact-model audit | `docs/CODE_QUALITY_AUDIT_2026-09-18.md` | Current Ruff/test gate, contact pipeline, resolved frame issue, remaining defects, and Starlink gap assessment |
 | Coding standards | `CODING_STANDARDS.md`, `pyproject.toml` | Ruff is the only formatter/linter |
 | Change provenance | `WORKLOG.md` | Historical implementation and validation notes |
@@ -90,6 +92,9 @@ It deliberately approximates discrete ratio search, divergence, ring aggregation
 1. Connect study/mission link parameters to the simulator and FL time model.
 2. Replace the bounded one-terminal reservation guard with continuous-window capacity accounting,
    including transfer splitting when explicitly enabled.
+3. Connect `local_cluster_profile_v1` to a real dataset/model training callback so the current
+   analytical workload can be compared with measured accuracy and convergence, without merging
+   local and global run state.
 4. Implement communication compression as a bounded experiment, beginning with a measurable byte/time model and a no-compression control. The literature guide proposes integration points in `fl_space/fedleo/aggregator.py`, `fl_space/isl/base.py`, `fl_space/fl/fedbuff.py`, `fl_space/fl/scheduler.py`, and `fl_space/fl/time_model.py`.
 5. Improve dynamic topology and contact realism before making stronger decentralized-FL claims.
 6. Use multi-seed controlled experiments to measure accuracy, convergence time, transmitted bytes, delay/staleness, fairness, and resource cost together.
@@ -109,7 +114,7 @@ $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = "1"
 .\venv\Scripts\python.exe -m pytest -q
 ```
 
-The 2026-09-20 run reported zero Ruff findings, 222 formatted files, and 54 passing tests.
+The 2026-09-20 run reported zero Ruff findings, 231 formatted files, and 59 passing tests.
 
 ## Maintenance Rules
 
