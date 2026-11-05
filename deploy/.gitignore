@@ -5,3 +5,5 @@ public_url.txt
 keepalive.lock
 *.log
 huggingface/_staging/
+huggingface/cookie.txt
+huggingface/proxy.txt

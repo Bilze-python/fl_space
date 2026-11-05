@@ -93,14 +93,35 @@ try {
 
     if (-not $publicUrl) { Write-Log "ERROR: could not establish public tunnel"; exit 1 }
 
+    $previousUrl = ""
+    if (Test-Path $urlFile) { $previousUrl = (Get-Content $urlFile -TotalCount 1) }
     $record = @(
         $publicUrl,
         ("updated: " + (Get-Date -Format o)),
         ("port: " + $Port),
         ("local: http://127.0.0.1:$Port/")
     ) -join "`n"
-    Set-Content -Path $urlFile -Value $record -Encoding UTF8
+    [System.IO.File]::WriteAllText($urlFile, $record, (New-Object System.Text.UTF8Encoding($false)))
     Write-Log "public URL ready: $publicUrl"
+
+    # 隧道地址变化时，同步更新 HF 免费静态入口（可选，需要 cookie.txt）
+    if ($previousUrl -ne $publicUrl) {
+        $updater = Join-Path $ProjectRoot "deploy\huggingface\update_static_space.py"
+        $cookieFile = Join-Path $ProjectRoot "deploy\huggingface\cookie.txt"
+        if ((Test-Path $updater) -and (Test-Path $cookieFile)) {
+            $proxy = "http://127.0.0.1:10808"
+            $proxyFile = Join-Path $ProjectRoot "deploy\huggingface\proxy.txt"
+            if (Test-Path $proxyFile) { $proxy = (Get-Content $proxyFile -TotalCount 1).Trim() }
+            $env:HTTPS_PROXY = $proxy
+            $env:HTTP_PROXY = $proxy
+            try {
+                $output = & $python $updater 2>&1
+                Write-Log ("static HF entry updated: " + ($output -join " | "))
+            } catch {
+                Write-Log ("static HF entry update failed: " + $_.Exception.Message)
+            }
+        }
+    }
 } finally {
     Remove-Item $lock -Force -ErrorAction SilentlyContinue
 }

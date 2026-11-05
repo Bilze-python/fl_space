@@ -789,6 +789,42 @@ web: `server.py`
 
 ---
 
+## 2026-11-05（晚，续）— HF 免费静态入口 + Render 部署准备
+
+### 背景
+比赛提交需要稳定链接。用户选择 Hugging Face；实测免费账号创建 Docker/Gradio Space 返回 402
+（需要 PRO），但 **免费静态 Space 可用**。因此先用静态 Space 做一个固定入口，同时准备 Render
+免费 Web Service 作为真正的常驻部署方案。
+
+### 1. Hugging Face 免费静态入口（已上线）
+- 在 `bilzepython` 账号下创建静态 Space `bilzepython/spacefl-agent-demo`：
+  `https://bilzepython-spacefl-agent-demo.static.hf.space`
+- `deploy/huggingface/static/index.html`：SpaceFL 风格外壳，读取同目录 `live.json` 并嵌入当前在线演示，
+  每 60 秒检查地址变化；提供全屏打开/源码仓库入口与“重新连接”按钮。
+- `deploy/huggingface/update_static_space.py`：用 HF commit API 上传 `index.html` + `live.json`
+  （当前使用浏览器 cookie，cookie 存放于已忽略的 `deploy/huggingface/cookie.txt`）。
+- 保活脚本已接入：隧道 URL 变化时自动调用更新脚本，静态入口始终指向当前演示实例。
+- 免费隧道约 15–20 分钟重连一次；计划任务已从 5 分钟改为 **每 2 分钟**保活。
+
+### 2. Render 免费 Web Service 准备
+- `Dockerfile` 的 CMD 改为 `sh -c "... --port ${PORT:-8720}"`，兼容 Render 注入的 `PORT`；
+- `render.yaml`：Docker 运行时、Free 计划、健康检查 `/api/health`、演示模式环境变量；
+- `deploy/render/create_service.py`：通过 Render API 自动创建服务（需要 `RENDER_API_KEY`）；
+- `docs/RENDER_DEPLOY.md`：Blueprint / 手动创建 / 验收 / 免费实例注意事项。
+- 代码已推送到公开仓库分支 `deploy-demo`（`https://github.com/Bilze-python/fl_space`），Render 可直接拉取。
+
+### 3. 当前状态与待办
+- 可用链接：HF 静态入口（固定域名，内嵌实时演示；依赖本机保活）；
+- 待办：拿到 Render API Key 或 HF PRO 后切换真正的常驻部署，并更新提交材料；
+- 注意：HF 免费账号不能跑 Docker Space（402），需要 PRO 订阅（约 $9/月）。
+
+### 涉及文件
+`deploy/huggingface/static/index.html`、`deploy/huggingface/update_static_space.py`、
+`deploy/keepalive_public_demo.ps1`、`Dockerfile`、`render.yaml`、`deploy/render/create_service.py`、
+`docs/RENDER_DEPLOY.md`、`docs/COMPETITION_LINK.md`、`README.md`、`WORKLOG.md`。
+
+---
+
 ## 2026-11-05（晚）— 公网可部署 Agent 上线：只读演示模式 + 演示数据隔离 + SSH 隧道保活
 
 ### 背景
