@@ -1,4 +1,4 @@
-﻿## 2026-07-30 - pr-2-review 审查与安全优化吸收
+## 2026-07-30 - pr-2-review 审查与安全优化吸收
 
 ### 审查结论
 - 不建议直接合并 `pr-2-review` (`ac3f742`)：该提交会删除整个 `fl_space/fedleo/`、
@@ -786,3 +786,72 @@ web: `server.py`
 ---
 
 <!-- 新增改动请在此行下方、按日期倒序追加 -->
+
+---
+
+## 2026-11-05 — 科研智能平台 v1：文献知识库 / 前沿情报 / 研究智能体 + SpaceX 风格主题
+
+### 背景
+把可视化实验台升级为面向科研的软件形态：以用户太空联邦学习实验目标为核心，内置期刊文献
+接入与检索、主动前沿情报抓取、自然语言实验/批量实验指令，以及可评审计划、执行并解读结果的研究智能体。
+
+### 新增后端（fl_space/research/，8 个模块）
+- `config.py`：研究目标 / 订阅主题持久化（`.spacefl_research_config.json`）。
+- `bilingual.py`：中英领域词典，扩展中文查询为英文关键词，改善英文论文召回。
+- `providers.py`：LLM 供应商抽象（chat / responses / anthropic 三协议；本地配置 → CC Switch → 环境变量；
+  Key 脱敏、原子写入、失败降级）。
+- `literature.py`：文献扫描、pypdf 逐页抽取（连字/断词修复、抽取缓存、增量重建）、元数据启发式抽取、
+  分块、BM25 中英检索、标题加权、RAG 上下文（页码引用）。
+- `intel.py`：arXiv 4 组检索式 + SpaceNews + NASA + arXiv cs.NI 抓取（Atom / RSS2.0 / RDF 解析）、
+  30min TTL 缓存、单来源降级、资讯归档进文献库。
+- `planner.py`：自然语言 → 结构化实验计划（中文数字/全角/单位/网格/显式拓扑/多 seed/快速模式解析；
+  LLM 生成 + 结构校验与越界收缩；离线规则兜底）。
+- `analyzer.py`：实验指标统计（首末/峰值/尾部稳定性/收敛轮次/卸载量/时延/样本守恒/验收门槛）、
+  离线解读报告（证据链、文献对照、目标对齐度、「尚不能支持的结论」、下一步建议）、计划评审（7 项检查 +
+  0–100 分）、文献精读、情报简报、知识库问答。
+- `service.py`：编排层（文献/情报/供应商/规划/分析/后台任务/进度同步/任务终止/精读缓存/情报相关度重排）。
+
+### 新增后端（web/、scripts/）
+- `web/research_routes.py`：22 个 `/api/research/*` 路由（overview/config/ai-test/library/scan/search/
+  detail/digest/ask/intel/refresh/ingest/brief/experiments/agent plan/review/run/jobs/analyze/chat）。
+- `web/server.py`：create_app 中构造 `ResearchService`（复用既有实验扫描与 CC Switch 解析）并注册路由；
+  启动时后台预热文献索引与情报缓存。
+- `scripts/run_research_plan.py`：后台批量实验执行器（子进程；逐条件调用 `run_fedleo_vs_baseline`，
+  原子写 progress.json / research_result.json；支持 dry-run 与逐条件失败隔离）。
+
+### 前端（新视图 + 主题）
+- `web/index.html`：顶部导航 + Hero + 9 视图；新增「研究助手」（研究目标/上下文/AI 供应商/对话/计划卡片/
+  任务进度/结果报告）与「前沿情报」（来源状态/相关度排序/一键归档/情报简报）；「文献库」升级为
+  三栏（索引列表 / 阅读·全文·精读 / 知识库问答）；总览页增加研究目标条、流水线条目、最新情报块。
+- `web/assets/research.js`：新视图交互（智能体计划/评审/后台任务轮询/结果报告、文献精读与问答、
+  情报刷新与归档、Hero 星图动画、hash 路由配合）。
+- `web/assets/research.css`：新组件样式（Hero/流水线/计划卡/任务卡/精读/情报/问答，响应式 1440/1200/900）。
+- `web/assets/app.css`：全站主题改造为 Space 官方视觉语言（纯黑画布、1px 描边、0 圆角、DIN 风格大写小标签、
+  白底黑字按钮、顶部固定导航）。overview 图表配色同步为单色系。
+- `web/assets/app.js`：移除旧 AI/文献视图逻辑，新增 hash 路由与 `spacefl:view` 视图事件供 research.js 懒加载。
+
+### 配置 / 依赖 / 文档
+- `pyproject.toml`：版本 0.2.0，新增 `pypdf`（web/full/research extra）。
+- `.gitignore`：忽略研究配置/索引/情报/精读缓存与 `research_results/`。
+- `docs/RESEARCH_PLATFORM_V1.md`：接口契约与模块规格（含离线兜底原则）。
+- `docs/RESEARCH_PLATFORM_GUIDE.md`：架构、功能详解、离线/在线双模式、8 分钟演示脚本、FAQ。
+- `README.md`：新增「科研智能平台（v1）」章节与特性表。
+
+### 测试与验证
+- 新增离线测试 133 项：`tests/test_research_{literature,intel,providers_runner,planner_analyzer,service}.py`
+  （文献 21 / 情报 14 / 供应商与执行器 53 / 规划与分析 26 / 编排 19），全部离线、无需大模型 Key。
+- 真实文献目录（`文献/` + `docs/`）：rebuild 41 篇（13 PDF / 27 MD / 1 TXT）、全文 827K 字符、0 error；
+  中文检索「卸载 时延」命中 FedLEO 中文精读与英文原文。
+- 真实联网抓取：arXiv 4 组 + SpaceNews + NASA + cs.NI 共 7/7 来源 ok，去重 48 条；
+  相关度重排后前 8 条为 arXiv 空间联邦学习/星上计算论文（相关度 100）。
+- 服务端联调：`uvicorn web.server:create_app` 正常启动，22 个 research 路由注册，
+  计划生成（离线模式 + 文献引用 8 篇）、实验档案解读、文献精读、知识库问答、情报简报全部通过。
+- 浏览器端 E2E（puppeteer-core + Edge）：18 项 UI 断言全部通过（Hero 数据 / 计划卡片 / 分析报告 /
+  文献精读 / 知识库问答 / 情报排序与简报），无控制台错误（仅 favicon 404，已补 data-URI 图标）。
+- 后台批量任务真实跑通：1 条件 1 轮 FedLEO 对照，进度同步 → research_result → 批量结果解读。
+
+### 影响
+- 既有实验视图（配置/星簇/学习任务/档案/轨道）逻辑保持不变，仅重绘主题；`/api/ai/analyze`、
+  `/api/library/*` 旧接口保留兼容。
+- 未配置大模型 Key 时全流程使用离线规则引擎，界面以「离线规则引擎」标注；配置后自动切换大模型。
+

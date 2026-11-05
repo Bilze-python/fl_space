@@ -30,9 +30,17 @@ Thumbs.db
 .spacefl_ai_config.json
 .spacefl_experiment_metadata.json
 .spacefl_experiment_registry.json
+.spacefl_research_config.json
+.spacefl_literature_index.json
+.spacefl_intel_cache.json
+.spacefl_intel_ingested.json
+.spacefl_digests.json
 *.log
 .pytest_cache/
 .ruff_cache/
+
+# 科研智能平台：后台批量实验产物
+research_results/
 
 # Experimental outputs (keep structure, ignore data)
 experiments/*/
@@ -85,3 +93,9 @@ quick_test_output.txt
 /*.png
 orbit_viz_data.json
 quick_test_output.txt
+
+# 文献提取临时文本
+tmp_paper_refs.txt
+
+# 演示文稿等生成产物（保留 outputs 下的项目素材）
+outputs/manual-*/

@@ -3,37 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpaceFL 智能实验平台</title>
-  <link rel="stylesheet" href="/assets/app.css?v=20260915-experiment-create">
+  <title>SpaceFL · 太空联邦学习科研平台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M32 8l4 20 20 4-20 4-4 20-4-20-20-4 20-4z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/app.css?v=20261105-spacex-v2">
+  <link rel="stylesheet" href="/assets/research.css?v=20261105-research-v2">
   <script src="/vendor/d3/d3.min.js"></script>
   <script src="/vendor/topojson/topojson-client.min.js"></script>
   <script src="/assets/orbit2d.js?v=20260815-natural-earth-v1"></script>
 </head>
 <body>
   <div id="app-shell">
-    <aside class="sidebar">
+    <header class="site-header">
       <div class="brand">
-        <div class="brand-mark">SF</div>
-        <div>
-          <strong>SpaceFL</strong>
-          <span>智能实验平台</span>
+        <div class="brand-mark" aria-hidden="true">◈</div>
+        <div class="brand-copy">
+          <strong>SPACEFL</strong>
+          <span>RESEARCH PLATFORM</span>
         </div>
       </div>
       <nav id="main-nav">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>总览</button>
+        <button class="nav-item" data-view="agent"><span class="nav-icon">✦</span>研究助手</button>
+        <button class="nav-item" data-view="library"><span class="nav-icon">▤</span>文献库</button>
+        <button class="nav-item" data-view="intel"><span class="nav-icon">◉</span>前沿情报</button>
+        <button class="nav-item" data-view="experiments"><span class="nav-icon">≋</span>实验档案</button>
+        <button class="nav-item" data-view="orbit"><span class="nav-icon">◎</span>轨道视图</button>
         <button class="nav-item" data-view="config"><span class="nav-icon">⌘</span>实验配置</button>
         <button class="nav-item" data-view="local-cluster"><span class="nav-icon">▦</span>局部星簇</button>
         <button class="nav-item" data-view="study"><span class="nav-icon">◇</span>学习任务</button>
-        <button class="nav-item" data-view="experiments"><span class="nav-icon">≋</span>实验档案</button>
-        <button class="nav-item" data-view="orbit"><span class="nav-icon">◎</span>轨道视图</button>
-        <button class="nav-item" data-view="library"><span class="nav-icon">▤</span>文献库</button>
-        <button class="nav-item" data-view="ai"><span class="nav-icon">✦</span>AI 解读</button>
       </nav>
-      <div class="sidebar-foot">
+      <div class="header-meta">
         <div class="system-state"><span class="state-dot"></span><span>本地服务在线</span></div>
-        <small>轻量级离散仿真</small>
+        <button class="header-action" id="quick-run-button">运行 FedLEO 验证</button>
       </div>
-    </aside>
+    </header>
 
     <main class="workspace">
       <header class="topbar">
@@ -43,11 +46,39 @@
         </div>
         <div class="topbar-actions">
           <div class="sync-state" id="sync-state">正在同步本地数据</div>
-          <button class="button primary" id="quick-run-button">运行 FedLEO 验证</button>
         </div>
       </header>
 
       <section class="view active" id="view-overview">
+        <section class="hero" id="hero">
+          <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
+          <div class="hero-inner">
+            <p class="hero-kicker">SPACE FEDERATED LEARNING · RESEARCH OS</p>
+            <h2 class="hero-title"><span>把联邦学习</span><span class="hero-title-accent">送入轨道</span></h2>
+            <p class="hero-lead">
+              面向低轨卫星星座的联邦学习研究平台。内置期刊文献知识库与前沿情报雷达，
+              以自然语言驱动实验与批量实验，由研究智能体完成计划评审、结果解读与文献对照。
+            </p>
+            <div class="hero-actions">
+              <button class="button primary" data-route="agent">启动研究助手</button>
+              <button class="button ghost" data-route="library">进入期刊文献库</button>
+              <button class="button ghost" data-route="intel">扫描前沿情报</button>
+            </div>
+            <div class="hero-meta">
+              <div><strong id="hero-stat-library">--</strong><span>期刊文献</span></div>
+              <div><strong id="hero-stat-parsed">--</strong><span>全文已解析</span></div>
+              <div><strong id="hero-stat-intel">--</strong><span>前沿情报</span></div>
+              <div><strong id="hero-stat-experiments">--</strong><span>实验档案</span></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="goal-strip">
+          <div class="goal-strip-label">RESEARCH GOAL</div>
+          <p class="goal-strip-text" id="overview-goal">正在读取研究目标…</p>
+          <button class="text-button" data-route="agent">编辑目标</button>
+        </div>
+
         <div class="metric-grid">
           <article class="metric-panel">
             <span>实验档案</span>
@@ -68,6 +99,27 @@
             <span>当前算法</span>
             <strong id="metric-algorithm">--</strong>
             <small>与终端 Session 同步</small>
+          </article>
+        </div>
+
+        <div class="pipeline-grid">
+          <article class="pipeline-card" data-route="agent">
+            <p class="panel-kicker">01 · AGENT</p>
+            <h3>研究智能体</h3>
+            <p>描述研究目标，自动生成实验计划、批量执行并输出带文献引用的结果解读。</p>
+            <span class="pipeline-link">进入研究助手 →</span>
+          </article>
+          <article class="pipeline-card" data-route="library">
+            <p class="panel-kicker">02 · LITERATURE</p>
+            <h3>期刊文献库</h3>
+            <p>PDF 全文解析、中文全文检索、AI 精读与知识库问答，为实验结论提供出处。</p>
+            <span class="pipeline-link">打开文献库 →</span>
+          </article>
+          <article class="pipeline-card" data-route="intel">
+            <p class="panel-kicker">03 · SIGNAL</p>
+            <h3>前沿情报雷达</h3>
+            <p>主动抓取 arXiv 与航天资讯，按研究主题筛选，一键归档进文献知识库。</p>
+            <span class="pipeline-link">扫描情报 →</span>
           </article>
         </div>
 
@@ -106,23 +158,221 @@
           </section>
         </div>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">RECENT RUNS</p>
-              <h2>最近实验</h2>
+        <div class="overview-lower">
+          <section class="panel intel-preview-panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">SIGNAL FEED</p>
+                <h2>最新前沿情报</h2>
+              </div>
+              <button class="text-button" data-route="intel">查看全部</button>
             </div>
-            <button class="text-button" data-route="experiments">查看全部</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>实验</th><th>数据集</th><th>轮次</th><th>最终准确率</th><th>增益</th><th>状态</th></tr>
-              </thead>
-              <tbody id="recent-experiments"></tbody>
-            </table>
-          </div>
-        </section>
+            <div id="overview-intel" class="intel-mini-list">
+              <div class="empty-state compact">尚未抓取情报，前往「前沿情报」刷新。</div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">RECENT RUNS</p>
+                <h2>最近实验</h2>
+              </div>
+              <button class="text-button" data-route="experiments">查看全部</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>实验</th><th>数据集</th><th>轮次</th><th>最终准确率</th><th>增益</th><th>状态</th></tr>
+                </thead>
+                <tbody id="recent-experiments"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-agent">
+        <div class="agent-layout">
+          <aside class="agent-side">
+            <section class="panel">
+              <div class="panel-head">
+                <div><p class="panel-kicker">RESEARCH GOAL</p><h2>研究目标</h2></div>
+                <span class="status-badge amber" id="agent-goal-state">未设置</span>
+              </div>
+              <textarea id="research-goal-input" rows="4" placeholder="例如：研究星地链路受限条件下 LEO 星座联邦学习的数据卸载与聚合策略，重点权衡准确率、收敛轮次与卸载时延。"></textarea>
+              <div class="form-actions compact">
+                <button class="button secondary" id="research-goal-save">保存研究目标</button>
+              </div>
+              <div class="goal-suggestions" id="research-goal-suggestions">
+                <button data-goal="研究星地链路受限条件下 LEO 星座联邦学习的数据卸载与聚合策略，权衡准确率、收敛轮次与卸载时延。">链路受限下的卸载策略</button>
+                <button data-goal="比较多轨道面/多卫星规模下 FedLEO 与 FedAvg 基线在非 IID 数据上的收敛差异。">星座规模与收敛差异</button>
+                <button data-goal="评估通信调度与数据卸载对卫星联邦学习数据均衡度和通信开销的影响。">调度与数据均衡</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div><p class="panel-kicker">CONTEXT</p><h2>分析上下文</h2></div>
+                <button class="icon-button" id="agent-context-refresh" title="刷新上下文">↻</button>
+              </div>
+              <label>实验档案
+                <select id="agent-experiment-select">
+                  <option value="">自动选择最新实验档案</option>
+                </select>
+              </label>
+              <div class="context-list" id="agent-context-list">
+                <div><span>文献知识库</span><strong id="context-library">--</strong></div>
+                <div><span>前沿情报</span><strong id="context-intel">--</strong></div>
+                <div><span>实验档案</span><strong id="context-experiments">--</strong></div>
+              </div>
+              <div class="ai-guardrails">
+                <strong>可追溯分析模式</strong>
+                <p>智能体只读取文献、情报与实验档案，不修改代码与结果文件；每条结论尽量给出实验指标或文献出处。</p>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div><p class="panel-kicker">MODEL PROVIDER</p><h2>AI 供应商</h2></div>
+                <span class="status-badge amber" id="agent-provider-status">检测中</span>
+              </div>
+              <div class="provider-summary" id="agent-provider-detail">正在读取供应商配置…</div>
+              <details class="provider-config">
+                <summary>配置兼容 OpenAI 的 API（可选）</summary>
+                <div class="form-grid compact">
+                  <label>供应商<input id="provider-name" type="text" placeholder="DeepSeek"></label>
+                  <label>模型<input id="provider-model" type="text" placeholder="deepseek-chat"></label>
+                  <label class="span-2">Base URL<input id="provider-base-url" type="text" placeholder="https://api.deepseek.com"></label>
+                  <label class="span-2">API Key<input id="provider-api-key" type="password" placeholder="留空表示不修改已保存的 Key"></label>
+                  <label>协议
+                    <select id="provider-wire-api">
+                      <option value="chat">Chat Completions</option>
+                      <option value="responses">Responses</option>
+                      <option value="anthropic">Anthropic Messages</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="form-actions compact">
+                  <button class="button secondary" id="provider-save">保存配置</button>
+                  <button class="button secondary" id="provider-test">连通性测试</button>
+                  <button class="button secondary" id="cc-switch-import">从 CC Switch 导入</button>
+                </div>
+                <p class="field-note" id="provider-note">未配置 Key 时自动使用离线规则引擎，规划、分析与文献精读仍可完整演示。</p>
+              </details>
+            </section>
+          </aside>
+
+          <section class="panel agent-main">
+            <div class="panel-head">
+              <div><p class="panel-kicker">RESEARCH AGENT</p><h2>研究智能体</h2></div>
+              <div class="agent-mode-switch" id="agent-mode-switch">
+                <button class="active" data-agent-mode="auto">自动</button>
+                <button data-agent-mode="plan">仅规划</button>
+                <button data-agent-mode="analyze">仅分析</button>
+              </div>
+            </div>
+            <div class="agent-thread" id="agent-messages">
+              <div class="agent-message assistant">
+                我是 SpaceFL 研究智能体。告诉我你的研究目标或实验意图，我会：检索文献 → 生成实验计划 → 批量执行 → 解读结果并给出引用。
+                也可以直接问「这组实验能证明什么、不能证明什么」。
+              </div>
+            </div>
+            <form id="agent-form" class="agent-compose">
+              <textarea id="agent-input" rows="3" placeholder="例如：对比 FedLEO 数据卸载开启/关闭在 3 轨面 2 星与 3 轨面 3 星下的准确率与卸载量差异，3 轮、seed 42，批量运行。"></textarea>
+              <div class="agent-compose-actions">
+                <div class="agent-quick">
+                  <button type="button" data-agent-quick="规划一组卸载开关对照实验，3 轨面 2 星，3 轮，seed 42">规划对照实验</button>
+                  <button type="button" data-agent-quick="分析最新实验档案，说明它能证明什么、不能证明什么">解读最新档案</button>
+                  <button type="button" data-agent-quick="结合文献评审我的实验计划设计，指出变量与对照的不足">评审实验设计</button>
+                </div>
+                <button class="button primary" type="submit">发送</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-library">
+        <div class="library-layout">
+          <aside class="panel library-side">
+            <div class="panel-head">
+              <div><p class="panel-kicker">JOURNAL LIBRARY</p><h2>期刊文献库</h2></div>
+              <div class="library-actions">
+                <button class="icon-button" id="library-import-button" title="导入文献">＋</button>
+                <button class="icon-button" id="library-scan-button" title="重建索引">↻</button>
+              </div>
+            </div>
+            <input id="library-import-input" type="file" accept=".md,.markdown,.pdf,.txt" multiple hidden>
+            <div class="library-stats" id="library-stats">正在索引文献…</div>
+            <div class="library-toolbar">
+              <input class="search-input" id="library-search" placeholder="全文检索：FedLEO、卸载、调度、作者…">
+              <button type="button" class="button secondary small" id="library-settings-button">默认目录</button>
+            </div>
+            <div class="library-path-editor hidden" id="library-path-editor">
+              <input class="form-control" id="library-default-path" type="text" placeholder="D:\fl_space-master\文献">
+              <button type="button" class="button primary" id="library-save-path">保存</button>
+            </div>
+            <div class="library-filter" id="library-filter">
+              <button class="active" data-lib-filter="all">全部</button>
+              <button data-lib-filter="pdf">PDF</button>
+              <button data-lib-filter="md">Markdown</button>
+              <button data-lib-filter="parsed">已解析</button>
+            </div>
+            <div id="library-list" class="library-list">
+              <div class="empty-state compact">正在加载文献索引…</div>
+            </div>
+          </aside>
+          <section class="panel reader-panel" id="reader-panel">
+            <div class="empty-state">选择一篇文献开始阅读、AI 精读与追问</div>
+          </section>
+          <aside class="panel library-ask">
+            <div class="panel-head">
+              <div><p class="panel-kicker">KNOWLEDGE Q&amp;A</p><h2>知识库问答</h2></div>
+            </div>
+            <div id="library-ask-messages" class="ask-messages">
+              <div class="ask-message assistant">基于本地文献库回答，答案附带出处页码；未配置大模型时使用检索式问答。</div>
+            </div>
+            <form id="library-ask-form" class="ask-compose">
+              <textarea id="library-ask-input" rows="2" placeholder="例如：FedLEO 的卸载增益在哪些场景下最大？"></textarea>
+              <button class="button primary" type="submit">提问</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-intel">
+        <div class="intel-layout">
+          <section class="panel intel-main">
+            <div class="panel-head">
+              <div><p class="panel-kicker">SIGNAL RADAR</p><h2>前沿情报</h2></div>
+              <div class="intel-actions">
+                <span class="field-note" id="intel-updated">尚未抓取</span>
+                <button class="button secondary" id="intel-refresh">刷新情报</button>
+              </div>
+            </div>
+            <div class="intel-topic-chips" id="intel-topic-chips"></div>
+            <div class="intel-sources" id="intel-sources"></div>
+            <div class="intel-list" id="intel-list">
+              <div class="empty-state compact">点击「刷新情报」主动抓取 arXiv 与航天资讯，或在右侧设置订阅主题。</div>
+            </div>
+          </section>
+          <aside class="panel intel-side">
+            <div class="panel-head">
+              <div><p class="panel-kicker">AUTO BRIEF</p><h2>情报简报</h2></div>
+            </div>
+            <label>订阅主题（逗号分隔）
+              <textarea id="intel-topic-input" rows="3" placeholder="太空联邦学习, LEO 星座, 数据卸载, 通信调度"></textarea>
+            </label>
+            <div class="form-actions compact">
+              <button class="button secondary" id="intel-topic-save">保存订阅主题</button>
+            </div>
+            <div class="intel-brief" id="intel-brief">
+              <p class="field-note">刷新情报后，可让研究助手把最新动态与本项目研究目标对齐，生成情报简报。</p>
+            </div>
+            <button class="button primary wide" id="intel-brief-run">让研究助手生成简报</button>
+          </aside>
+        </div>
       </section>
 
       <section class="view" id="view-config">
@@ -436,71 +686,6 @@
           </div>
         </div>
       </section>
-
-      <section class="view" id="view-library">
-        <div class="library-layout">
-          <section class="panel library-list-panel">
-            <div class="panel-head">
-              <div><p class="panel-kicker">RESEARCH LIBRARY</p><h2>文献与设计文档</h2></div>
-            </div>
-            <div class="library-toolbar">
-              <button type="button" class="button secondary" id="library-import-button">导入文献</button>
-              <button type="button" class="button secondary" id="library-settings-button">默认目录</button>
-              <input id="library-import-input" type="file" accept=".md,.markdown,.pdf,.txt" multiple hidden>
-            </div>
-            <div class="library-path-editor hidden" id="library-path-editor">
-              <input class="form-control" id="library-default-path" type="text" placeholder="D:\\SpaceFL\\文献">
-              <button type="button" class="button primary" id="library-save-path">保存</button>
-            </div>
-            <input class="search-input" id="library-search" placeholder="搜索 FedLEO、设计方案或文件名">
-            <div id="library-list" class="library-list"></div>
-          </section>
-          <section class="panel reader-panel" id="reader-panel">
-            <div class="empty-state">选择文档开始阅读</div>
-          </section>
-        </div>
-      </section>
-
-      <section class="view" id="view-ai">
-        <div class="ai-layout">
-          <section class="panel ai-context-panel">
-            <div class="panel-head">
-              <div><p class="panel-kicker">READ-ONLY ANALYST</p><h2>分析上下文</h2></div>
-              <span class="status-badge amber" id="ai-provider-status">检测中</span>
-            </div>
-            <label>选择实验
-              <select id="ai-experiment-select"></select>
-            </label>
-            <div class="ai-guardrails">
-              <strong>只读分析模式</strong>
-              <p>模型只能读取选中实验的配置、摘要与末段曲线，不会修改代码、参数或结果文件。</p>
-            </div>
-            <div class="ai-provider-import">
-              <div class="ai-provider-import-head">
-              <div><strong>AI 供应商</strong><small id="cc-switch-detail">正在读取配置</small></div>
-                <button type="button" class="button secondary" id="cc-switch-import">导入设置</button>
-              </div>
-            </div>
-            <div class="suggestion-list">
-              <button data-ai-question="这组实验是否真正触发了 FedLEO 卸载？证据是什么？">检查卸载是否生效</button>
-              <button data-ai-question="分析这组实验的对照是否公平，并指出不能下的结论。">检查对照公平性</button>
-              <button data-ai-question="用三点总结准确率、数据均衡度和时延结果。">生成结果摘要</button>
-            </div>
-          </section>
-          <section class="panel ai-chat-panel">
-            <div class="panel-head">
-              <div><p class="panel-kicker">AI PROVIDER CHAT</p><h2>实验解读</h2></div>
-            </div>
-            <div id="ai-messages" class="ai-messages">
-              <div class="ai-message assistant">选择一份实验档案，然后询问它能证明什么、不能证明什么。</div>
-            </div>
-            <form id="ai-form" class="ai-compose">
-              <textarea id="ai-question" rows="3" placeholder="例如：为什么这组结果不能证明论文中的时延下降？"></textarea>
-              <button class="button primary" type="submit">发送分析请求</button>
-            </form>
-          </section>
-        </div>
-      </section>
     </main>
   </div>
 
@@ -547,6 +732,7 @@
 
   <script src="/vendor/marked/marked.umd.js"></script>
   <script src="/vendor/dompurify/purify.min.js"></script>
-  <script src="/assets/app.js?v=20260915-experiment-create"></script>
+  <script src="/assets/app.js?v=20261105-spacex-v2"></script>
+  <script src="/assets/research.js?v=20261105-research-v2"></script>
 </body>
 </html>

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fl-space"
-version = "0.1.0"
-description = "Space Federated Learning Research Framework — 模块化太空联邦学习研究框架"
+version = "0.2.0"
+description = "SpaceFL 太空联邦学习科研智能平台 — 文献知识库、前沿情报与实验智能体"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -27,10 +27,15 @@ full = [
     "seaborn>=0.12.0",
     "tqdm>=4.65.0",
     "skyfield>=1.48",
+    "pypdf>=4.0",
 ]
 web = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
+    "pypdf>=4.0",
+]
+research = [
+    "pypdf>=4.0",
 ]
 
 [tool.ruff]

@@ -1,4 +1,6 @@
 @echo off
+rem SpaceFL research platform launcher.
+rem NOTE: keep this file ASCII-only (cmd.exe cannot parse UTF-8 Chinese comments safely).
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 
@@ -12,19 +14,31 @@ set "RUN_PANEL=0"
 set "PANEL_ARG1="
 set "PANEL_ARG2="
 set "PORT=8700"
+set "STOP_ONLY=0"
+set "RESTART_FIRST=0"
 
-rem control_panel.bat calls this file with --panel. Keep its optional --lang argument.
-if /i "%~1"=="--panel" (
-  set "RUN_PANEL=1"
-  set "PANEL_ARG1=%~2"
-  set "PANEL_ARG2=%~3"
-)
+rem Arguments: --panel (from control_panel.bat), --stop (stop background servers),
+rem --restart (stop old servers first, then start the current version).
+if /i "%~1"=="--panel" set "RUN_PANEL=1"
+if /i "%~1"=="--panel" set "PANEL_ARG1=%~2"
+if /i "%~1"=="--panel" set "PANEL_ARG2=%~3"
+if /i "%~1"=="--stop" set "STOP_ONLY=1"
+if /i "%~1"=="--restart" set "RESTART_FIRST=1"
 
-rem Reuse a healthy SpaceFL server when one is already running.
-if "%RUN_PANEL%"=="0" (
-  powershell.exe -NoProfile -Command "$r = $null; $body = $null; try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8700/api/health' -TimeoutSec 1; $body = $r.Content | ConvertFrom-Json } catch {}; if ($r -and $r.StatusCode -eq 200 -and $body.service -eq 'SpaceFL Visual Experiment Platform') { exit 0 } else { exit 1 }" >nul 2>&1
-  if not errorlevel 1 goto :open_launcher
+if "%STOP_ONLY%"=="1" (
+  call :stop_project_servers
+  endlocal
+  exit /b 0
 )
+if "%RESTART_FIRST%"=="1" call :stop_project_servers
+
+rem Reuse a healthy current-version SpaceFL server on ports 8700-8710.
+rem :try_reuse sets REUSED=1 and PORT when a current server is found.
+rem A server is considered current only if both /api/health and
+rem /api/research/overview respond, so an old-version process is never reused.
+set "REUSED=0"
+if "%RUN_PANEL%"=="0" call :try_reuse
+if "%REUSED%"=="1" goto :open_launcher
 
 call :find_python
 if not defined PYTHON_EXE (
@@ -99,6 +113,7 @@ if not errorlevel 1 goto :port_ready
 set /a PORT+=1
 if %PORT% GTR 8710 (
   echo [ERROR] Ports 8700-8710 are already in use.
+  echo Run stop_spacefl.bat to stop stale SpaceFL servers, then start again.
   pause
   exit /b 1
 )
@@ -131,26 +146,29 @@ if not exist "node_modules\cesium\Build\Cesium\Cesium.js" goto :assets_failed
 
 :web_assets_ready
 echo [START] Starting the SpaceFL Web server on port %PORT%...
-set "SPACEFL_IN=%VENV_DIR%\spacefl-web.stdin"
-set "SPACEFL_OUT=%VENV_DIR%\spacefl-web.out.log"
-set "SPACEFL_ERR=%VENV_DIR%\spacefl-web.err.log"
-type nul >"%SPACEFL_IN%"
-del /q "%SPACEFL_OUT%" "%SPACEFL_ERR%" >nul 2>&1
-powershell.exe -NoProfile -WindowStyle Hidden -Command "$inputFile = $env:SPACEFL_IN; $outFile = $env:SPACEFL_OUT; $errFile = $env:SPACEFL_ERR; $args = @('-m','fl_space.cli','run','serve','--host','127.0.0.1','--port',$env:PORT); $p = Start-Process -FilePath $env:PYTHON_EXE -ArgumentList $args -WorkingDirectory $env:PROJECT_DIR -WindowStyle Hidden -RedirectStandardInput $inputFile -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru; if ($null -eq $p) { exit 1 }"
+rem Log files are named per port (with random fallback) so a previously running
+rem server cannot lock them and break the next start.
+call :prepare_log_files
+powershell.exe -NoProfile -WindowStyle Hidden -Command "$args = @('-m','fl_space.cli','run','serve','--host','127.0.0.1','--port',$env:PORT); $p = Start-Process -FilePath $env:PYTHON_EXE -ArgumentList $args -WorkingDirectory $env:PROJECT_DIR -WindowStyle Hidden -RedirectStandardOutput $env:SPACEFL_OUT -RedirectStandardError $env:SPACEFL_ERR -PassThru; if ($null -eq $p) { exit 1 }" 2>"%VENV_DIR%\spacefl-start.err.log"
 if errorlevel 1 (
   echo [ERROR] Could not start the Web server process.
-  echo See "%SPACEFL_ERR%" for details.
+  if exist "%VENV_DIR%\spacefl-start.err.log" (
+    echo ---- startup error ----
+    type "%VENV_DIR%\spacefl-start.err.log"
+    echo ------------------------
+  )
+  echo If a previous SpaceFL server is still running, run stop_spacefl.bat and try again.
   pause
   exit /b 1
 )
 
-rem Give Uvicorn time to import the app, then verify the actual endpoint.
+rem Give Uvicorn time to import the app, then verify /api/health and the research API.
 set /a START_ATTEMPTS=0
 :wait_for_server
-powershell.exe -NoProfile -Command "$r = $null; $body = $null; try { $r = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $env:PORT + '/api/health') -TimeoutSec 1; $body = $r.Content | ConvertFrom-Json } catch {}; if ($r -and $r.StatusCode -eq 200 -and $body.service -eq 'SpaceFL Visual Experiment Platform') { exit 0 } else { exit 1 }" >nul 2>&1
+call :check_health
 if not errorlevel 1 goto :server_ready
 set /a START_ATTEMPTS+=1
-if %START_ATTEMPTS% GEQ 30 goto :server_failed
+if %START_ATTEMPTS% GEQ 45 goto :server_failed
 ping.exe -n 2 127.0.0.1 >nul
 goto :wait_for_server
 
@@ -158,14 +176,18 @@ goto :wait_for_server
 goto :open_launcher
 
 :server_failed
-echo [ERROR] The Web server did not become ready within 30 seconds.
-echo Check "%VENV_DIR%\spacefl-web.err.log" for details.
+echo [ERROR] The Web server did not become ready within 45 seconds.
+echo ---- server error log tail ----
+if exist "%SPACEFL_ERR%" powershell.exe -NoProfile -Command "Get-Content -LiteralPath $env:SPACEFL_ERR -Tail 20"
+echo ----------------------------
+echo See "%SPACEFL_ERR%" for details.
+echo If port %PORT% is held by a stale SpaceFL server, run stop_spacefl.bat and try again.
 pause
 exit /b 1
 
 :open_launcher
-echo [READY] Opening http://127.0.0.1:%PORT%/launcher.html
-start "" "http://127.0.0.1:%PORT%/launcher.html"
+echo [READY] Opening http://127.0.0.1:%PORT%/
+start "" "http://127.0.0.1:%PORT%/#overview"
 endlocal
 exit /b 0
 
@@ -250,4 +272,65 @@ where.exe winget.exe >nul 2>&1
 if errorlevel 1 exit /b 0
 echo [SETUP] Installing Node.js LTS through winget...
 winget.exe install --id OpenJS.NodeJS.LTS --exact --accept-package-agreements --accept-source-agreements
+exit /b 0
+
+rem ==============================================================
+rem Helper subroutines
+rem ==============================================================
+
+rem Try to reuse a running current-version SpaceFL server.
+rem Sets REUSED=1 and PORT when found; always returns 0.
+:try_reuse
+set "FOUND_PORT="
+for /f "delims=" %%R in ('powershell.exe -NoProfile -Command "$found = ''; foreach ($p in 8700..8710) { try { $h = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $p + '/api/health') -TimeoutSec 1; $b = $h.Content | ConvertFrom-Json; if ($h.StatusCode -eq 200 -and $b.status -eq 'ok' -and $b.service -match 'SpaceFL') { $r = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $p + '/api/research/overview') -TimeoutSec 2; if ($r.StatusCode -eq 200) { $found = $p; break } } } catch {} }; if ($found) { Write-Output $found }" 2^>nul') do set "FOUND_PORT=%%R"
+if not defined FOUND_PORT goto :try_reuse_none
+set "PORT=%FOUND_PORT%"
+set "REUSED=1"
+echo [INFO] Reusing running SpaceFL server: http://127.0.0.1:%FOUND_PORT%/
+exit /b 0
+
+:try_reuse_none
+set "PORT=8700"
+call :check_legacy_health
+if not errorlevel 1 (
+  echo [WARN] Port 8700 is served by an old SpaceFL version without the research API.
+  echo [WARN] A new server will be started on the next free port.
+  echo [WARN] Run stop_spacefl.bat to stop the old server if it is no longer needed.
+)
+exit /b 0
+
+rem Check whether %PORT% serves the current SpaceFL platform
+rem (/api/health OK AND /api/research/overview reachable).
+:check_health
+powershell.exe -NoProfile -Command "$ok = $false; try { $h = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $env:PORT + '/api/health') -TimeoutSec 2; $b = $h.Content | ConvertFrom-Json; if ($h.StatusCode -eq 200 -and $b.status -eq 'ok' -and $b.service -match 'SpaceFL') { $r = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $env:PORT + '/api/research/overview') -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true } } } catch {}; if ($ok) { exit 0 } else { exit 1 }" >nul 2>&1
+if errorlevel 1 exit /b 1
+exit /b 0
+
+rem Check whether %PORT% serves any SpaceFL version (health only).
+:check_legacy_health
+powershell.exe -NoProfile -Command "$ok = $false; try { $h = Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:' + $env:PORT + '/api/health') -TimeoutSec 2; $b = $h.Content | ConvertFrom-Json; if ($h.StatusCode -eq 200 -and $b.status -eq 'ok' -and $b.service -match 'SpaceFL') { $ok = $true } } catch {}; if ($ok) { exit 0 } else { exit 1 }" >nul 2>&1
+if errorlevel 1 exit /b 1
+exit /b 0
+
+rem Stop background SpaceFL servers started from this project's venv.
+:stop_project_servers
+echo [STOP] Stopping SpaceFL background servers of this project...
+powershell.exe -NoProfile -Command "$root = $env:PROJECT_DIR.TrimEnd('\'); $killed = @(); Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -and $_.CommandLine -like ('*' + $root + '*') -and ($_.CommandLine -match 'fl_space\.cli' -or $_.CommandLine -match 'web\.server') } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop; $killed += $_.ProcessId } catch {} }; if ($killed.Count -gt 0) { Write-Host ('[STOP] Stopped process id(s): ' + ($killed -join ', ')) } else { Write-Host '[STOP] No running SpaceFL server found.' }"
+exit /b 0
+
+rem Prepare log files for this start: per-port names, unique suffix when locked.
+:prepare_log_files
+set "SPACEFL_OUT=%VENV_DIR%\spacefl-web.%PORT%.out.log"
+set "SPACEFL_ERR=%VENV_DIR%\spacefl-web.%PORT%.err.log"
+del /q "%SPACEFL_OUT%" "%SPACEFL_ERR%" >nul 2>&1
+copy /y nul "%SPACEFL_OUT%" >nul 2>&1
+if errorlevel 1 goto :prepare_log_files_fallback
+copy /y nul "%SPACEFL_ERR%" >nul 2>&1
+if errorlevel 1 goto :prepare_log_files_fallback
+exit /b 0
+
+:prepare_log_files_fallback
+set "SPACEFL_SUFFIX=%RANDOM%%RANDOM%"
+set "SPACEFL_OUT=%VENV_DIR%\spacefl-web.%PORT%.%SPACEFL_SUFFIX%.out.log"
+set "SPACEFL_ERR=%VENV_DIR%\spacefl-web.%PORT%.%SPACEFL_SUFFIX%.err.log"
 exit /b 0

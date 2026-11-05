@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpaceFL · 太空联邦学习示意动画</title>
+  <style>
+    :root { --bg:#07111d; --panel:rgba(10,23,38,.88); --line:#29415a; --text:#eef6ff; --muted:#a8bed3; --cyan:#42d9ff; --blue:#6e9dff; --orange:#ffb454; --green:#5fe0a5; --purple:#b897ff; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; min-height:100%; background:#07111d; color:var(--text); font-family:"Segoe UI","Microsoft YaHei",sans-serif; }
+    body { display:grid; place-items:center; padding:18px; }
+    .stage { width:min(1440px,100%); aspect-ratio:16/9; min-height:540px; position:relative; overflow:hidden; border:1px solid #23415c; border-radius:18px; background:radial-gradient(circle at 48% 45%,#102b45 0,#07111d 54%,#040a12 100%); box-shadow:0 22px 80px rgba(0,0,0,.42); }
+    canvas { display:block; width:100%; height:100%; }
+    .top { position:absolute; left:30px; right:30px; top:22px; display:flex; align-items:flex-start; justify-content:space-between; pointer-events:none; }
+    .eyebrow { font-size:12px; letter-spacing:.24em; color:var(--cyan); font-weight:700; }
+    h1 { margin:5px 0 0; font-size:clamp(22px,3vw,42px); letter-spacing:.02em; }
+    .subtitle { margin-top:8px; color:var(--muted); font-size:clamp(11px,1.2vw,16px); }
+    .badge { padding:8px 12px; border:1px solid #2c5b7b; border-radius:999px; color:#c6e8ff; background:rgba(15,38,58,.76); font-size:12px; white-space:nowrap; }
+    .panel { position:absolute; left:30px; bottom:26px; width:min(330px,32%); padding:15px 17px; border:1px solid #26445d; border-radius:12px; background:var(--panel); backdrop-filter:blur(6px); }
+    .panel h2 { margin:0 0 11px; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:#d9edff; }
+    .row { display:grid; grid-template-columns:10px 1fr auto; align-items:center; gap:9px; margin:9px 0; color:#d1e2f0; font-size:12px; }
+    .dot { width:9px; height:9px; border-radius:50%; box-shadow:0 0 12px currentColor; }
+    .small { color:var(--muted); font-size:11px; line-height:1.5; margin-top:13px; }
+    .flow { position:absolute; right:30px; bottom:26px; width:min(330px,32%); padding:15px 17px; border:1px solid #26445d; border-radius:12px; background:var(--panel); backdrop-filter:blur(6px); }
+    .flow-title { color:var(--cyan); font-size:12px; letter-spacing:.16em; font-weight:700; }
+    .flow-step { display:flex; align-items:center; gap:9px; margin-top:11px; font-size:12px; color:#e1effa; }
+    .num { display:grid; place-items:center; width:22px; height:22px; border:1px solid #37698b; border-radius:50%; color:var(--cyan); font-size:11px; }
+    .flow-step.active .num { background:var(--cyan); color:#07111d; box-shadow:0 0 16px rgba(66,217,255,.65); }
+    .caption { position:absolute; left:50%; top:76%; transform:translateX(-50%); color:#cbe7fb; font-size:clamp(11px,1.15vw,15px); text-align:center; white-space:nowrap; text-shadow:0 1px 5px #000; pointer-events:none; }
+    .controls { position:absolute; top:24px; right:30px; margin-top:48px; display:flex; gap:7px; }
+    button { border:1px solid #386a88; color:#dff4ff; background:#102b42; border-radius:7px; padding:7px 10px; cursor:pointer; font-size:12px; }
+    button:hover { background:#173a56; }
+    @media (max-width:850px) { .stage { min-height:500px; } .panel,.flow { width:38%; bottom:18px; } .top { left:18px; right:18px; } .panel { left:18px; } .flow { right:18px; } .badge { display:none; } .caption { top:67%; } }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="SpaceFL 太空联邦学习概念演示">
+    <canvas id="scene"></canvas>
+    <div class="top">
+      <div><div class="eyebrow">SPACE FEDERATED LEARNING</div><h1>轨道变化下的协同训练</h1><div class="subtitle">卫星本地训练 · 通信窗口传输 · 地面站聚合</div></div>
+      <div class="badge">概念示意 · 非真实轨道比例</div>
+    </div>
+    <div class="controls"><button id="toggle">暂停</button><button id="reset">重置</button></div>
+    <section class="panel"><h2>节点状态</h2><div class="row"><span class="dot" style="color:var(--blue);background:var(--blue)"></span><span>本地训练</span><strong id="trainingCount">0</strong></div><div class="row"><span class="dot" style="color:var(--orange);background:var(--orange)"></span><span>通信传输</span><strong id="transferCount">0</strong></div><div class="row"><span class="dot" style="color:var(--green);background:var(--green)"></span><span>已完成聚合</span><strong id="doneCount">0</strong></div><div class="small">每颗卫星独立处理本地数据；只有进入地面站可见窗口，才发送模型更新。</div></section>
+    <section class="flow"><div class="flow-title">FEDLEO LOOP</div><div class="flow-step" data-step="0"><span class="num">1</span><span>卫星本地训练</span></div><div class="flow-step" data-step="1"><span class="num">2</span><span>等待通信窗口</span></div><div class="flow-step" data-step="2"><span class="num">3</span><span>上传模型更新</span></div><div class="flow-step" data-step="3"><span class="num">4</span><span>地面站聚合并广播</span></div></section>
+    <div class="caption" id="caption">卫星节点正在使用本地数据训练模型</div>
+  </main>
+  <script>
+    const canvas = document.querySelector('#scene'), ctx = canvas.getContext('2d');
+    const root = document.querySelector('.stage');
+    const colors = {blue:'#6e9dff', orange:'#ffb454', green:'#5fe0a5', cyan:'#42d9ff', purple:'#b897ff'};
+    let W=0,H=0,dpr=1, running=true, t=0, last=performance.now();
+    const satellites = Array.from({length:7}, (_,i)=>({ angle:i*Math.PI*2/7+.35, radius:.255+(i%3)*.055, speed:.00042+(i%4)*.000055, phase:i*.83, state:0, progress:(i*.19)%1, quality:.68+.08*Math.sin(i*2.2), pulse:0, completed:0 }));
+    const stars = Array.from({length:100}, (_,i)=>({x:(i*83%997)/997,y:(i*47%613)/613,r:((i*19)%7)/10+.25,a:((i*29)%7)/10+.25}));
+    function resize(){ const r=root.getBoundingClientRect(); dpr=Math.min(devicePixelRatio||1,2); W=r.width; H=r.height; canvas.width=W*dpr; canvas.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+    addEventListener('resize',resize); resize();
+    function lerp(a,b,p){return a+(b-a)*p}
+    function orbitPoint(s){ const cx=W*.5, cy=H*.43; const rx=W*s.radius, ry=rx*.38; const a=s.angle; return {x:cx+Math.cos(a)*rx,y:cy+Math.sin(a)*ry}; }
+    function drawStars(){ctx.save(); for(const s of stars){ctx.globalAlpha=s.a;ctx.fillStyle='#b7d9ef';ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);ctx.fill()}ctx.restore()}
+    function drawOrbit(cx,cy,rx,ry,alpha){ctx.save();ctx.strokeStyle=`rgba(85,164,207,${alpha})`;ctx.lineWidth=1;ctx.setLineDash([4,8]);ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+    function drawEarth(cx,cy,r){
+      const g=ctx.createRadialGradient(cx-r*.4,cy-r*.5,r*.05,cx,cy,r*1.2);g.addColorStop(0,'#65d9ff');g.addColorStop(.4,'#1675a7');g.addColorStop(1,'#063253');
+      ctx.save();ctx.shadowColor='rgba(53,197,255,.8)';ctx.shadowBlur=30;ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+      ctx.globalAlpha=.35;ctx.strokeStyle='#a2efff';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(cx,cy,r*.98,r*.35,-.35,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(cx,cy,r*.48,r*.98,-.35,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=.22;ctx.fillStyle='#8df0cd'; for(let i=0;i<8;i++){const a=i*1.7+.5;const x=cx+Math.cos(a)*r*.5,y=cy+Math.sin(a)*r*.45;ctx.beginPath();ctx.ellipse(x,y,r*.16,r*.06,a,0,Math.PI*2);ctx.fill()} ctx.restore();
+    }
+    function drawStation(x,y,active){ctx.save();ctx.translate(x,y);ctx.strokeStyle=active?colors.orange:'#6b89a5';ctx.fillStyle=active?'#3b2a16':'#15283a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-13,11);ctx.lineTo(0,-7);ctx.lineTo(13,11);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(0,-8,8,-Math.PI*.84,-Math.PI*.16);ctx.stroke();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(0,9);ctx.stroke();ctx.restore()}
+    function drawSatellite(p,s,idx){
+      const active=s.state===2;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(s.angle+.9);ctx.shadowColor=active?colors.orange:colors.blue;ctx.shadowBlur=active?18:9;ctx.fillStyle='#d9eefb';ctx.strokeStyle='#244862';ctx.lineWidth=1;ctx.fillRect(-7,-5,14,10);ctx.strokeRect(-7,-5,14,10);ctx.fillStyle=active?colors.orange:colors.cyan;ctx.fillRect(-14,-3,6,6);ctx.fillRect(8,-3,6,6);ctx.restore();
+      if(s.state===0||s.state===1){ctx.save();ctx.strokeStyle=colors.blue;ctx.globalAlpha=.35+.25*Math.sin(t*.004+idx);ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,13+s.progress*6,0,Math.PI*2*s.progress);ctx.stroke();ctx.restore()}
+      if(s.state===2){ctx.save();ctx.strokeStyle=colors.orange;ctx.globalAlpha=.7;ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(W*.83,H*.46);ctx.stroke();ctx.restore()}
+      ctx.save();ctx.fillStyle='#b9d4e8';ctx.font='10px Segoe UI,Microsoft YaHei,sans-serif';ctx.textAlign='center';ctx.fillText(`S${idx+1}`,p.x,p.y-17);ctx.restore();
+    }
+    function draw(){
+      ctx.clearRect(0,0,W,H);drawStars();const cx=W*.5,cy=H*.43,er=Math.min(W,H)*.13;
+      drawOrbit(cx,cy,W*.255,W*.097,.55);drawOrbit(cx,cy,W*.31,W*.118,.38);drawOrbit(cx,cy,W*.365,W*.139,.25);drawEarth(cx,cy,er);
+      const sx=W*.83,sy=H*.46; drawStation(sx,sy,satellites.some(s=>s.state===2));
+      satellites.forEach((s,i)=>drawSatellite(orbitPoint(s),s,i));
+      ctx.save();ctx.fillStyle='#9fc3da';ctx.font='12px Segoe UI,Microsoft YaHei,sans-serif';ctx.textAlign='center';ctx.fillText('地球',cx,cy+er+22);ctx.fillText('地面站',sx,sy+31);ctx.restore();
+      const train=satellites.filter(s=>s.state===0).length, transfer=satellites.filter(s=>s.state===2).length, done=satellites.filter(s=>s.state===3).length;document.querySelector('#trainingCount').textContent=train;document.querySelector('#transferCount').textContent=transfer;document.querySelector('#doneCount').textContent=done;
+      const steps=document.querySelectorAll('.flow-step');steps.forEach(x=>x.classList.remove('active')); steps[Math.floor((t/1700)%4)].classList.add('active');
+      const captions=['卫星节点正在使用本地数据训练模型','卫星等待下一次星地通信窗口','满足可见性条件，模型更新正在上传','地面站完成聚合并向卫星广播新模型'];document.querySelector('#caption').textContent=captions[Math.floor((t/1700)%4)];
+    }
+    function update(dt){ if(!running)return; t+=dt; satellites.forEach((s,i)=>{s.angle+=s.speed*dt; s.progress=(s.progress+dt*(.00015+i*.000012))%1; const phase=(t/1700+i*.61)%4; s.state=phase<1.45?0:phase<2.35?1:phase<2.9?2:3; if(s.state===2)s.pulse=1; }); }
+    function loop(now){const dt=Math.min(now-last,60);last=now;update(dt);draw();requestAnimationFrame(loop)} requestAnimationFrame(loop);
+    document.querySelector('#toggle').onclick=()=>{running=!running;document.querySelector('#toggle').textContent=running?'暂停':'继续';};
+    document.querySelector('#reset').onclick=()=>{t=0;last=performance.now();satellites.forEach((s,i)=>{s.angle=i*Math.PI*2/7+.35;s.progress=(i*.19)%1;});};
+  </script>
+</body>
+</html>

@@ -1,5 +1,4 @@
 import fitz
-import sys
 
 path = "2608.09687v1.pdf"
 doc = fitz.open(path)
@@ -8,7 +7,7 @@ print("metadata:", doc.metadata)
 
 out = []
 for i, page in enumerate(doc):
-    out.append(f"\n===== PAGE {i+1} =====\n")
+    out.append(f"\n===== PAGE {i + 1} =====\n")
     out.append(page.get_text())
 
 text = "".join(out)

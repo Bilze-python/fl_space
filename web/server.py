@@ -1408,7 +1408,7 @@ def build_experiment_orbit_data(
 
 
 def create_app(**sim_kwargs: Any) -> FastAPI:
-    app = FastAPI(title="SpaceFL Visual Experiment Platform", version="0.2.0")
+    app = FastAPI(title="SpaceFL 太空联邦学习科研智能平台", version="0.3.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -1445,6 +1445,20 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         )
     app.mount("/cesium", StaticFiles(directory=CESIUM_DIR), name="cesium")
 
+    # 科研智能平台编排层：文献知识库 / 前沿情报 / 实验规划与结果分析
+    if str(PROJECT_DIR) not in sys.path:
+        sys.path.insert(0, str(PROJECT_DIR))
+    from fl_space.research.service import ResearchService
+    from web.research_routes import register_research_routes
+
+    research_service = ResearchService(
+        PROJECT_DIR,
+        list_experiments=_scan_experiments,
+        get_experiment=_experiment_detail,
+        cc_switch_reader=_read_cc_switch_provider,
+    )
+    research_service.warm_up()
+
     @app.get("/cesium_orbit_viewer.html")
     async def cesium_viewer():
         """Cesium轨道可视化页面"""
@@ -1465,7 +1479,12 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "service": "SpaceFL Visual Experiment Platform"}
+        return {
+            "status": "ok",
+            "service": "SpaceFL 科研智能平台",
+            "platform": "research",
+            "version": "0.3.0",
+        }
 
     @app.get("/api/overview")
     async def overview() -> dict[str, Any]:
@@ -2008,6 +2027,8 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             return run_local_cluster(config).to_dict()
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    register_research_routes(app, research_service)
 
     return app
 

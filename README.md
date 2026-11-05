@@ -6,12 +6,19 @@
 
 模块化、可扩展的开源框架，用于研究太空联邦学习（Space Federated Learning）中的**轨道环境模拟**、**星地/星间通信**与 **FL 算法对比实验**。
 
+> **v0.2 更新**：平台升级为面向科研的「太空联邦学习科研智能平台」——内置期刊文献知识库（PDF 全文解析 +
+> 中文检索 + AI 精读）、前沿情报雷达（arXiv / 航天 RSS 主动抓取）与研究智能体（自然语言指令 → 实验计划 →
+> 批量执行 → 带文献引用的结果解读）。详见 [科研智能平台（v1）](#科研智能平台v1)。
+
 ---
 
 ## 特性
 
 | 特性 | 说明 |
 |------|------|
+| 📚 **期刊文献知识库** | PDF/Markdown 自动解析、分块、BM25 中文全文检索、AI 精读与带页码引用的知识库问答 |
+| 📡 **前沿情报雷达** | 主动抓取 arXiv 空间联邦学习论文与 SpaceNews/NASA 资讯，按研究目标相关度重排并可一键归档 |
+| ✦ **研究智能体** | 自然语言驱动：生成实验计划、评审设计、后台批量执行、结果解读与文献对照（无 Key 时离线规则兜底） |
 | 🛰️ **双轨道后端** | Kepler 二体近似（极速） / Skyfield SGP4 + JPL DE421（高精度） |
 | 📡 **接触矩阵通信模型** | 地面站-卫星接触窗口 + ISL 星间链路 |
 | 🧠 **3 种 FL 算法** | FedAvg / FedProx / FedBuff，可插拔架构 |
@@ -148,6 +155,63 @@ python examples/compare_all_three.py --dataset femnist --sats 50
 ```bash
 python control_panel.py
 # → 交互式菜单：调参面板 / FL训练 / FedLEO实验 / 数据分析
+```
+
+---
+
+## 科研智能平台（v1）
+
+在原有可视化实验台之上，v1 增加了面向科研工作流的三个核心能力，构成
+「研究目标 → 文献依据 → 实验计划 → 批量执行 → 结果解读」的研究闭环：
+
+| 模块 | 能力 | 入口 |
+|------|------|------|
+| 📚 期刊文献知识库 | 扫描/导入 PDF、Markdown；pypdf 全文解析、分块与 BM25 中文全文检索；单篇 AI 精读；带页码引用的知识库问答 | 顶部导航「文献库」 |
+| 📡 前沿情报雷达 | 主动抓取 arXiv（4 组空间 FL 检索式）+ SpaceNews + NASA RSS，按研究目标相关度重排，一键归档进文献库 | 「前沿情报」 |
+| ✦ 研究智能体 | 自然语言描述目标 → 结构化实验计划（假设/变量/对照/指标/风险/预计耗时）→ 计划评审 → 后台批量执行 → 带文献引用的结果解读 | 「研究助手」 |
+
+所有 AI 能力都有**离线兜底**：未配置大模型 API Key 时，规划、分析、精读、问答使用确定性规则引擎，
+界面以「离线规则引擎 / 大模型」徽章如实标注；配置兼容 OpenAI 的 API 后自动切换大模型。
+
+![SpaceFL 科研智能平台总览](docs/screenshots/overview.png)
+
+| 研究助手（计划 + 结果解读） | 期刊文献库（AI 精读） | 前沿情报（相关度排序） |
+| --- | --- | --- |
+| ![研究助手](docs/screenshots/agent-analysis.png) | ![文献库](docs/screenshots/library-digest.png) | ![前沿情报](docs/screenshots/intel-brief.png) |
+
+### 启动
+
+```bash
+pip install -e ".[web]"                      # 含 pypdf（PDF 全文解析）
+python -m web.server --host 127.0.0.1 --port 8700
+# 或双击 start_spacefl.bat / control_panel.bat
+```
+
+### 使用流程（5 分钟演示）
+
+1. **设置研究目标**：研究助手页「研究目标」，例如「研究星地链路受限条件下 LEO 星座联邦学习的数据卸载与聚合策略」。
+2. **看文献**：文献库页自动索引 `文献/` 目录；搜索「卸载 时延」可命中 FedLEO 论文及中文精读；
+   点击文献 →「AI 精读」→ 查看摘要 / 主要贡献 / 方法 / 局限 / 与研究目标相关度。
+3. **看情报**：前沿情报页点击「刷新情报」，arXiv 新论文按相关度排前；可「加入文献库」归档；
+   「让研究助手生成简报」输出与目标对齐的情报简报。
+4. **下指令**：研究助手输入自然语言，例如 *「对比 FedLEO 数据卸载开启/关闭在 3 轨面 2 星与 3 轨面 3 星下的准确率差异，3 轮，seed 42」*
+   → 得到实验计划、评审得分与文献依据；点击「运行计划」提交后台批量实验，页面实时显示进度。
+5. **读结果**：任务完成后点击「解读这批结果」，或对既有档案点「解读最新档案」，
+   得到带 `[n]` 文献引用、并显式写出「尚不能支持的结论」的报告。
+
+### 配置与持久化
+
+- 研究目标 / 订阅主题：`.spacefl_research_config.json`（界面可改）。
+- 大模型：研究助手页「AI 供应商」填写 provider / model / base_url / api_key，或「从 CC Switch 导入」；
+  也支持环境变量 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` 自动识别。
+- 文献目录：`.literature_config.json`，默认 `文献/`；PDF 抽取缓存位于 `文献/extracted/`。
+- 后台批量实验产物：`research_results/<job_id>/`（plan / progress / research_result / runner.log）。
+
+接口契约见 [`docs/RESEARCH_PLATFORM_V1.md`](docs/RESEARCH_PLATFORM_V1.md)，
+架构与演示指南见 [`docs/RESEARCH_PLATFORM_GUIDE.md`](docs/RESEARCH_PLATFORM_GUIDE.md)。
+
+```bash
+python -m pytest tests/test_research_*.py -q   # 科研平台离线测试：文献/情报/规划/分析/编排
 ```
 
 ---

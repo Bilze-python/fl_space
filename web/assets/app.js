@@ -17,13 +17,14 @@ const state = {
 
 const viewTitles = {
   overview: ["SPACE FEDERATED LEARNING", "实验总览"],
+  agent: ["RESEARCH AGENT", "研究助手"],
+  library: ["JOURNAL LIBRARY", "期刊文献库"],
+  intel: ["SIGNAL RADAR", "前沿情报"],
   config: ["EXPERIMENT CONTROL", "实验配置"],
   "local-cluster": ["ISOLATED CLUSTER LAB", "局部星簇"],
   study: ["LEARNING TASK MODEL", "学习任务"],
   experiments: ["RESULT ARCHIVE", "实验档案"],
   orbit: ["CONSTELLATION VIEW", "轨道视图"],
-  library: ["RESEARCH LIBRARY", "文献库"],
-  ai: ["AI EXPERIMENT ANALYST", "AI 实验解读"],
 };
 
 function $(selector, root = document) { return root.querySelector(selector); }
@@ -85,14 +86,20 @@ function experimentStatusBadge(status) {
 }
 
 function setView(name) {
+  if (!viewTitles[name]) return;
   $$(".nav-item").forEach(button => button.classList.toggle("active", button.dataset.view === name));
   $$(".view").forEach(view => view.classList.toggle("active", view.id === `view-${name}`));
   $("#view-eyebrow").textContent = viewTitles[name][0];
   $("#view-title").textContent = viewTitles[name][1];
+  try {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", `#${name}`);
+    }
+  } catch (_) { /* file:// 场景忽略 */ }
   if (name === "orbit" && !state.orbit && !state.orbitLoading) loadOrbit();
-  if (name === "library" && !state.library.length) loadLibrary();
   if (name === "study" && !state.studyTask && !state.studyLoading) loadStudyTask();
   if (name === "local-cluster" && !state.localClusterDefaults) loadLocalClusterDefaults();
+  document.dispatchEvent(new CustomEvent("spacefl:view", { detail: { name } }));
   requestAnimationFrame(resizeCanvases);
 }
 
@@ -423,7 +430,6 @@ async function loadOverview() {
     renderRecentExperiments(experiments.slice(0, 5));
     populateSessionForm();
     renderExperimentList();
-    populateAiExperiments();
     populateOrbitExperiments();
     if (experiments.length) {
       const latest = experiments.find(item => item.kind === "fedleo_validation") || experiments[0];
@@ -435,14 +441,6 @@ async function loadOverview() {
     $("#sync-state").textContent = "同步失败";
     toast(error.message, "error");
   }
-}
-
-function populateAiExperiments() {
-  const select = $("#ai-experiment-select");
-  if (!select) return;
-  select.innerHTML = state.experiments.map(item => `
-    <option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · ${item.seed ?? "--"}</option>
-  `).join("");
 }
 
 function populateOrbitExperiments() {
@@ -487,14 +485,14 @@ function drawAccuracyChart(canvas, historyOn = [], historyOff = []) {
   const ratio = window.devicePixelRatio || 1;
   const pad = { left: 46 * ratio, right: 18 * ratio, top: 18 * ratio, bottom: 34 * ratio };
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#14181d";
+  ctx.fillStyle = "#0a0a0a";
   ctx.fillRect(0, 0, w, h);
   const values = [...historyOn, ...historyOff].map(row => Number(row.accuracy || 0));
   const maxY = Math.max(0.2, ...values) * 1.08;
   const maxRound = Math.max(1, ...historyOn.map(row => Number(row.round || 0)), ...historyOff.map(row => Number(row.round || 0)));
-  ctx.strokeStyle = "#293039";
+  ctx.strokeStyle = "#232323";
   ctx.lineWidth = ratio;
-  ctx.fillStyle = "#78838c";
+  ctx.fillStyle = "#8a8a8a";
   ctx.font = `${10 * ratio}px Segoe UI`;
   for (let i = 0; i <= 4; i++) {
     const y = pad.top + (h - pad.top - pad.bottom) * i / 4;
@@ -512,9 +510,9 @@ function drawAccuracyChart(canvas, historyOn = [], historyOff = []) {
     });
     ctx.stroke();
   }
-  path(historyOff, "#55b8cf");
-  path(historyOn, "#4fd18b");
-  ctx.fillStyle = "#78838c";
+  path(historyOff, "#5e8fb5");
+  path(historyOn, "#ffffff");
+  ctx.fillStyle = "#8a8a8a";
   ctx.fillText("0", pad.left, h - 10 * ratio);
   ctx.fillText(String(maxRound), w - pad.right - 14 * ratio, h - 10 * ratio);
 }
@@ -877,138 +875,6 @@ function replayExperiment(id) {
   loadOrbit(id, true);
 }
 
-async function loadLibrary(query = "") {
-  try {
-    state.library = await api(`/api/library?q=${encodeURIComponent(query)}`);
-    $("#library-list").innerHTML = state.library.map(item => `
-      <article class="library-item" data-library-path="${escapeHtml(item.path)}" data-library-type="${escapeHtml(item.type)}">
-        <strong>${escapeHtml(item.title)}</strong>
-        <small>${escapeHtml(item.type.toUpperCase())} · ${(item.size / 1024).toFixed(0)} KB · <span class="library-source">${escapeHtml(item.source || "项目")}</span></small>
-      </article>
-    `).join("");
-    $$(".library-item").forEach(element => element.addEventListener("click", () => openDocument(element.dataset.libraryPath, element.dataset.libraryType, element)));
-  } catch (error) { toast(error.message, "error"); }
-}
-
-async function loadLibrarySettings() {
-  try {
-    const settings = await api("/api/library/settings");
-    $("#library-default-path").value = settings.default_path;
-  } catch (error) { toast(error.message, "error"); }
-}
-
-async function saveLibraryPath() {
-  try {
-    const result = await api("/api/library/settings", {
-      method: "PUT",
-      body: JSON.stringify({ default_path: $("#library-default-path").value.trim() }),
-    });
-    $("#library-default-path").value = result.default_path;
-    $("#library-path-editor").classList.add("hidden");
-    await loadLibrary($("#library-search").value);
-    toast("默认文献目录已更新");
-  } catch (error) { toast(error.message, "error"); }
-}
-
-async function importLibraryFiles(files) {
-  if (!files.length) return;
-  let imported = 0;
-  for (const file of files) {
-    try {
-      await api(`/api/library/import?filename=${encodeURIComponent(file.name)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: file,
-      });
-      imported += 1;
-    } catch (error) {
-      toast(`${file.name}: ${error.message}`, "error");
-    }
-  }
-  $("#library-import-input").value = "";
-  if (imported) {
-    await loadLibrary($("#library-search").value);
-    toast(`已导入 ${imported} 份文献`);
-  }
-}
-
-async function loadAiSettings() {
-  try {
-    const settings = await api("/api/settings");
-    const badge = $("#ai-provider-status");
-    badge.textContent = settings.ai_configured ? `${settings.ai_provider} 已连接` : "AI 未连接";
-    badge.className = `status-badge ${settings.ai_configured ? "green" : "amber"}`;
-    $("#cc-switch-detail").textContent = settings.ai_configured
-      ? `${settings.ai_provider} · ${settings.ai_model}`
-      : (settings.ai_error || "未配置当前供应商");
-  } catch (error) {
-    $("#ai-provider-status").textContent = "检测失败";
-  }
-}
-
-async function importCcSwitch() {
-  const button = $("#cc-switch-import");
-  button.disabled = true;
-  try {
-    const settings = await api("/api/settings/cc-switch/import", { method: "POST" });
-    toast(`已导入 CC Switch: ${settings.ai_provider}`);
-    await loadAiSettings();
-  } catch (error) { toast(error.message, "error"); }
-  finally { button.disabled = false; }
-}
-
-function appendAiMessage(content, role, extraClass = "") {
-  const message = document.createElement("div");
-  message.className = `ai-message ${role} ${extraClass}`.trim();
-  message.textContent = content;
-  $("#ai-messages").appendChild(message);
-  $("#ai-messages").scrollTop = $("#ai-messages").scrollHeight;
-  return message;
-}
-
-async function askAi(event) {
-  event?.preventDefault();
-  const question = $("#ai-question").value.trim();
-  if (!question) return;
-  appendAiMessage(question, "user");
-  $("#ai-question").value = "";
-  const loading = appendAiMessage("正在读取实验数据并分析…", "assistant", "loading");
-  try {
-    const result = await api("/api/ai/analyze", {
-      method: "POST",
-      body: JSON.stringify({
-        experiment_id: $("#ai-experiment-select").value,
-        question,
-      }),
-    });
-    loading.remove();
-    appendAiMessage(result.content, "assistant");
-  } catch (error) {
-    loading.remove();
-    appendAiMessage(`分析失败：${error.message}`, "assistant");
-    toast(error.message, "error");
-  }
-}
-
-async function openDocument(path, type, element) {
-  $$(".library-item").forEach(item => item.classList.toggle("active", item === element));
-  const title = element.querySelector("strong").textContent;
-  if (type === "pdf") {
-    $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><iframe class="reader-frame" title="${escapeHtml(title)}" src="/api/library/file?path=${encodeURIComponent(path)}"></iframe>`;
-    return;
-  }
-  try {
-    const data = await api(`/api/library/content?path=${encodeURIComponent(path)}`);
-    if (type === "md" && window.marked && window.DOMPurify) {
-      const html = DOMPurify.sanitize(marked.parse(data.content, { gfm: true }));
-      $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><article class="reader-content markdown-body">${html}</article>`;
-    } else {
-      $("#reader-panel").innerHTML = `<div class="reader-head"><h2>${escapeHtml(title)}</h2></div><div class="reader-content"><pre></pre></div>`;
-      $(".reader-content pre").textContent = data.content;
-    }
-  } catch (error) { toast(error.message, "error"); }
-}
-
 async function loadOrbit(experimentId = $("#orbit-experiment-select")?.value || "", autoplay = false) {
   pauseOrbit();
   state.orbitLoading = true;
@@ -1254,21 +1120,6 @@ function bindEvents() {
   $("#experiment-create-modal").addEventListener("click", event => {
     if (event.target.id === "experiment-create-modal") closeCreateExperiment();
   });
-  $("#library-search").addEventListener("input", event => loadLibrary(event.target.value));
-  $("#library-import-button").addEventListener("click", () => $("#library-import-input").click());
-  $("#library-import-input").addEventListener("change", event => importLibraryFiles([...event.target.files]));
-  $("#library-settings-button").addEventListener("click", async () => {
-    const editor = $("#library-path-editor");
-    editor.classList.toggle("hidden");
-    if (!editor.classList.contains("hidden")) await loadLibrarySettings();
-  });
-  $("#library-save-path").addEventListener("click", saveLibraryPath);
-  $("#ai-form").addEventListener("submit", askAi);
-  $("#cc-switch-import").addEventListener("click", importCcSwitch);
-  $$("[data-ai-question]").forEach(button => button.addEventListener("click", () => {
-    $("#ai-question").value = button.dataset.aiQuestion;
-    askAi();
-  }));
   $("#orbit-load").addEventListener("click", loadOrbit);
   $("#orbit-experiment-select").addEventListener("change", event => loadOrbit(event.target.value));
   $("#orbit-projection-profile").addEventListener("change", () => loadOrbit());
@@ -1288,6 +1139,7 @@ function bindEvents() {
 }
 
 bindEvents();
-loadAiSettings();
+const initialViewHash = (window.location.hash || "").replace(/^#/, "");
+if (viewTitles[initialViewHash]) setView(initialViewHash);
 loadOverview();
 loadStudyTask();
