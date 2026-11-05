@@ -17,6 +17,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 STATIC = ROOT / "deploy" / "huggingface" / "static"
 URL_FILE = ROOT / "deploy" / "public_url.txt"
+RENDER_URL_FILE = ROOT / "deploy" / "render_url.txt"
 COOKIE_FILE = ROOT / "deploy" / "huggingface" / "cookie.txt"
 REPO = "bilzepython/spacefl-agent-demo"
 PROXY = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or ""
@@ -30,13 +31,15 @@ def read_cookie() -> str:
 
 
 def read_live_url() -> str:
-    if not URL_FILE.exists():
-        raise SystemExit(f"missing {URL_FILE}")
-    for line in URL_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip().strip('\ufeff')
-        if line.startswith("https://"):
-            return line.rstrip("/")
-    raise SystemExit("no URL in public_url.txt")
+    # Prefer the stable Render URL when present; fall back to the live tunnel.
+    for candidate in (RENDER_URL_FILE, URL_FILE):
+        if not candidate.exists():
+            continue
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            line = line.strip().strip("\ufeff")
+            if line.startswith("https://"):
+                return line.rstrip("/")
+    raise SystemExit("no URL in render_url.txt / public_url.txt")
 
 
 def main() -> int:

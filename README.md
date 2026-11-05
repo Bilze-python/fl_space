@@ -12,9 +12,10 @@
 
 ## 在线演示（公网作品链接）
 
-- **稳定入口（推荐）**：**https://bilzepython-spacefl-agent-demo.static.hf.space**
-  （Hugging Face 免费静态 Space，自动嵌入当前在线演示；只读演示模式，无需登录）
-- 实时隧道（调试备用）：`deploy/public_url.txt` 中的 `https://*.lhr.life` 地址，保活任务自动更新
+- **主链接（Render 免费 Web Service）**：**https://spacefl-research-agent.onrender.com**
+  （只读演示模式，无需登录；免费实例首次打开约 30–60 秒冷启动）
+- **备用入口（Hugging Face 免费静态 Space）**：**https://bilzepython-spacefl-agent-demo.static.hf.space**
+  （自动嵌入当前在线演示；无 PRO 账号时使用静态包装）
 - 可体验：文献检索 / AI 精读 / 知识库问答、前沿情报、自然语言实验计划与实验档案结果解读
 - 说明：公网实例使用 **离线规则引擎**、只读白名单与演示数据；训练、导入与配置写入请在本地运行
   `start_spacefl.bat`（8700 端口）体验

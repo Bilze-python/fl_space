@@ -789,6 +789,28 @@ web: `server.py`
 
 ---
 
+## 2026-11-05（晚，最终）— Render 公网部署成功（作品链接上线）
+
+### 结果
+- 作品主链接：**https://spacefl-research-agent.onrender.com**（Render 免费 Web Service，Docker）
+- Service ID：`srv-dbm9qh08v5cc73e0b1lg`，仓库分支 `deploy-demo`，健康检查 `/api/health`
+- 构建约 40 秒完成，部署状态 live；首次访问免费实例冷启动约 30–60 秒。
+
+### 验收
+- `/api/health` 200（version 0.3.1）；`/api/research/config`：demo_mode=true、离线引擎；
+- `/api/research/overview`：演示文献 6 / 实验档案 3 / 情报 48；
+- 首页 200 且 Hero 正常；`POST /api/research/agent/run` 返回 403（只读拦截）；
+- 自然语言实验计划 1.6s 返回；实验档案解读带 4 条文献引用；中文文献检索正常。
+- HF 免费静态入口已切换为指向 Render（`live.json` → Render URL），作为备用固定域名：
+  `https://bilzepython-spacefl-agent-demo.static.hf.space`
+
+### 涉及文件
+`docs/COMPETITION_LINK.md`、`docs/RENDER_DEPLOY.md`、`README.md`、`render.yaml`、
+`Dockerfile`、`deploy/render/create_service.py`、`deploy/huggingface/update_static_space.py`、
+`deploy/render_url.txt`（本地状态，已忽略）、`WORKLOG.md`。
+
+---
+
 ## 2026-11-05（晚，续）— HF 免费静态入口 + Render 部署准备
 
 ### 背景

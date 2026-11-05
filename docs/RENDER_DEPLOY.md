@@ -3,6 +3,20 @@
 > 比赛最终作品链接的稳定方案：Render 免费 Web Service（Docker）。
 > 说明：Render 免费实例 **15 分钟无请求会休眠**，下次访问冷启动约 30–60 秒；链接域名固定。
 
+## 当前已部署实例（2026-11-05）
+
+| 项 | 值 |
+|---|---|
+| Service ID | `srv-dbm9qh08v5cc73e0b1lg` |
+| 名称 | `spacefl-research-agent` |
+| 链接 | **https://spacefl-research-agent.onrender.com** |
+| 仓库 / 分支 | `https://github.com/Bilze-python/fl_space` / `deploy-demo` |
+| 计划 / 区域 | Free / oregon |
+| 健康检查 | `/api/health` |
+| 环境变量 | `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_OFFLINE_ONLY=1` |
+| 当前状态 | **live**（2026-11-05 上线，构建约 40 秒，部署后验收通过） |
+
+
 ## 0. 前置条件
 
 - 一个 Render 账号（免费注册，无需信用卡；可用 GitHub 登录）；

@@ -2,6 +2,7 @@
 bin/
 logs/
 public_url.txt
+render_url.txt
 keepalive.lock
 *.log
 huggingface/_staging/
