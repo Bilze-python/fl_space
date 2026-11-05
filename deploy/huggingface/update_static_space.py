@@ -9,10 +9,10 @@ entry while the live app is hosted elsewhere.
 import base64
 import json
 import os
+from pathlib import Path
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 STATIC = ROOT / "deploy" / "huggingface" / "static"
@@ -85,7 +85,7 @@ def main() -> int:
         with opener.open(request, timeout=120) as response:
             print("status:", response.status)
             print(response.read().decode("utf-8", errors="replace")[:500])
-            print(f"static entry: https://bilzepython-spacefl-agent-demo.static.hf.space")
+            print("static entry: https://bilzepython-spacefl-agent-demo.static.hf.space")
             return 0
     except urllib.error.HTTPError as exc:
         print("status:", exc.code, exc.read().decode("utf-8", errors="replace")[:500], file=sys.stderr)

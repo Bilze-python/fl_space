@@ -131,7 +131,7 @@ def main() -> int:
                     print(f"ERROR: deploy ended with status={status}")
                     return 4
                 break
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"  (waiting, api note: {exc})")
         time.sleep(15)
 
@@ -142,7 +142,7 @@ def main() -> int:
             if health.status_code == 200:
                 print(f"PUBLIC_URL={url}")
                 return 0
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"  health check {attempt} failed: {exc}")
         time.sleep(10)
     print(f"Service created but health is not ready yet: {url}")
