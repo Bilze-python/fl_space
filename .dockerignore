@@ -1,0 +1,14 @@
+*
+!Dockerfile
+!package.json
+!package-lock.json
+!requirements-deploy.txt
+!fl_space/
+!fl_space/**
+!web/
+!web/**
+!deploy/
+!deploy/demo_data/
+!deploy/demo_data/**
+**/__pycache__/
+**/*.pyc

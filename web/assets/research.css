@@ -558,6 +558,18 @@
   color: #fff;
 }
 
+.demo-banner {
+  border-left: 2px solid var(--amber);
+  background: rgba(228, 176, 75, .06);
+}
+
+.demo-banner p {
+  margin: 0;
+  color: #d8cba8;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 /* ── 计划 / 任务 / 分析卡片 ───────────────────────────────── */
 
 .plan-card,

@@ -1,0 +1,190 @@
+﻿run_id,tier,claim,variant,base_algo,augmentation,clusters,sats_per_cluster,total_sats,gs,seeds,rounds_cap,sim_months,metrics,notes
+R0001,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,1,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0002,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,2,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0003,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,3,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0004,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,5,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0005,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,10,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0006,T0,GS 效应 + 调度加速,FedAvgSat,FedAvg,base,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0007,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,1,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0008,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,2,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0009,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,3,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0010,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,5,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0011,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,10,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0012,T0,GS 效应 + 调度加速,FedProxSat,FedProx,base,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0013,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,1,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0014,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,2,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0015,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,3,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0016,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,5,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0017,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,10,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0018,T0,GS 效应 + 调度加速,FedBuffSat,FedBuff,async,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0019,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,1,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0020,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,2,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0021,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,3,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0022,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,5,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0023,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,10,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0024,T0,GS 效应 + 调度加速,FedAvgSch,FedAvg,FLSchedule,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,主配置：5 簇 × 10 星 = 50 星
+R0025,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0026,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0027,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0028,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0029,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0030,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0031,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0032,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0033,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0034,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0035,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0036,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0037,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0038,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0039,T1,星座结构热图（GS=13）,FedAvgSat,FedAvg,base,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0040,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0041,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0042,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0043,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0044,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0045,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0046,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0047,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0048,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0049,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0050,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0051,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0052,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0053,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0054,T1,星座结构热图（GS=13）,FedProxSat,FedProx,base,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0055,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0056,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0057,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0058,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0059,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0060,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0061,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0062,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0063,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0064,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0065,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0066,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0067,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0068,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0069,T1,星座结构热图（GS=13）,FedBuffSat,FedBuff,async,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0070,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0071,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0072,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0073,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0074,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0075,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0076,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0077,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0078,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0079,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0080,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0081,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0082,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0083,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0084,T1,星座结构热图（GS=13）,FedAvgSch,FedAvg,FLSchedule,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0085,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0086,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0087,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0088,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0089,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0090,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0091,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0092,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0093,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0094,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0095,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0096,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0097,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0098,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0099,T1,星座结构热图（GS=13）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,生成 4×4 热图
+R0100,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0101,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0102,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0103,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0104,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0105,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,5,10,50,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0106,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0107,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0108,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0109,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0110,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0111,T1b,统计强化（补 seed）,FedAvgSat,FedAvg,base,10,10,100,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0112,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0113,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0114,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0115,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0116,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0117,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,5,10,50,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0118,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0119,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0120,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0121,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0122,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0123,T1b,统计强化（补 seed）,FedProxSat,FedProx,base,10,10,100,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0124,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0125,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0126,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0127,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0128,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0129,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,5,10,50,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0130,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0131,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0132,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0133,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0134,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0135,T1b,统计强化（补 seed）,FedBuffSat,FedBuff,async,10,10,100,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0136,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0137,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0138,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0139,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0140,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0141,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,5,10,50,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0142,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0143,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0144,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0145,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0146,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0147,T1b,统计强化（补 seed）,FedAvgSch,FedAvg,FLSchedule,10,10,100,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0148,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0149,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0150,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0151,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0152,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0153,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,5,10,50,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0154,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,1,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0155,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,2,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0156,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,3,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0157,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,5,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0158,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,10,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0159,T1b,统计强化（补 seed）,FedProxSchV2,FedProx,FLSchedule+min_epoch,10,10,100,13,2,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,与 T0/T1 的 3 seeds 合并为 5 seeds
+R0160,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0161,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0162,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0163,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0164,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0165,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0166,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0167,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0168,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0169,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0170,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0171,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0172,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0173,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0174,T2,簇内通信收益,FedAvgIntraSL,FedAvg,FLSchedule+FLIntraCC,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0175,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,1,2,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0176,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,1,5,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0177,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,1,10,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0178,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,2,1,2,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0179,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,2,2,4,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0180,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,2,5,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0181,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,2,10,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0182,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,5,1,5,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0183,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,5,2,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0184,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,5,5,25,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0185,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,5,10,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0186,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,10,1,10,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0187,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,10,2,20,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0188,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,10,5,50,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型
+R0189,T2,簇内通信收益,FedProxIntraSL,FedProx,FLSchedule+FLIntraCC,10,10,100,13,3,500,3,max_accuracy;round_duration_h;idle_time_h;accuracy_vs_rounds;accuracy_vs_simtime,可选：需实现星间链路模型

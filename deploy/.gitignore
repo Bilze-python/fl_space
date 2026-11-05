@@ -1,0 +1,7 @@
+# 公网演示部署产物（模式相对于本目录）
+bin/
+logs/
+public_url.txt
+keepalive.lock
+*.log
+huggingface/_staging/

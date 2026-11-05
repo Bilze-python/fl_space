@@ -789,6 +789,123 @@ web: `server.py`
 
 ---
 
+## 2026-11-05（晚）— 公网可部署 Agent 上线：只读演示模式 + 演示数据隔离 + SSH 隧道保活
+
+### 背景
+比赛最终要求提交“可部署 Agent 的作品链接”。本机网络无法下载 Cloudflare/GitHub Release，
+改用 OpenSSH 反向隧道（localhost.run）把 8720 端口的演示实例映射到公网，并完成公网安全加固、
+演示数据脱敏与保活。
+
+### 1. 公网演示模式（PUBLIC_DEMO）
+- `web/server.py`：新增 `PUBLIC_DEMO` 环境开关与 HTTP 中间件：
+  - 仅放行 GET 与白名单写操作（Agent 规划/评审/分析/对话、文献问答/精读、情报刷新/简报），
+    训练、批量任务、文献导入、索引重建、配置/会话修改、实验删除、CC Switch 导入全部 403；
+  - LLM 相关接口按 IP 限流 20 次/分钟；
+  - 文献文件读取限制在演示文献根目录内，禁止读取项目内任意文件（防止 `.spacefl_ai_config.json` 泄漏）。
+- `fl_space/research/service.py`：`public_demo` 参数；禁用后台任务/索引重建/情报入库；
+  情报强制刷新 120s 冷却；配置与概览接口返回 `demo_mode`；
+  `SPACEFL_OFFLINE_ONLY=1` 时不读取本机 Key，统一离线规则引擎。
+- `web/assets/research.js`：展示“公网演示模式 · 只读”提示，禁用保存目标/供应商/运行计划按钮。
+- 演示数据隔离：公网实例只读取 `deploy/demo_data/`（6 篇原创演示文献 + 3 个脱敏实验档案）；
+  新增 `deploy/prepare_demo_data.ps1` 从本机结果生成脱敏副本（去除 data_dir/device 等字段，
+  JSON 以 UTF-8 无 BOM 写入，避免读取失败）。
+
+### 2. 部署与保活
+- 新增 `deploy/`：`keepalive_public_demo.ps1`（确保 8720 演示服务 + localhost.run SSH 隧道 + 写
+  `public_url.txt`）、`run_keepalive.bat`、`install_public_demo.ps1`、`start/status/stop_public_demo.bat`、
+  `Dockerfile`（多阶段构建、仅打包 demo_data、非 root、端口 8720）、`requirements-deploy.txt`、
+  systemd/Caddy 示例、`.dockerignore`。
+- 已注册 Windows 计划任务 `SpaceFLPublicDemo`（每 5 分钟保活）+ 用户启动文件夹快捷方式（登录自启）。
+- 公网链接：`https://3dc0aad7d362e9.lhr.life/`（2026-11-05 验证：健康检查、演示配置、
+  文献检索、Agent 规划 9s 返回、实验档案解读均可用）。
+- 说明：localhost.run 免费隧道地址为随机子域名，隧道重连会变化；`public_url.txt` 自动更新。
+  稳定提交建议切换 Hugging Face Docker Space 或自有云服务器（Dockerfile/systemd/Caddy 已就绪）。
+
+### 3. 文档
+- `docs/COMPETITION_PLAN.md`：补充“当前进度”与部署/提交流程；
+- `docs/COMPETITION_LINK.md`：作品链接、演示能力、保活机制、稳定化方案、提交前检查清单；
+- `deploy/README.md`：三种部署方式、SSH 隧道故障处理、演示数据说明；
+- `README.md`：新增“在线演示（公网作品链接）”章节。
+
+### 当前状态
+- 公网链接在线（只读演示模式，离线规则引擎）；
+- 保活任务与登录自启已配置；链接失效时重跑 `deploy\start_public_demo.bat` 并读取 `public_url.txt`；
+- 待办：稳定链接（HF Space/云服务器）决策、演示录屏与提交材料、提交前回归与链接验收。
+
+### 涉及文件
+`web/server.py`、`fl_space/research/service.py`、`web/assets/research.js`、`Dockerfile`、
+`.dockerignore`、`requirements-deploy.txt`、`deploy/*`、`docs/COMPETITION_PLAN.md`、
+`docs/COMPETITION_LINK.md`、`README.md`、`WORKLOG.md`。
+
+---
+
+## 2026-11-05 — 启动器修复：旧服务复用失效 / 日志文件占用 / 批处理行尾；附论文复现资料包
+
+### 1. 启动器问题定位与修复（start_spacefl.bat / stop_spacefl.bat / control_panel.bat）
+
+**现象**（用户反馈）：双击启动器报 `The process cannot access the file because it is being used by
+another process`，并且明明已有服务在运行却仍尝试新开端口（8700→8701→8702）。
+
+**根因**：
+1. 上一轮把 `/api/health` 的 `service` 字段从 `SpaceFL Visual Experiment Platform` 改为
+   `SpaceFL 科研智能平台`，启动器的复用判断写死旧字符串 → 已有服务永远“不健康” → 反复启动新实例；
+2. 旧实例启动时用固定文件名 `venv\spacefl-web.stdin / .out.log / .err.log` 做 stdout/stderr 重定向，
+   新实例再次 `Start-Process -RedirectStandard*` 打开同名文件 → 文件锁报错；
+3. 批处理文件被写成 LF 行尾（cmd.exe 对纯 LF 的复杂 label/块解析不稳定），出现
+   `cannot find the batch label specified - check_legacy_health`。
+
+**修复**：
+- `/api/health` 新增 `platform: research`、`version: 0.3.0`；启动器健康判定改为
+  `service` 包含 `SpaceFL` **且** `/api/research/overview` 可访问（同时避免复用旧版无科研接口的服务）；
+- 单次 PowerShell 扫描 8700–8710，找到当前版本实例即复用；旧版占用 8700 时给出明确警告；
+- 日志改为按端口命名（`venv\spacefl-web.<port>.out.log`），文件被占用时自动追加随机后缀；
+  移除不必要的 stdin 重定向；
+- 失败时打印启动错误文件与日志尾部，提示运行 `stop_spacefl.bat`；
+- 新增 `--stop` / `--restart` 参数与 `stop_spacefl.bat`（仅停止本项目 venv 启动的 SpaceFL 进程）；
+- `start_spacefl.bat` / `stop_spacefl.bat` / `control_panel.bat` 统一为 **ASCII + CRLF + 无 BOM**；
+- 启动后默认打开 `http://127.0.0.1:<port>/#overview`（新科研平台），不再先落到旧 launcher 页。
+
+**验证**：
+- 全新启动：27 s 就绪，stdout 只有 `[START]`/`[READY]`，stderr 为空，`/api/health` 与
+  `/api/research/overview` 均 200；
+- 二次双击：1 s 完成 `[INFO] Reusing running SpaceFL server` 并打开页面；
+- `stop_spacefl.bat` 正确停止进程（返回 0）；`start_spacefl.bat --restart` 停止后重启成功；
+- 复测时清理了此前失败启动留下的 8701/8702 重复实例与孤儿 cmd 进程。
+
+### 2. 论文复现资料包（arXiv:2511.14889《Bringing Federated Learning to Space》）
+
+- 新增 `docs/papers/2511.14889_Bringing_FL_to_Space_复现指南.md`：论文信息、核心贡献、算法行为
+  （space-ification 三条规则、FedAvgSat/FedProxSat/FedBuffSat、FLSchedule/FLIntraCC）、完整实验参数
+  （Table 1/2/3、算力与链路假设、仿真设置、8 变体、缺失的 FL 超参与建议值）、结果要点 12 条、
+  复现方案（STK 开源替代、窗口预生成、事件驱动时间模型、缩减网格 216 次首跑、全量 3840 次算力估算）、
+  与 SpaceFL 平台的模块映射、同学分工排期、缺失信息风险清单，以及 Fig.4 FedAvg 三张热图逐格数据。
+- 新增 `docs/papers/2511.14889_实验参数与结果.xlsx`（13 个工作表）：论文速览 / 实验参数 / 变体与网格 /
+  768 行实验矩阵 / 地面站子集 / 结果要点 / Fig.4 示例数据 / 缺失信息与风险 / 复现检查清单 /
+  横向对标方案 / 横向对标输出物。
+- 新增 `docs/papers/2511.14889_横向对标实验方案.md`：直接回答“论文要求多少基站/卫星/轮次、我们要跑多少、
+  最后输出什么做横向比较”。给出论文全量（6 档 GS × 16 星座配置 × 500 轮/3 个月 × 5 seeds = 3840 次）
+  与分级对标方案 T0（72 次）/T1（225 次）/T1b（+120）/T2（+90），以及 11 类交付物、指标口径、
+  C1–C8 验收标准与容差、平台能力差距与最快路径（先做轨道/通信子系统对标）。
+- 新增 `docs/papers/2511.14889_横向对标实验矩阵.csv`：189 行 = 变体 × 星座配置 × GS，含 tier/claim/seeds/
+  rounds_cap 等字段，可直接驱动批量运行脚本（T0–T2 去重后约 495 次运行）。
+- 数据来源：用 `pypdf` 抽取 PDF 全文 → 人工核对章节与表格 → 对 Fig.4 热图按文本层逐格解析并与原文核对
+  （准确率矩阵与原文一致；轮次时长/空闲时间个别单元格与 Fig.8 版本存在 ±0.1 排版差异，已在文档标注）。
+
+### 影响
+- 启动器恢复可用且可安全处理旧实例；后续修改 `/api/health` 字段不会再破坏启动器复用逻辑
+  （判定改为“包含 SpaceFL + 科研 API 可用”）。
+- 论文复现资料包可直接交付同学使用；全量数据（768×5）未在论文公开，指南给出趋势级复现验收标准。
+- 横向对标方案明确了“证明平台可靠性”的最小实验量与输出物，可与论文进行量纲一致的对比。
+
+### 涉及文件
+`start_spacefl.bat`、`stop_spacefl.bat`（新增）、`control_panel.bat`、`web/server.py`（health 字段）、
+`docs/papers/2511.14889_Bringing_FL_to_Space_复现指南.md`（新增）、
+`docs/papers/2511.14889_实验参数与结果.xlsx`（新增）、
+`docs/papers/2511.14889_横向对标实验方案.md`（新增）、
+`docs/papers/2511.14889_横向对标实验矩阵.csv`（新增）、`WORKLOG.md`。
+
+---
+
 ## 2026-11-05 — 科研智能平台 v1：文献知识库 / 前沿情报 / 研究智能体 + SpaceX 风格主题
 
 ### 背景

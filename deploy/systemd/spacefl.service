@@ -1,0 +1,15 @@
+[Unit]
+Description=SpaceFL research agent public demo
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/fl_space
+Environment=SPACEFL_PUBLIC_DEMO=1
+Environment=SPACEFL_OFFLINE_ONLY=1
+ExecStart=/opt/fl_space/venv/bin/python -m uvicorn --factory web.server:create_app --host 127.0.0.1 --port 8720 --log-level warning
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: spacefl-research-agent
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: SPACEFL_PUBLIC_DEMO
+        value: "1"
+      - key: SPACEFL_OFFLINE_ONLY
+        value: "1"

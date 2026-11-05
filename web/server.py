@@ -23,7 +23,8 @@ from uuid import uuid4
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi import Request as HttpRequest
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -51,6 +52,11 @@ EXPERIMENT_SCAN_IGNORES = {
     "site-packages",
 }
 MAX_LIBRARY_FILE_SIZE = 30 * 1024 * 1024
+
+# 公网演示模式：只读白名单，禁止训练/写入/任意文件读取。
+PUBLIC_DEMO = os.environ.get("SPACEFL_PUBLIC_DEMO", "").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
@@ -338,6 +344,8 @@ def _set_experiment_name(experiment_id: str, name: str) -> None:
 
 def _experiment_registry() -> list[dict[str, Any]]:
     """读取“＋新建档案”登记表（不依赖结果目录是否存在）。"""
+    if PUBLIC_DEMO:
+        return []
     raw = _read_json(EXPERIMENT_REGISTRY_FILE, [])
     if not isinstance(raw, list):
         return []
@@ -372,10 +380,11 @@ def _as_list(value: Any) -> list[Any]:
 
 def _safe_project_path(relative_path: str) -> Path:
     candidate = (PROJECT_DIR / relative_path).resolve()
+    allowed_root = (PROJECT_DIR / "deploy" / "demo_data" / "experiments").resolve() if PUBLIC_DEMO else PROJECT_DIR
     try:
-        candidate.relative_to(PROJECT_DIR)
+        candidate.relative_to(allowed_root)
     except ValueError as exc:
-        raise HTTPException(status_code=403, detail="Path is outside the project") from exc
+        raise HTTPException(status_code=403, detail="Path is outside the allowed data directory") from exc
     return candidate
 
 
@@ -497,6 +506,9 @@ def _experiment_summary_files() -> list[Path]:
     * 项目根目录下钻一层（CLI 与网页平台的 ``--output`` 结果都落在这里）
     * ``experiments/`` 全量递归（历史归档目录）
     """
+    if PUBLIC_DEMO:
+        root = PROJECT_DIR / "deploy" / "demo_data" / "experiments"
+        return sorted(root.glob("*/validation_summary.json")) if root.is_dir() else []
     found: set[Path] = set()
     for filename in EXPERIMENT_SUMMARY_FILENAMES:
         found.update(PROJECT_DIR.glob(f"*/{filename}"))
@@ -523,6 +535,8 @@ def _candidate_summary_files() -> list[Path]:
     自动扫描只看“项目根目录下钻一层 + experiments/ 全量递归”；这里额外下钻到三层，
     好让 ``results/``、``output/``、``tmp/`` 之类的自定义输出目录也能被“＋新建档案”登记。
     """
+    if PUBLIC_DEMO:
+        return _experiment_summary_files()
     found: set[Path] = set(_experiment_summary_files())
     for depth in (1, 2, 3):
         for filename in EXPERIMENT_SUMMARY_FILENAMES:
@@ -726,6 +740,8 @@ def _resolve_literature_root(raw_path: str) -> Path:
 
 
 def _library_roots() -> list[tuple[str, Path]]:
+    if PUBLIC_DEMO:
+        return [("公开演示文献", (PROJECT_DIR / "deploy" / "demo_data" / "library").resolve())]
     configured = _resolve_literature_root(_load_literature_config()["default_path"])
     candidates = [("项目文档", (PROJECT_DIR / "docs").resolve()), ("默认文献", configured)]
     roots: list[tuple[str, Path]] = []
@@ -751,7 +767,14 @@ def _resolve_library_item(item_path: str) -> Path:
             target.relative_to(root)
         except ValueError as exc:
             raise HTTPException(status_code=403, detail="文献路径越界") from exc
+        if PUBLIC_DEMO and (not target.is_file() or target.suffix.lower() not in LIBRARY_SUFFIXES):
+            raise HTTPException(status_code=404, detail="公开演示文献不存在")
         return target
+    if PUBLIC_DEMO:
+        raise HTTPException(
+            status_code=403,
+            detail="公网演示模式仅支持文献库索引内的文件",
+        )
     return _safe_project_path(item_path)
 
 
@@ -868,6 +891,13 @@ def _read_local_ai_provider() -> dict[str, Any]:
 
 
 def _ai_settings() -> dict[str, Any]:
+    if PUBLIC_DEMO:
+        return {
+            "ai_provider": "离线规则引擎",
+            "ai_model": "offline",
+            "ai_configured": False,
+            "ai_source": "public_demo",
+        }
     config = _read_json(AI_CONFIG_FILE, {})
     if isinstance(config, dict) and config.get("source") == "local":
         try:
@@ -1409,12 +1439,62 @@ def build_experiment_orbit_data(
 
 def create_app(**sim_kwargs: Any) -> FastAPI:
     app = FastAPI(title="SpaceFL 太空联邦学习科研智能平台", version="0.3.0")
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    if PUBLIC_DEMO:
+        allowed_mutations = {
+            "/api/research/agent/plan",
+            "/api/research/agent/review",
+            "/api/research/agent/analyze",
+            "/api/research/agent/chat",
+            "/api/research/library/ask",
+            "/api/research/intel/refresh",
+            "/api/research/intel/brief",
+        }
+        digest_pattern = re.compile(r"^/api/research/library/[^/]+/digest$")
+        llm_paths = {
+            "/api/research/agent/plan",
+            "/api/research/agent/review",
+            "/api/research/agent/analyze",
+            "/api/research/agent/chat",
+            "/api/research/library/ask",
+            "/api/research/intel/brief",
+        }
+        demo_hits: dict[str, list[float]] = {}
+        demo_lock = threading.Lock()
+
+        @app.middleware("http")
+        async def public_demo_guard(request: HttpRequest, call_next):
+            path = request.url.path
+            if request.method not in ("GET", "HEAD", "OPTIONS"):
+                allowed = path in allowed_mutations or bool(digest_pattern.match(path))
+                if not allowed:
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "detail": "公网演示模式：训练、导入与配置写入已禁用；"
+                            "完整功能请在本地部署体验。"
+                        },
+                    )
+            if path in llm_paths:
+                client_host = request.client.host if request.client else "anonymous"
+                now = time.time()
+                with demo_lock:
+                    bucket = [stamp for stamp in demo_hits.get(client_host, []) if now - stamp < 60]
+                    if len(bucket) >= 20:
+                        return JSONResponse(
+                            status_code=429,
+                            content={"detail": "演示模式请求过于频繁，请稍后再试"},
+                        )
+                    bucket.append(now)
+                    demo_hits[client_host] = bucket
+            return await call_next(request)
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
     app.mount(
         "/vendor/d3", StaticFiles(directory=NODE_MODULES_DIR / "d3" / "dist"), name="vendor-d3"
@@ -1456,6 +1536,7 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         list_experiments=_scan_experiments,
         get_experiment=_experiment_detail,
         cc_switch_reader=_read_cc_switch_provider,
+        public_demo=PUBLIC_DEMO,
     )
     research_service.warm_up()
 
@@ -1483,7 +1564,7 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             "status": "ok",
             "service": "SpaceFL 科研智能平台",
             "platform": "research",
-            "version": "0.3.0",
+            "version": "0.3.1",
         }
 
     @app.get("/api/overview")

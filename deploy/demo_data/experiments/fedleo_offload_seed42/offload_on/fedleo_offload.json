@@ -1,0 +1,270 @@
+{
+    "config":  {
+                   "num_planes":  3,
+                   "sats_per_plane":  4,
+                   "total_sats":  12,
+                   "num_rounds":  5,
+                   "local_epochs":  1,
+                   "batch_size":  64,
+                   "learning_rate":  0.02,
+                   "offloading":  true,
+                   "offload_every_n_rounds":  2,
+                   "max_offload_iter":  4,
+                   "bandwidth_mbps":  10.0,
+                   "bytes_per_sample":  784,
+                   "timeslot_duration_sec":  60.0,
+                   "discrete_ratios":  [
+                                           0.0,
+                                           0.25,
+                                           0.5
+                                       ],
+                   "delay_weight":  1.0,
+                   "divergence_weight":  0.5,
+                   "comm_cost_weight":  0.3,
+                   "eval_every_n_rounds":  1,
+                   "classes_per_client":  1,
+                   "max_samples_per_client":  300,
+                   "sample_imbalance":  0.9,
+                   "dataset":  "mnist",
+                   "seed":  42,
+                   "cluster_profile":  null
+               },
+    "history":  [
+                    {
+                        "round":  0,
+                        "accuracy":  0.1078,
+                        "train_loss":  2.283974,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  0.0,
+                        "train_delay":  0.0,
+                        "intra_agg_delay":  0.0,
+                        "inter_agg_delay":  0.0,
+                        "total_delay":  0.0,
+                        "total_offloaded_samples":  0,
+                        "num_offload_actions":  0,
+                        "data_balance_entropy":  0.906159,
+                        "data_sizes":  [
+                                           65,
+                                           36,
+                                           213,
+                                           239,
+                                           35,
+                                           55,
+                                           279,
+                                           92,
+                                           249,
+                                           32,
+                                           188,
+                                           202
+                                       ]
+                    },
+                    {
+                        "round":  1,
+                        "accuracy":  0.2072,
+                        "train_loss":  4.6734191700816154,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  0.0,
+                        "train_delay":  1,
+                        "intra_agg_delay":  1,
+                        "inter_agg_delay":  1,
+                        "total_delay":  3.0,
+                        "total_offloaded_samples":  0,
+                        "num_offload_actions":  0,
+                        "data_balance_entropy":  0.906159,
+                        "data_sizes":  [
+                                           65,
+                                           36,
+                                           213,
+                                           239,
+                                           35,
+                                           55,
+                                           279,
+                                           92,
+                                           249,
+                                           32,
+                                           188,
+                                           202
+                                       ]
+                    },
+                    {
+                        "round":  2,
+                        "accuracy":  0.2521,
+                        "train_loss":  4.611223732431729,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  4,
+                        "train_delay":  1,
+                        "intra_agg_delay":  1,
+                        "inter_agg_delay":  1,
+                        "total_delay":  7,
+                        "total_offloaded_samples":  428,
+                        "num_offload_actions":  4,
+                        "data_balance_entropy":  0.974501,
+                        "data_sizes":  [
+                                           124,
+                                           142,
+                                           107,
+                                           180,
+                                           35,
+                                           194,
+                                           140,
+                                           92,
+                                           125,
+                                           156,
+                                           188,
+                                           202
+                                       ],
+                        "offload_actions":  [
+                                                {
+                                                    "from_sat":  6,
+                                                    "to_sat":  5,
+                                                    "offload_ratio":  0.5,
+                                                    "offload_samples":  139,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  29.709281
+                                                },
+                                                {
+                                                    "from_sat":  8,
+                                                    "to_sat":  9,
+                                                    "offload_ratio":  0.5,
+                                                    "offload_samples":  124,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  9.711157
+                                                },
+                                                {
+                                                    "from_sat":  3,
+                                                    "to_sat":  0,
+                                                    "offload_ratio":  0.25,
+                                                    "offload_samples":  59,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  25.705704
+                                                },
+                                                {
+                                                    "from_sat":  2,
+                                                    "to_sat":  1,
+                                                    "offload_ratio":  0.5,
+                                                    "offload_samples":  106,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  10.70803
+                                                }
+                                            ]
+                    },
+                    {
+                        "round":  3,
+                        "accuracy":  0.2745,
+                        "train_loss":  4.319155653317769,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  0.0,
+                        "train_delay":  1,
+                        "intra_agg_delay":  1,
+                        "inter_agg_delay":  1,
+                        "total_delay":  3.0,
+                        "total_offloaded_samples":  0,
+                        "num_offload_actions":  0,
+                        "data_balance_entropy":  0.974501,
+                        "data_sizes":  [
+                                           124,
+                                           142,
+                                           107,
+                                           180,
+                                           35,
+                                           194,
+                                           140,
+                                           92,
+                                           125,
+                                           156,
+                                           188,
+                                           202
+                                       ]
+                    },
+                    {
+                        "round":  4,
+                        "accuracy":  0.3093,
+                        "train_loss":  4.254316285252571,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  4,
+                        "train_delay":  1,
+                        "intra_agg_delay":  1,
+                        "inter_agg_delay":  1,
+                        "total_delay":  7,
+                        "total_offloaded_samples":  239,
+                        "num_offload_actions":  4,
+                        "data_balance_entropy":  0.996784,
+                        "data_sizes":  [
+                                           169,
+                                           142,
+                                           154,
+                                           135,
+                                           132,
+                                           97,
+                                           140,
+                                           142,
+                                           125,
+                                           156,
+                                           141,
+                                           152
+                                       ],
+                        "offload_actions":  [
+                                                {
+                                                    "from_sat":  11,
+                                                    "to_sat":  7,
+                                                    "offload_ratio":  0.25,
+                                                    "offload_samples":  50,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  7.702498
+                                                },
+                                                {
+                                                    "from_sat":  5,
+                                                    "to_sat":  4,
+                                                    "offload_ratio":  0.5,
+                                                    "offload_samples":  97,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  5.706941
+                                                },
+                                                {
+                                                    "from_sat":  10,
+                                                    "to_sat":  2,
+                                                    "offload_ratio":  0.25,
+                                                    "offload_samples":  47,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  7.701311
+                                                },
+                                                {
+                                                    "from_sat":  3,
+                                                    "to_sat":  0,
+                                                    "offload_ratio":  0.25,
+                                                    "offload_samples":  45,
+                                                    "comm_cost_slots":  1,
+                                                    "score":  10.700392
+                                                }
+                                            ]
+                    },
+                    {
+                        "round":  5,
+                        "accuracy":  0.3533,
+                        "train_loss":  3.980552347997824,
+                        "weight_divergence":  0.0,
+                        "offload_delay":  0.0,
+                        "train_delay":  1,
+                        "intra_agg_delay":  1,
+                        "inter_agg_delay":  1,
+                        "total_delay":  3.0,
+                        "total_offloaded_samples":  0,
+                        "num_offload_actions":  0,
+                        "data_balance_entropy":  0.996784,
+                        "data_sizes":  [
+                                           169,
+                                           142,
+                                           154,
+                                           135,
+                                           132,
+                                           97,
+                                           140,
+                                           142,
+                                           125,
+                                           156,
+                                           141,
+                                           152
+                                       ]
+                    }
+                ]
+}

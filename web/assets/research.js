@@ -154,6 +154,25 @@
     if (el) el.textContent = value == null ? "--" : String(value);
   }
 
+  function demoMode() {
+    return Boolean(rstate.config && rstate.config.demo_mode);
+  }
+
+  function ensureDemoBanner(show) {
+    const thread = $("#agent-messages");
+    if (!thread) return;
+    const existing = thread.querySelector(".demo-banner");
+    if (!show) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing) return;
+    const banner = document.createElement("div");
+    banner.className = "agent-message assistant demo-banner";
+    banner.innerHTML = `<p><strong>公网演示模式</strong>：可完整体验文献精读、知识库问答、前沿情报、自然语言实验规划与结果解读；为保证服务稳定，<b>训练任务、文献导入与配置写入已禁用</b>。完整功能请本地部署体验（<code>start_spacefl.bat</code>）。</p>`;
+    thread.insertBefore(banner, thread.firstChild);
+  }
+
   function renderConfig(config) {
     const goalInput = $("#research-goal-input");
     if (goalInput) goalInput.value = config.goal || "";
@@ -186,6 +205,24 @@
     if (topicsInput && document.activeElement !== topicsInput) {
       topicsInput.value = (config.topics || []).join(", ");
     }
+    const demo = demoMode();
+    const goalSaveButton = $("#research-goal-save");
+    if (goalSaveButton) {
+      goalSaveButton.disabled = demo;
+      goalSaveButton.textContent = demo ? "演示模式只读" : "保存研究目标";
+    }
+    ["#provider-save", "#provider-test", "#cc-switch-import"].forEach(selector => {
+      const button = $r(selector);
+      if (button) button.disabled = demo;
+    });
+    if (demo) {
+      const statusBadge = $("#agent-provider-status");
+      if (statusBadge) {
+        statusBadge.textContent = "演示模式 · 只读";
+        statusBadge.className = "status-badge amber";
+      }
+    }
+    ensureDemoBanner(demo);
     renderTopicChips(config.topics || []);
   }
 
@@ -208,6 +245,7 @@
   }
 
   async function saveResearchGoal() {
+    if (demoMode()) { toastR("公网演示模式为只读，请在本地部署中修改研究目标", "error"); return; }
     const input = $("#research-goal-input");
     const goal = (input && input.value || "").trim();
     if (!goal) { toastR("研究目标不能为空", "error"); return; }
@@ -244,6 +282,7 @@
   // ── AI 供应商配置 ────────────────────────────────────────
 
   async function saveProvider() {
+    if (demoMode()) { toastR("公网演示模式为只读，请在本地部署中修改 AI 配置", "error"); return; }
     const payload = {
       ai: {
         provider: ($("#provider-name")?.value || "").trim(),
@@ -269,6 +308,7 @@
   }
 
   async function testProvider() {
+    if (demoMode()) { toastR("公网演示模式为只读，请在本地部署中测试模型连通性", "error"); return; }
     const button = $("#provider-test");
     if (button) button.disabled = true;
     try {
@@ -283,6 +323,7 @@
   }
 
   async function importCcSwitch() {
+    if (demoMode()) { toastR("公网演示模式为只读，请在本地部署中导入供应商配置", "error"); return; }
     try {
       await request("/api/settings/cc-switch/import", { method: "POST" });
       await loadConfigOnly();
@@ -376,7 +417,7 @@
         </table>
       </div>
       <div class="plan-card-actions">
-        <button class="button primary" data-plan-action="run">运行计划</button>
+        <button class="button primary" data-plan-action="run" ${demoMode() ? 'disabled title="公网演示模式已禁用训练任务"' : ""}>运行计划</button>
         <button class="button secondary" data-plan-action="review">重新评审</button>
         <button class="button secondary" data-plan-action="json">查看 JSON</button>
       </div>
@@ -445,6 +486,10 @@
           return;
         }
         if (action === "run") {
+          if (demoMode()) {
+            toastR("公网演示模式已禁用后台训练任务；可在本地部署中运行计划", "error");
+            return;
+          }
           button.disabled = true;
           button.textContent = "提交中…";
           try {

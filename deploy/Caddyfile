@@ -1,0 +1,4 @@
+agent.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8720
+}

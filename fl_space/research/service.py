@@ -18,6 +18,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -84,8 +85,18 @@ class ResearchService:
         list_experiments: Callable[[], list[dict[str, Any]]] | None = None,
         get_experiment: Callable[[str], dict[str, Any]] | None = None,
         cc_switch_reader: Callable[[], dict[str, Any] | None] | None = None,
+        public_demo: bool | None = None,
     ) -> None:
         self.project_dir = Path(project_dir)
+        if public_demo is None:
+            public_demo = os.environ.get("SPACEFL_PUBLIC_DEMO", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        self.public_demo = bool(public_demo)
+        self._last_intel_force = 0.0
         self.config = ResearchConfigStore(self.project_dir)
         self._list_experiments = list_experiments
         self._get_experiment = get_experiment
@@ -104,14 +115,18 @@ class ResearchService:
     # ── 文献库 ────────────────────────────────────────────────
 
     def _library_roots(self) -> list[tuple[str, Path]]:
+        if self.public_demo:
+            return [("公开演示文献", (self.project_dir / "deploy" / "demo_data" / "library").resolve())]
         raw = _read_json(self.project_dir / LITERATURE_CONFIG_FILE, {}) or {}
         default_path = str(raw.get("default_path") or "").strip()
         configured = Path(default_path) if default_path else self.project_dir / "文献"
         if not configured.is_absolute():
             configured = self.project_dir / configured
+        # 顺序必须与 web/server.py 的 _library_roots 保持一致：
+        # 索引路径 "0:..."/"1:..." 会被旧版 /api/library/content 接口复用。
         candidates = [
-            ("默认文献", configured.resolve()),
             ("项目文档", (self.project_dir / "docs").resolve()),
+            ("默认文献", configured.resolve()),
         ]
         roots: list[tuple[str, Path]] = []
         seen: set[Path] = set()
@@ -191,6 +206,8 @@ class ResearchService:
 
     def rebuild_library(self, *, force: bool = False) -> dict[str, Any]:
         """重建（增量）文献索引。"""
+        if self.public_demo:
+            raise ValueError("公网演示模式已禁用索引重建")
         index = self._ensure_index()
         with self._library_lock:
             result = index.rebuild(force=force)
@@ -275,6 +292,12 @@ class ResearchService:
     def intel(self, *, refresh: bool = False) -> dict[str, Any]:
         """返回情报流（缓存优先），并按研究目标相关度重排。"""
         topics = self.config.as_dict()["topics"]
+        if self.public_demo and refresh:
+            now = time.time()
+            if now - self._last_intel_force < 120:
+                refresh = False
+            else:
+                self._last_intel_force = now
         feed = self._intel.fetch(topics=topics, force=refresh)
         return self._rank_intel(feed)
 
@@ -328,6 +351,8 @@ class ResearchService:
         roots = self._library_roots()
         target_dir = roots[0][1]
         item_id = str(item_id or "").strip()
+        if self.public_demo:
+            raise ValueError("公网演示模式已禁用情报入库")
         if not item_id:
             raise ValueError("缺少情报 id")
         result = self._intel.ingest(item_id, target_dir, self._extract_dir)
@@ -371,6 +396,13 @@ class ResearchService:
         try:
             from fl_space.research import providers
 
+            if os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }:
+                return providers.ProviderConfig()
             return providers.load_provider(
                 self.project_dir,
                 cc_switch_provider=self._cc_provider(),
@@ -405,12 +437,18 @@ class ResearchService:
         with self._library_lock:
             stats = index.stats()
         payload["ai"] = self.ai_status()
+        roots = self._library_roots()
+        default_root = next(
+            (path for label, path in roots if label == "默认文献"),
+            roots[-1][1] if roots else self.project_dir / "文献",
+        )
         payload["literature"] = {
-            "root": str(self._library_roots()[0][1]),
+            "root": str(default_root),
             "indexed": stats.get("total", 0),
             "parsed": stats.get("parsed", 0),
         }
         payload["warm_up"] = self.warm_state()
+        payload["demo_mode"] = self.public_demo
         return payload
 
     def update_config(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -573,6 +611,8 @@ class ResearchService:
 
     def start_plan_job(self, plan: Any) -> dict[str, Any]:
         """启动后台批量实验任务。"""
+        if self.public_demo:
+            raise ValueError("公网演示模式已禁用后台批量实验；完整功能请在本地部署体验")
         validated = planner.validate_plan(plan)
         job_id = f"rjob_{uuid4().hex[:10]}"
         out_dir = self.project_dir / RESULTS_DIR / job_id
@@ -870,6 +910,7 @@ class ResearchService:
         intel_items = intel_cached.get("items") if isinstance(intel_cached, dict) else []
         experiments = self.experiments()
         return {
+            "demo_mode": self.public_demo,
             "goal": config["goal"],
             "topics": config["topics"],
             "ai": self.ai_status(),
