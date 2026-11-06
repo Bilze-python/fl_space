@@ -110,3 +110,6 @@ outputs/manual-*/
 
 # Local worker datasets, model artifacts and private training configuration
 /local-compute/
+
+# 比赛实验数据压缩包（体积大，按需单独提供）
+*.7z

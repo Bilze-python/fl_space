@@ -21,7 +21,8 @@
   `start_spacefl.bat`（8700 端口）体验
 - 部署方式与保活说明：[`deploy/README.md`](deploy/README.md)；
   链接与稳定性说明：[`docs/COMPETITION_LINK.md`](docs/COMPETITION_LINK.md)；
-  Render/HF 部署步骤：[`docs/RENDER_DEPLOY.md`](docs/RENDER_DEPLOY.md)
+  Render/HF 部署步骤：[`docs/RENDER_DEPLOY.md`](docs/RENDER_DEPLOY.md)；
+  实验数据可靠性分析：[`docs/analysis/SIMULATION_RELIABILITY_ANALYSIS.md`](docs/analysis/SIMULATION_RELIABILITY_ANALYSIS.md)
 
 ---
 
