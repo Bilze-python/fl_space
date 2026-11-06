@@ -83,3 +83,11 @@ def test_global_override_is_explicit_and_narrow() -> None:
 def test_custom_dataset_requires_workload_parameters() -> None:
     with pytest.raises(ValueError):
         LocalClusterConfig(dataset="my_dataset")
+    with pytest.raises(ValueError, match="模型大小"):
+        LocalClusterConfig(dataset="my_dataset", model_size_mb=0, flops_per_sample=2_000_000)
+    result = run_local_cluster(LocalClusterConfig(
+        dataset="imported:sample", model_size_mb=1.2, flops_per_sample=2_000_000,
+        num_satellites=4, rounds=1,
+    ))
+    assert result.dataset == "imported:sample"
+    assert result.training_time_per_round_s > 0

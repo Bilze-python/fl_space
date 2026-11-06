@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SpaceFL · 太空联邦学习科研平台</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M32 8l4 20 20 4-20 4-4 20-4-20-20-4 20-4z' fill='%23fff'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/assets/app.css?v=20261105-spacex-v2">
+  <link rel="stylesheet" href="/assets/app.css?v=20261106-training-v3">
   <link rel="stylesheet" href="/assets/research.css?v=20261105-research-v2">
   <script src="/vendor/d3/d3.min.js"></script>
   <script src="/vendor/topojson/topojson-client.min.js"></script>
@@ -228,7 +228,7 @@
               </div>
               <div class="ai-guardrails">
                 <strong>可追溯分析模式</strong>
-                <p>智能体只读取文献、情报与实验档案，不修改代码与结果文件；每条结论尽量给出实验指标或文献出处。</p>
+                <p>智能体读取文献、情报与实验档案，每条结论尽量给出实验指标或文献出处。</p>
               </div>
             </section>
 
@@ -392,11 +392,12 @@
                 <div class="form-grid">
                   <label>算法<select name="mount.algo"><option>fedavg</option><option>fedprox</option><option>fedbuff</option><option>fedleo</option></select></label>
                   <label>协议模式<select name="tune.protocol_mode" id="protocol-mode"><option value="standard">标准实现</option><option value="paper_approx">论文近似</option></select></label>
-                  <label>数据集<select name="tune.dataset"><option>mnist</option><option>fashion_mnist</option><option>cifar10</option><option>femnist</option></select></label>
+                  <label>数据集<select name="tune.dataset" id="training-dataset"><option>mnist</option><option>fashion_mnist</option><option>cifar10</option><option>femnist</option></select></label>
                   <label>训练轮次<input type="number" min="1" max="1000" name="tune.rounds"></label>
                   <label>本地 Epoch<input type="number" min="1" max="100" name="tune.epochs"></label>
                   <label>学习率<input type="number" min="0.0001" step="0.001" name="tune.lr"></label>
                   <label>Batch Size<input type="number" min="1" name="tune.batch_size"></label>
+                  <label>每星样本上限<input type="number" min="0" name="tune.max_samples"></label>
                   <label>随机种子<input type="number" name="tune.seed"></label>
                   <label class="toggle-field"><span>Non-IID 数据</span><input type="checkbox" name="tune.non_iid"></label>
                   <label>卫星选择<select name="tune.selection_strategy"><option value="random">随机抽样</option><option value="earliest_return">最早返回 FLSchedule</option></select></label>
@@ -404,6 +405,51 @@
                   <label>动态 Epoch 上限<input type="number" min="1" max="500" name="tune.max_contact_epochs"></label>
                   <label>FedBuff 近端项 μ<input type="number" min="0" step="0.001" name="tune.fedbuff_mu"></label>
                   <label>FedBuff 最大陈旧度<input type="number" min="0" name="tune.max_staleness" data-nullable="true" placeholder="留空表示不限"></label>
+                </div>
+                <div class="dataset-workspace" id="local-compute-panel">
+                  <h3>训练算力</h3>
+                  <label>运行位置<select id="compute-backend"><option value="local">我的电脑</option><option value="server">平台服务器</option></select></label>
+                  <div id="local-compute-controls">
+                    <p class="field-note">在电脑启动 SpaceFL 本地连接器，再填入它显示的配对码。训练使用该电脑的 CPU / CUDA，原始图片和完整结果保存在本机。请保持程序运行。</p>
+                    <div class="dataset-import-row">
+                      <input id="local-pair-code" maxlength="12" autocomplete="off" placeholder="本地程序显示的配对码" aria-label="本地配对码">
+                      <button type="button" class="button secondary" id="local-pair">连接我的电脑</button>
+                      <button type="button" class="button secondary" id="local-disconnect">解除连接</button>
+                    </div>
+                    <p id="local-compute-status" class="field-note" aria-live="polite">尚未连接电脑</p>
+                    <details><summary>启动和导入方法</summary>
+                      <p class="field-note">在安装了 SpaceFL 和 PyTorch 的项目目录中执行（Windows 示例）：</p>
+                      <pre>.\venv\Scripts\python.exe -m web.local_worker connect --device auto</pre>
+                      <p class="field-note">连接器默认连接公网平台；测试本站可在命令后添加 <code id="local-server-example"></code>。自定义图片 ZIP 请在本机导入：</p>
+                      <pre>.\venv\Scripts\python.exe -m web.local_worker import "D:\data\satellite.zip" --name "卫星影像"</pre>
+                      <p class="field-note">ZIP：train/类别/图片、test/类别/图片，至少两个相同类别，JPG/PNG。导入后约 3 秒同步到数据集选项。内置数据集首次使用时在本机下载。配对有效期 12 小时；平台重启后需重新配对，本地结果仍保留。</p>
+                    </details>
+                    <div id="local-compute-jobs" class="dataset-sources"></div>
+                    <div id="local-result-viewer"></div>
+                  </div>
+                </div>
+                <div class="dataset-workspace">
+                  <div class="subsection-heading"><div><h3>卫星影像数据</h3></div></div>
+                  <div id="training-access-panel" class="hidden">
+                    <p class="field-note">课题组共享训练空间：成员可以查看组内上传的数据、训练配置和结果。访客可以浏览演示。</p>
+                    <div class="dataset-import-row">
+                      <input id="training-password" type="password" autocomplete="current-password" placeholder="课题组访问口令" aria-label="课题组访问口令">
+                      <button type="button" class="button secondary" id="training-login">登录训练空间</button>
+                      <button type="button" class="button secondary hidden" id="training-logout">退出训练空间</button>
+                    </div>
+                    <p id="training-access-status" class="field-note" aria-live="polite"></p>
+                  </div>
+                  <div class="dataset-import-row">
+                    <input id="dataset-import-name" type="text" maxlength="100" placeholder="数据集名称" aria-label="数据集名称">
+                    <input id="dataset-import-file" type="file" accept=".zip,application/zip" aria-label="ImageFolder ZIP">
+                    <button type="button" class="button secondary" id="dataset-import-button" disabled>导入 ZIP</button>
+                  </div>
+                  <p class="field-note" id="dataset-import-status">ZIP 结构：train/类别/图片、test/类别/图片；至少两个相同类别。导入后选择数据集并保存 Session。</p>
+                  <div id="dataset-sources" class="dataset-sources"></div>
+                </div>
+                <div class="training-runner">
+                  <button type="button" class="button primary" id="start-training-button" disabled>启动联邦训练</button>
+                  <div id="training-monitor" class="job-monitor hidden" aria-live="polite"></div>
                 </div>
                 <div class="satellite-profile-editor">
                   <div class="subsection-heading">
@@ -478,7 +524,10 @@
                 <label>数据集<select id="cluster-dataset"><option value="mnist">MNIST</option><option value="fashion_mnist">Fashion-MNIST</option><option value="cifar10">CIFAR-10</option><option value="femnist">FEMNIST</option></select></label>
                 <label>每星样本数<input id="cluster-samples" type="number" min="1" value="1000"></label>
                 <label>实验轮次<input id="cluster-rounds" type="number" min="1" max="1000" value="10"></label>
+                <label id="cluster-model-size-field" class="hidden">模型大小 MB<input id="cluster-model-size" type="number" min="0.001" step="0.01" value="1.2"></label>
+                <label id="cluster-flops-field" class="hidden">每样本 FLOPs<input id="cluster-flops" type="number" min="1" step="1" value="2000000"></label>
               </div>
+              <p id="cluster-workload-note" class="field-note hidden">默认沿用 CIFAR-10 CNN 的计算量假设，请按实际模型调整。</p>
               <div class="subsection-heading local-cluster-subheading"><div><h3>光学星间链路</h3><p>论文参考值可修改；实际工程参数需另行标注来源。</p></div></div>
               <div class="form-grid">
                 <label>望远镜口径 cm<input id="cluster-aperture" type="number" min="0.1" step="0.1" value="10"></label>
@@ -496,6 +545,10 @@
           </section>
           <section class="panel local-cluster-result-panel">
             <div class="panel-head"><div><p class="panel-kicker">CLUSTER RESULT</p><h2>量化结果</h2></div><span id="local-cluster-status" class="status-badge amber">尚未运行</span></div>
+            <div class="cluster-diagram-wrap">
+              <canvas id="cluster-topology-canvas" width="800" height="440" aria-label="局部星簇拓扑图"></canvas>
+              <div class="cluster-diagram-meta"><span id="cluster-topology-label">--</span><span id="cluster-node-count">--</span></div>
+            </div>
             <div id="local-cluster-empty" class="empty-state compact">运行一次局部测试后，这里显示链路预算、训练效率和可供全局训练调用的 profile。</div>
             <div id="local-cluster-result" class="hidden">
               <div class="metric-grid local-cluster-metrics">
@@ -732,7 +785,8 @@
 
   <script src="/vendor/marked/marked.umd.js"></script>
   <script src="/vendor/dompurify/purify.min.js"></script>
-  <script src="/assets/app.js?v=20261105-spacex-v2"></script>
+  <script src="/assets/local-compute.js?v=20261106-local-v1"></script>
+  <script src="/assets/app.js?v=20261106-local-v1"></script>
   <script src="/assets/research.js?v=20261105-research-v2"></script>
 </body>
 </html>

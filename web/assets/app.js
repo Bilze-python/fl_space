@@ -13,6 +13,10 @@ const state = {
   studyTask: null,
   studyLoading: false,
   localClusterResult: null,
+  datasets: [],
+  trainingPoll: null,
+  trainingAllowed: false,
+  trainingActive: false,
 };
 
 const viewTitles = {
@@ -107,7 +111,9 @@ async function loadLocalClusterDefaults() {
   try {
     const response = await api("/api/local-cluster/default");
     state.localClusterDefaults = response.config;
+    state.localClusterProfiles = response.datasets;
     applyLocalClusterConfig(response.config);
+    renderClusterTopology({ config: response.config, num_satellites: response.config.num_satellites });
   } catch (error) {
     toast(`局部星簇默认值读取失败：${error.message}`, "error");
   }
@@ -135,10 +141,11 @@ function applyLocalClusterConfig(config) {
     const element = $(`#${id}`);
     if (element && value != null) element.value = value;
   });
+  syncClusterDatasetFields();
 }
 
 function collectLocalClusterConfig() {
-  return {
+  const config = {
     enabled: true,
     name: "web-local-cluster",
     num_satellites: Number($("#cluster-satellites").value),
@@ -158,6 +165,18 @@ function collectLocalClusterConfig() {
       pointing_accuracy_urad: Number($("#cluster-pointing").value),
     },
   };
+  if ($("#cluster-dataset").value.startsWith("imported:")) {
+    config.model_size_mb = Number($("#cluster-model-size").value);
+    config.flops_per_sample = Number($("#cluster-flops").value);
+  }
+  return config;
+}
+
+function syncClusterDatasetFields() {
+  const imported = $("#cluster-dataset").value.startsWith("imported:");
+  $("#cluster-model-size-field").classList.toggle("hidden", !imported);
+  $("#cluster-flops-field").classList.toggle("hidden", !imported);
+  $("#cluster-workload-note").classList.toggle("hidden", !imported);
 }
 
 function renderLocalClusterResult(result) {
@@ -181,6 +200,69 @@ function renderLocalClusterResult(result) {
   $("#local-cluster-summary").innerHTML = rows.map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`).join("");
   $("#local-cluster-json").textContent = JSON.stringify(result, null, 2);
   $("#local-cluster-profile-note").textContent = "profile 只在用户显式传入全局实验时生效";
+  renderClusterTopology(result);
+}
+
+function renderClusterTopology(result) {
+  const canvas = $("#cluster-topology-canvas");
+  if (!canvas || !result) return;
+  const config = result.config || {};
+  const topology = config.topology || "ring";
+  const total = Number(result.num_satellites || 0);
+  const count = topology === "mesh" ? Math.min(total, 28) : total;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 800;
+  const height = canvas.clientHeight || 440;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  ctx.fillStyle = "#080b0d";
+  ctx.fillRect(0, 0, width, height);
+  const padding = 34;
+  const nodes = Array.from({ length: count }, (_, index) => {
+    if (topology === "grid") {
+      const columns = Math.ceil(Math.sqrt(total));
+      const rows = Math.ceil(total / columns);
+      return {
+        x: padding + (index % columns) * (width - 2 * padding) / Math.max(1, columns - 1),
+        y: padding + Math.floor(index / columns) * (height - 2 * padding) / Math.max(1, rows - 1),
+      };
+    }
+    const angle = -Math.PI / 2 + index * 2 * Math.PI / count;
+    return {
+      x: width / 2 + Math.cos(angle) * Math.min((width - 2 * padding) / 2, (height - 2 * padding) / 2),
+      y: height / 2 + Math.sin(angle) * Math.min((width - 2 * padding) / 2, (height - 2 * padding) / 2),
+    };
+  });
+  ctx.strokeStyle = topology === "mesh" ? "rgba(94,143,181,.13)" : "rgba(94,143,181,.48)";
+  ctx.lineWidth = 1;
+  const edge = (a, b) => {
+    ctx.moveTo(nodes[a].x, nodes[a].y);
+    ctx.lineTo(nodes[b].x, nodes[b].y);
+  };
+  ctx.beginPath();
+  if (topology === "ring") {
+    for (let i = 0; i < count; i++) edge(i, (i + 1) % count);
+  } else if (topology === "grid") {
+    const columns = Math.ceil(Math.sqrt(total));
+    for (let i = 0; i < count; i++) {
+      if (i % columns < columns - 1 && i + 1 < count) edge(i, i + 1);
+      if (i + columns < count) edge(i, i + columns);
+    }
+  } else {
+    for (let i = 0; i < count; i++) for (let j = i + 1; j < count; j++) edge(i, j);
+  }
+  ctx.stroke();
+  nodes.forEach((node, index) => {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, count > 120 ? 2.2 : 3.8, 0, Math.PI * 2);
+    ctx.fillStyle = index === 0 ? "#4fd18b" : "#e8eef2";
+    ctx.fill();
+  });
+  const names = { ring: "环形链路", grid: "网格链路", mesh: "全连接链路" };
+  $("#cluster-topology-label").textContent = names[topology];
+  $("#cluster-node-count").textContent = count === total ? `${total} 颗卫星` : `显示 ${count}/${total} 颗卫星`;
 }
 
 async function runLocalCluster(event) {
@@ -428,7 +510,10 @@ async function loadOverview() {
     $("#supported-list").innerHTML = overview.implementation.supported.map(item => `<li>${item}</li>`).join("");
     $("#limitations-list").innerHTML = overview.implementation.limitations.map(item => `<li>${item}</li>`).join("");
     renderRecentExperiments(experiments.slice(0, 5));
-    populateSessionForm();
+    if (!SpaceFLLocal.isLocal() || !state.formPopulated) {
+      populateSessionForm();
+      state.formPopulated = true;
+    }
     renderExperimentList();
     populateOrbitExperiments();
     if (experiments.length) {
@@ -525,6 +610,10 @@ function populateSessionForm() {
     if (input.type === "checkbox") input.checked = Boolean(state.session[section][key]);
     else input.value = state.session[section][key];
   });
+  const selected = state.datasets.find(item => item.data_dir === state.session.tune.data_dir);
+  if (state.session.tune.dataset === "imagefolder" && selected) {
+    $("#training-dataset").value = `imported:${selected.id}`;
+  }
   state.satelliteProfiles = structuredClone(state.session.tune.satellite_data_profiles || {});
   renderSatelliteProfiles();
 }
@@ -597,8 +686,197 @@ function collectSessionForm() {
     data[section][key] = value;
   });
   syncSatelliteProfilesFromRows();
+  if (data.tune.dataset.startsWith("local:")) {
+    data.tune.dataset = "imagefolder";
+    data.tune.data_dir = "";
+  } else if (data.tune.dataset.startsWith("imported:")) {
+    const selected = state.datasets.find(item => `imported:${item.id}` === data.tune.dataset);
+    if (!selected) throw new Error("所选导入数据集已不存在，请刷新页面");
+    data.tune.dataset = "imagefolder";
+    data.tune.data_dir = selected.data_dir;
+  } else if (data.tune.dataset !== "imagefolder") {
+    data.tune.data_dir = "./data";
+  }
   data.tune.satellite_data_profiles = state.satelliteProfiles;
   return data;
+}
+
+async function loadDatasets() {
+  try {
+    const catalog = await api("/api/datasets");
+    state.datasets = catalog.imported;
+    const select = $("#training-dataset");
+    $$("option[data-imported]", select).forEach(option => option.remove());
+    catalog.imported.forEach(item => {
+      const option = document.createElement("option");
+      option.value = `imported:${item.id}`;
+      option.textContent = `${item.name} (${item.classes.length} 类)`;
+      option.dataset.imported = "true";
+      select.appendChild(option);
+    });
+    const clusterSelect = $("#cluster-dataset");
+    const previousCluster = clusterSelect.value;
+    $$("option[data-imported]", clusterSelect).forEach(option => option.remove());
+    catalog.imported.forEach(item => {
+      const option = document.createElement("option");
+      option.value = `imported:${item.id}`;
+      option.textContent = item.name;
+      option.dataset.imported = "true";
+      clusterSelect.appendChild(option);
+    });
+    if ([...clusterSelect.options].some(option => option.value === previousCluster)) clusterSelect.value = previousCluster;
+    syncClusterDatasetFields();
+    const status = $("#dataset-import-status");
+    state.trainingAllowed = !catalog.public_demo || (catalog.public_training && catalog.authenticated);
+    for (const id of ["dataset-import-name", "dataset-import-file", "dataset-import-button", "start-training-button"]) {
+      $(`#${id}`).disabled = !state.trainingAllowed || (id === "start-training-button" && state.trainingActive);
+    }
+    $('#session-form button[type="submit"]').disabled = !state.trainingAllowed;
+    $("#reset-session").disabled = !state.trainingAllowed;
+    $("#training-access-panel").classList.toggle("hidden", !catalog.public_training);
+    $("#training-password").classList.toggle("hidden", catalog.authenticated);
+    $("#training-login").classList.toggle("hidden", catalog.authenticated);
+    $("#training-logout").classList.toggle("hidden", !catalog.authenticated);
+    if (catalog.public_training) {
+      const limits = catalog.limits;
+      $("#training-access-status").textContent = `${catalog.authenticated ? "已登录共享空间" : "尚未登录"}。CPU 训练，每次一个任务；最多 ${limits.max_rounds} 轮、${limits.max_epochs} Epoch、${limits.max_satellites} 颗卫星、每星 ${limits.max_samples} 张样本，任务限时 ${Math.round(limits.max_seconds / 60)} 分钟。`;
+      for (const [name, value] of Object.entries({"tune.rounds": limits.max_rounds, "tune.epochs": limits.max_epochs, "tune.max_contact_epochs": limits.max_epochs, "mount.sats": limits.max_satellites, "tune.batch_size": limits.max_batch_size, "tune.max_samples": limits.max_samples})) {
+        $(`[name="${name}"]`).max = value;
+      }
+      for (const [name, value] of [["mount.algo", "fedleo"], ["tune.dataset", "femnist"], ["mount.backend", "skyfield"], ["mount.isl", "wgs84"]]) {
+        [...$(`[name="${name}"]`).options].filter(option => option.value === value).forEach(option => { option.disabled = true; });
+      }
+      $('[name="tune.max_samples"]').min = 1;
+      status.textContent = catalog.authenticated ? "导入 ImageFolder ZIP 后选择数据集即可启动训练。数据和结果保存在课题组共享磁盘。" : "登录课题组训练空间后可以上传数据集并运行训练。";
+    } else if (catalog.public_demo) {
+      status.textContent = "公网演示只读。数据集导入和训练请使用完整训练环境。";
+    }
+    $("#dataset-sources").innerHTML = catalog.sources.map(item => `
+      <div class="dataset-source">
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name)} ↗</a>
+        <span>${escapeHtml(item.task)}</span>
+        <small>${escapeHtml(item.compatibility)}</small>
+      </div>
+    `).join("");
+    if (!SpaceFLLocal.isLocal() || !state.formPopulated) populateSessionForm();
+    SpaceFLLocal.decorate(catalog);
+  } catch (error) { toast(`数据集目录读取失败：${error.message}`, "error"); }
+}
+
+function renderTrainingJob(job) {
+  const monitor = $("#training-monitor");
+  monitor.classList.remove("hidden");
+  const active = job.status === "PENDING" || job.status === "RUNNING";
+  state.trainingActive = active;
+  const percent = Math.round(100 * (job.progress_round || 0) / Math.max(1, job.rounds || 1));
+  monitor.innerHTML = `
+    <strong>${escapeHtml(job.message || job.status)}</strong>
+    <div class="progress-track"><div class="progress-bar" style="width:${percent}%"></div></div>
+    <span>${job.progress_round || 0}/${job.rounds || 0} 轮 · ${escapeHtml(job.algorithm || "")} · ${escapeHtml(job.dataset || "")}${job.accuracy == null ? "" : ` · 准确率 ${formatPercent(job.accuracy)}`}</span>
+    ${job.status === "FAILED" && job.log ? `<details><summary>查看训练日志</summary><pre>${escapeHtml(job.log)}</pre></details>` : ""}
+    ${job.status === "DONE" ? `<button type="button" class="button secondary" id="training-open-result">${job.kind === "local_training" ? "查看并下载本机训练摘要" : "查看实验档案"}</button>` : ""}
+    ${active && job.kind === "local_training" ? '<button type="button" class="button secondary" id="local-cancel-job">停止本机训练</button>' : ""}
+  `;
+  $("#start-training-button").disabled = active || !state.trainingAllowed;
+  $("#training-open-result")?.addEventListener("click", () => {
+    if (job.kind === "local_training") { SpaceFLLocal.result(job); return; }
+    setView("experiments");
+    selectExperiment(job.id);
+  });
+  $("#local-cancel-job")?.addEventListener("click", SpaceFLLocal.cancel);
+}
+
+async function watchTrainingJob(jobId) {
+  clearInterval(state.trainingPoll);
+  const update = async () => {
+    try {
+      const job = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
+      renderTrainingJob(job);
+      if (job.status === "DONE" || job.status === "FAILED") {
+        clearInterval(state.trainingPoll);
+        state.trainingPoll = null;
+        if (job.status === "DONE") await loadOverview();
+      }
+      return job.status === "PENDING" || job.status === "RUNNING";
+    } catch (error) {
+      clearInterval(state.trainingPoll);
+      state.trainingPoll = null;
+      toast(`训练状态读取失败：${error.message}`, "error");
+      return false;
+    }
+  };
+  if (await update()) state.trainingPoll = setInterval(update, 1800);
+}
+
+async function startTraining() {
+  const button = $("#start-training-button");
+  button.disabled = true;
+  try {
+    if (SpaceFLLocal.isLocal()) { await SpaceFLLocal.start(); return; }
+    const job = await api("/api/training/jobs", {
+      method: "POST", body: JSON.stringify(collectSessionForm()),
+    });
+    renderTrainingJob(job);
+    watchTrainingJob(job.id);
+  } catch (error) {
+    button.disabled = false;
+    toast(`训练启动失败：${error.message}`, "error");
+  }
+}
+
+async function restoreTrainingJob() {
+  if (SpaceFLLocal.isLocal()) { await SpaceFLLocal.refresh(); return; }
+  try {
+    const jobs = await api("/api/jobs");
+    const latest = jobs.find(job => job.kind === "fl_training");
+    if (latest) {
+      renderTrainingJob(latest);
+      if (latest.status === "PENDING" || latest.status === "RUNNING") watchTrainingJob(latest.id);
+    }
+  } catch (_) { /* No prior job in this process. */ }
+}
+
+async function importDataset() {
+  const name = $("#dataset-import-name").value.trim();
+  const file = $("#dataset-import-file").files[0];
+  if (!name || !file) { toast("请输入名称并选择 ZIP 文件", "error"); return; }
+  if (file.size > 200 * 1024 * 1024) { toast("ZIP 不能超过 200 MB", "error"); return; }
+  const button = $("#dataset-import-button");
+  button.disabled = true;
+  try {
+    const imported = await api(`/api/datasets/import?name=${encodeURIComponent(name)}`, {
+      method: "POST", headers: { "Content-Type": "application/zip" }, body: file,
+    });
+    await loadDatasets();
+    $("#training-dataset").value = `imported:${imported.id}`;
+    $("#dataset-import-status").textContent = `${imported.name}：训练 ${imported.train_images} 张，测试 ${imported.test_images} 张。已选中，可启动训练。`;
+    $("#dataset-import-file").value = "";
+    toast("数据集已导入");
+  } catch (error) { toast(`导入失败：${error.message}`, "error"); }
+  finally { button.disabled = false; }
+}
+
+async function changeTrainingAccess(login) {
+  const input = $("#training-password");
+  try {
+    await api(`/api/training/access/${login ? "login" : "logout"}`, {
+      method: "POST", body: JSON.stringify(login ? {password: input.value} : {}),
+    });
+    input.value = "";
+    clearInterval(state.trainingPoll);
+    state.trainingPoll = null;
+    state.selectedExperiment = null;
+    state.trainingActive = false;
+    $("#experiment-detail").innerHTML = '<div class="empty-state">选择一个实验查看逐轮曲线与卸载记录</div>';
+    $("#training-monitor").classList.add("hidden");
+    await loadOverview();
+    await loadDatasets();
+    await restoreTrainingJob();
+    toast(login ? "已登录课题组训练空间" : "已退出训练空间");
+  } catch (error) {
+    input.value = "";
+    toast(error.message, "error");
+  }
 }
 
 async function saveSession(event) {
@@ -1060,6 +1338,10 @@ function resizeCanvases() {
   if (overview && state.experiments.length) loadOverviewChartOnly();
   if ($("#detail-chart") && state.selectedExperiment) selectExperiment(state.selectedExperiment);
   if (state.orbit) drawOrbit();
+  if (state.localClusterDefaults) renderClusterTopology({
+    config: collectLocalClusterConfig(),
+    num_satellites: Number($("#cluster-satellites").value),
+  });
 }
 
 async function loadOverviewChartOnly() {
@@ -1077,12 +1359,26 @@ function bindEvents() {
     $$(".config-section").forEach(section => section.classList.toggle("active", section.dataset.configSection === button.dataset.configTab));
   }));
   $("#session-form").addEventListener("submit", saveSession);
+  $("#dataset-import-button").addEventListener("click", importDataset);
+  $("#training-login").addEventListener("click", () => changeTrainingAccess(true));
+  $("#training-logout").addEventListener("click", () => changeTrainingAccess(false));
+  $("#training-password").addEventListener("keydown", event => {
+    if (event.key === "Enter") { event.preventDefault(); changeTrainingAccess(true); }
+  });
+  $("#start-training-button").addEventListener("click", startTraining);
   $("#study-task-form").addEventListener("submit", saveStudyTask);
   $("#study-reset-button").addEventListener("click", resetStudyTask);
   $("#study-refresh-button").addEventListener("click", loadStudyTask);
   $("#local-cluster-form").addEventListener("submit", runLocalCluster);
+  $("#cluster-dataset").addEventListener("change", syncClusterDatasetFields);
+  ["cluster-satellites", "cluster-topology"].forEach(id => $("#" + id).addEventListener("change", () => {
+    renderClusterTopology({ config: collectLocalClusterConfig(), num_satellites: Number($("#cluster-satellites").value) });
+  }));
   $("#local-cluster-reset").addEventListener("click", () => {
-    if (state.localClusterDefaults) applyLocalClusterConfig(state.localClusterDefaults);
+    if (state.localClusterDefaults) {
+      applyLocalClusterConfig(state.localClusterDefaults);
+      renderClusterTopology({ config: state.localClusterDefaults, num_satellites: state.localClusterDefaults.num_satellites });
+    }
   });
   $("#local-cluster-copy-profile").addEventListener("click", async () => {
     const profile = state.localClusterResult?.federated_profile;
@@ -1141,5 +1437,11 @@ function bindEvents() {
 bindEvents();
 const initialViewHash = (window.location.hash || "").replace(/^#/, "");
 if (viewTitles[initialViewHash]) setView(initialViewHash);
-loadOverview();
+async function initializeTrainingWorkspace() {
+  await loadOverview();
+  await SpaceFLLocal.initialize();
+  await loadDatasets();
+  await restoreTrainingJob();
+}
+initializeTrainingWorkspace();
 loadStudyTask();

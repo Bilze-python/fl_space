@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import hmac
 import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -27,6 +31,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+
+from web.dataset_store import MAX_ARCHIVE_BYTES, MAX_EXTRACTED_BYTES, import_imagefolder, list_datasets
+from web.training_runtime import (
+    COOKIE_NAME, COOKIE_SECONDS, TrainingRuntime, require_same_origin, validate_cloud_session,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = Path(__file__).resolve().parent
@@ -41,7 +50,9 @@ LEARNING_TASK_FILE = PROJECT_DIR / ".spacefl_learning_task.json"
 CC_SWITCH_DB = Path.home() / ".cc-switch" / "cc-switch.db"
 VALIDATION_SCRIPT = PROJECT_DIR / "scripts" / "validate_fedleo_offloading.py"
 LIBRARY_SUFFIXES = {".md", ".markdown", ".pdf", ".txt"}
-EXPERIMENT_SUMMARY_FILENAMES = ("validation_summary.json", "comparison_summary.json")
+EXPERIMENT_SUMMARY_FILENAMES = (
+    "validation_summary.json", "comparison_summary.json", "training_summary.json"
+)
 EXPERIMENT_SCAN_IGNORES = {
     "venv",
     ".venv",
@@ -52,11 +63,41 @@ EXPERIMENT_SCAN_IGNORES = {
     "site-packages",
 }
 MAX_LIBRARY_FILE_SIZE = 30 * 1024 * 1024
+IMPORTED_DATASET_DIR = PROJECT_DIR / "data" / "imported"
+PUBLIC_DATASETS = [
+    {
+        "name": "EuroSAT",
+        "task": "Sentinel-2 地物分类，适合先构建 ImageFolder 基线",
+        "url": "https://github.com/phelber/EuroSAT",
+        "compatibility": "分类数据；需自行划分 train/test 并核对原始许可",
+    },
+    {
+        "name": "BigEarthNet",
+        "task": "Sentinel-2 多标签土地覆盖分类",
+        "url": "https://bigearth.net/",
+        "compatibility": "多标签任务；现有单标签训练器尚不支持直接训练",
+    },
+    {
+        "name": "SpaceNet",
+        "task": "卫星影像中的建筑物与道路提取",
+        "url": "https://registry.opendata.aws/spacenet/",
+        "compatibility": "分割/检测任务；需新增标注解析和模型",
+    },
+    {
+        "name": "SatNOGS",
+        "task": "公开卫星元数据、发射器与观测记录",
+        "url": "https://db.satnogs.org/",
+        "compatibility": "可用于通信/观测研究；不能作为图像分类训练集直接导入",
+    },
+]
 
-# 公网演示模式：只读白名单，禁止训练/写入/任意文件读取。
+# 公网接口保留只读白名单；课题组训练仅通过独立授权入口开放。
 PUBLIC_DEMO = os.environ.get("SPACEFL_PUBLIC_DEMO", "").strip().lower() in {
     "1", "true", "yes", "on"
 }
+TRAINING_RUNTIME = TrainingRuntime.from_env()
+TRAINING_MEMBER: ContextVar[bool] = ContextVar("training_member", default=False)
+DATASET_IMPORT_LOCK = threading.Lock()
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
@@ -80,10 +121,68 @@ def _read_json(path: Path, default: Any = None) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _cloud_member() -> bool:
+    return TRAINING_RUNTIME.enabled and TRAINING_MEMBER.get()
+
+
+def _dataset_root() -> Path:
+    return TRAINING_RUNTIME.root / "datasets" if TRAINING_RUNTIME.enabled else IMPORTED_DATASET_DIR
+
+
+def _session_file() -> Path:
+    return TRAINING_RUNTIME.root / "session.json" if TRAINING_RUNTIME.enabled else SESSION_FILE
+
+
+def _training_output_root() -> Path:
+    return (TRAINING_RUNTIME.root if TRAINING_RUNTIME.enabled else PROJECT_DIR) / "experiments"
+
+
+def _save_training_job(job_id: str) -> None:
+    """Caller holds JOBS_LOCK; persist status alongside the immutable Session."""
+    if TRAINING_RUNTIME.enabled:
+        _write_json(_training_output_root() / job_id / "job.json", JOBS[job_id])
+
+
+def _restore_training_jobs() -> None:
+    if not TRAINING_RUNTIME.enabled:
+        return
+    with JOBS_LOCK:
+        for path in sorted(_training_output_root().glob("train_*/job.json")):
+            saved = _read_json(path, {})
+            job_id = path.parent.name
+            if (not isinstance(saved, dict) or saved.get("id") != job_id
+                    or not re.fullmatch(r"train_[a-f0-9]{12}", job_id)):
+                continue
+            if saved.get("status") in {"PENDING", "RUNNING"}:
+                result = _read_json(path.parent / "training_summary.json", {})
+                history = _training_rounds(result.get("history")) if isinstance(result, dict) else []
+                saved.update({
+                    "status": "DONE" if history else "FAILED",
+                    "message": "训练结果已恢复" if history else "服务重启，训练已中断，请重新提交",
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "progress_round": len(history),
+                })
+                _write_json(path, saved)
+            JOBS[job_id] = saved
+
+
+def _require_training_write(request: HttpRequest) -> None:
+    if TRAINING_RUNTIME.enabled:
+        if not _cloud_member():
+            raise HTTPException(status_code=401, detail="请先登录课题组训练空间")
+        require_same_origin(request)
+    else:
+        if PUBLIC_DEMO:
+            raise HTTPException(status_code=403, detail="公网演示模式不支持上传和训练")
+        _require_local_write_request(request)
 
 
 def _learning_task_revision(task_data: dict[str, Any]) -> str:
@@ -378,7 +477,22 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _training_rounds(history: Any) -> list[dict[str, Any]]:
+    return [
+        row for item in _as_list(history)
+        if (row := _as_dict(item)) and isinstance(row.get("round"), int) and row["round"] >= 0
+    ]
+
+
 def _safe_project_path(relative_path: str) -> Path:
+    if relative_path.startswith("cloud-experiments/"):
+        if not _cloud_member():
+            raise HTTPException(status_code=403, detail="请先登录课题组训练空间")
+        allowed_root = _training_output_root().resolve()
+        candidate = (allowed_root / relative_path.removeprefix("cloud-experiments/")).resolve()
+        if not candidate.is_relative_to(allowed_root):
+            raise HTTPException(status_code=403, detail="Path is outside the allowed data directory")
+        return candidate
     candidate = (PROJECT_DIR / relative_path).resolve()
     allowed_root = (PROJECT_DIR / "deploy" / "demo_data" / "experiments").resolve() if PUBLIC_DEMO else PROJECT_DIR
     try:
@@ -388,17 +502,36 @@ def _safe_project_path(relative_path: str) -> Path:
     return candidate
 
 
+def _require_local_write_request(request: HttpRequest) -> None:
+    host = request.headers.get("host", "")
+    hostname = urlsplit(f"http://{host}").hostname
+    client_host = request.client.host if request.client else ""
+    if hostname not in {"127.0.0.1", "localhost", "::1"} or client_host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="此操作仅允许本机访问")
+    origin = request.headers.get("origin")
+    if origin:
+        parsed = urlsplit(origin)
+        if parsed.scheme != request.url.scheme or parsed.netloc != host:
+            raise HTTPException(status_code=403, detail="跨站点写入请求已拒绝")
+
+
 def _default_session() -> dict[str, dict[str, Any]]:
     from fl_space.cli import DEFAULT_SESSION
 
-    return {
+    session = {
         "tune": dict(DEFAULT_SESSION["tune"]),
         "mount": dict(DEFAULT_SESSION["mount"]),
     }
+    if TRAINING_RUNTIME.enabled:
+        session["tune"].update({"rounds": 10, "epochs": 1, "max_contact_epochs": 5,
+                                "data_dir": str(TRAINING_RUNTIME.root / "cache")})
+    return session
 
 
 def _load_session() -> dict[str, dict[str, Any]]:
-    session = _read_json(SESSION_FILE, _default_session())
+    if TRAINING_RUNTIME.enabled and not _cloud_member():
+        return _default_session()
+    session = _read_json(_session_file(), _default_session())
     defaults = _default_session()
     for section in ("tune", "mount"):
         session.setdefault(section, {})
@@ -508,7 +641,10 @@ def _experiment_summary_files() -> list[Path]:
     """
     if PUBLIC_DEMO:
         root = PROJECT_DIR / "deploy" / "demo_data" / "experiments"
-        return sorted(root.glob("*/validation_summary.json")) if root.is_dir() else []
+        found = sorted(root.glob("*/validation_summary.json")) if root.is_dir() else []
+        if _cloud_member():
+            found.extend(_training_output_root().glob("train_*/training_summary.json"))
+        return found
     found: set[Path] = set()
     for filename in EXPERIMENT_SUMMARY_FILENAMES:
         found.update(PROJECT_DIR.glob(f"*/{filename}"))
@@ -558,15 +694,41 @@ def _candidate_summary_files() -> list[Path]:
 def _experiment_from_summary(path: Path) -> dict[str, Any] | None:
     """把一份实验汇总 JSON 解析成档案条目；无法识别时返回 None。"""
     data = _read_json(path, {})
-    if not isinstance(data, dict) or not ("offload_on" in data or "fedleo" in data):
+    if not isinstance(data, dict) or not (
+        "offload_on" in data or "fedleo" in data or ("history" in data and "config" in data)
+    ):
         return None
-    try:
-        relative = path.relative_to(PROJECT_DIR).as_posix()
-    except ValueError:
-        relative = path.as_posix()
+    if TRAINING_RUNTIME.enabled and path.is_relative_to(_training_output_root()):
+        relative = "cloud-experiments/" + path.relative_to(_training_output_root()).as_posix()
+    else:
+        try:
+            relative = path.relative_to(PROJECT_DIR).as_posix()
+        except ValueError:
+            relative = path.as_posix()
     experiment_id = path.parent.name
     config = _as_dict(data.get("config"))
     created_at = datetime.fromtimestamp(_safe_mtime(path), tz=timezone.utc).isoformat()
+
+    if "history" in data:
+        history = _training_rounds(data.get("history"))
+        final = _as_dict(history[-1]) if history else {}
+        return {
+            "id": experiment_id,
+            "name": _experiment_display_name(experiment_id, "联邦学习训练"),
+            "kind": "fl_training",
+            "status": "DONE" if history else "FAILED",
+            "created_at": created_at,
+            "path": relative,
+            "seed": config.get("seed"),
+            "rounds": len(history),
+            "dataset": config.get("dataset", "mnist"),
+            "accuracy": final.get("accuracy"),
+            "accuracy_delta": None,
+            "balance_delta": None,
+            "offloaded": 0,
+            "elapsed_sec": data.get("elapsed_sec"),
+            "passed": None,
+        }
 
     if "offload_on" in data:
         deltas = _as_dict(data.get("deltas_on_minus_off"))
@@ -715,6 +877,9 @@ def _experiment_detail(experiment_id: str) -> dict[str, Any]:
         detail["history_off"] = _as_list(
             _as_dict(_read_json(base / "offload_off" / "fedleo_no_offload.json", {})).get("history")
         )
+    elif experiment["kind"] == "fl_training":
+        detail["history_on"] = _training_rounds(data.get("history"))
+        detail["history_off"] = []
     else:
         detail["history_on"] = _as_list(_as_dict(data.get("fedleo")).get("history"))
         detail["history_off"] = _as_list(_as_dict(data.get("baseline")).get("history"))
@@ -1213,6 +1378,94 @@ def _run_validation_job(
             )
 
 
+def _run_training_job(job_id: str, output_dir: Path) -> None:
+    """Run one frozen Session and expose progress from the existing FL CLI."""
+    started = time.time()
+    command = [
+        sys.executable, "-u", "-m", "fl_space.cli", "run", "train",
+        "--session-file", str(output_dir / "session.json"),
+        "--output", str(output_dir / "training_summary.json"),
+    ]
+    with JOBS_LOCK:
+        JOBS[job_id].update({
+            "status": "RUNNING",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "message": "正在加载数据并训练",
+        })
+        _save_training_job(job_id)
+    lines: list[str] = []
+    process = None
+    try:
+        child_env = dict(os.environ)
+        if TRAINING_RUNTIME.enabled:
+            child_env.pop("SPACEFL_TRAINING_ACCESS_KEY", None)
+            for key in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+                child_env[key] = str(TRAINING_RUNTIME.cpu_threads)
+        process = subprocess.Popen(
+            command, cwd=PROJECT_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1, env=child_env,
+        )
+        timer = threading.Timer(TRAINING_RUNTIME.max_seconds if TRAINING_RUNTIME.enabled else 1800, process.kill)
+        timer.start()
+        try:
+            assert process.stdout is not None
+            for line in process.stdout:
+                lines.append(line)
+                lines = lines[-120:]
+                (output_dir / "training.log").write_text("".join(lines)[-12000:], encoding="utf-8")
+                match = re.search(r"(?:Round|FedBuff update)\s+(\d+)\s*/\s*(\d+).*accuracy=([\d.]+)", line)
+                if match:
+                    with JOBS_LOCK:
+                        JOBS[job_id].update({
+                            "progress_round": int(match.group(1)),
+                            "rounds": int(match.group(2)),
+                            "accuracy": float(match.group(3)),
+                            "message": f"已完成 {match.group(1)}/{match.group(2)} 轮",
+                        })
+                        _save_training_job(job_id)
+            process.wait()
+        finally:
+            timer.cancel()
+            if process.stdout is not None:
+                process.stdout.close()
+        result_file = output_dir / "training_summary.json"
+        result = _read_json(result_file, None)
+        status = "DONE" if process.returncode == 0 and isinstance(result, dict) and _training_rounds(result.get("history")) else "FAILED"
+        elapsed = round(time.time() - started, 2)
+        if status == "DONE":
+            result["elapsed_sec"] = elapsed
+            _write_json(result_file, result)
+        history = _training_rounds(result.get("history")) if status == "DONE" else []
+        final = _as_dict(history[-1]) if history else {}
+        with JOBS_LOCK:
+            JOBS[job_id].update({
+                "status": status,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "elapsed_sec": elapsed,
+                "progress_round": len(history) if history else JOBS[job_id]["progress_round"],
+                "accuracy": final.get("accuracy") if history else JOBS[job_id].get("accuracy"),
+                "result": {"final_accuracy": final.get("accuracy"), "rounds": len(history)} if history else None,
+                "message": "训练完成" if status == "DONE" else "训练失败，请查看日志",
+                "log": "".join(lines)[-12000:],
+            })
+            _save_training_job(job_id)
+    except Exception as exc:
+        with JOBS_LOCK:
+            JOBS[job_id].update({
+                "status": "FAILED",
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "elapsed_sec": round(time.time() - started, 2),
+                "message": str(exc),
+                "log": "".join(lines)[-12000:],
+            })
+            _save_training_job(job_id)
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+        (output_dir / "training.log").write_text("".join(lines)[-12000:], encoding="utf-8")
+
+
 def build_orbit_data(
     sim_hours: float = 2.0,
     sats: int = 12,
@@ -1438,7 +1691,14 @@ def build_experiment_orbit_data(
 
 
 def create_app(**sim_kwargs: Any) -> FastAPI:
+    TRAINING_RUNTIME.validate()
+    if TRAINING_RUNTIME.enabled and not PUBLIC_DEMO:
+        raise RuntimeError("公网训练必须同时启用 SPACEFL_PUBLIC_DEMO，保留其他接口的只读限制")
+    _restore_training_jobs()
     app = FastAPI(title="SpaceFL 太空联邦学习科研智能平台", version="0.3.0")
+    from web.local_compute import LocalComputeRelay, create_local_compute_router
+    app.state.local_compute = LocalComputeRelay()
+    app.include_router(create_local_compute_router(app.state.local_compute))
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(
         CORSMiddleware,
@@ -1473,7 +1733,15 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         async def public_demo_guard(request: HttpRequest, call_next):
             path = request.url.path
             if request.method not in ("GET", "HEAD", "OPTIONS"):
-                allowed = path in allowed_mutations or bool(digest_pattern.match(path))
+                allowed = (path in allowed_mutations or bool(digest_pattern.match(path))
+                           or path.startswith("/api/local-compute/"))
+                if TRAINING_RUNTIME.enabled:
+                    if path in {"/api/training/access/login", "/api/training/access/logout"}:
+                        allowed = True
+                    elif path in {"/api/datasets/import", "/api/training/jobs", "/api/session", "/api/session/reset"}:
+                        if not _cloud_member():
+                            return JSONResponse(status_code=401, content={"detail": "请先登录课题组训练空间"})
+                        allowed = True
                 if not allowed:
                     return JSONResponse(
                         status_code=403,
@@ -1495,6 +1763,57 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                     bucket.append(now)
                     demo_hits[client_host] = bucket
             return await call_next(request)
+
+    @app.middleware("http")
+    async def training_access_scope(request: HttpRequest, call_next):
+        token = TRAINING_MEMBER.set(TRAINING_RUNTIME.authenticated(request))
+        try:
+            response = await call_next(request)
+            if ((TRAINING_RUNTIME.enabled and request.url.path.startswith("/api/"))
+                    or request.url.path.startswith("/api/local-compute/")):
+                response.headers["Cache-Control"] = "private, no-store"
+            return response
+        finally:
+            TRAINING_MEMBER.reset(token)
+
+    login_hits: dict[str, list[float]] = {}
+
+    @app.get("/api/training/access")
+    async def training_access() -> dict[str, Any]:
+        return {"enabled": TRAINING_RUNTIME.enabled, "authenticated": _cloud_member(),
+                "limits": TRAINING_RUNTIME.limits() if TRAINING_RUNTIME.enabled else {}}
+
+    @app.post("/api/training/access/login")
+    async def training_login(request: HttpRequest, payload: dict[str, str] = Body(...)):
+        if not TRAINING_RUNTIME.enabled:
+            raise HTTPException(status_code=404, detail="未启用公网训练空间")
+        require_same_origin(request)
+        if request.url.scheme != "https":
+            raise HTTPException(status_code=403, detail="公网口令登录需要 HTTPS")
+        host = request.client.host if request.client else "unknown"
+        now = time.time()
+        # Bound memory as well as attempts. Render's proxy provides the client address.
+        for key in list(login_hits):
+            login_hits[key] = [stamp for stamp in login_hits[key] if now - stamp < 900]
+            if not login_hits[key]:
+                del login_hits[key]
+        bucket = login_hits.setdefault(host, [])
+        if len(bucket) >= 8 or sum(map(len, login_hits.values())) >= 500:
+            raise HTTPException(status_code=429, detail="登录尝试过多，请 15 分钟后重试")
+        bucket.append(now)
+        if not hmac.compare_digest(payload.get("password", "").encode(), TRAINING_RUNTIME.access_key.encode()):
+            raise HTTPException(status_code=401, detail="课题组口令错误")
+        response = JSONResponse({"authenticated": True})
+        response.set_cookie(COOKIE_NAME, TRAINING_RUNTIME.issue_cookie(), max_age=COOKIE_SECONDS,
+                            httponly=True, secure=True, samesite="strict", path="/api")
+        return response
+
+    @app.post("/api/training/access/logout")
+    async def training_logout(request: HttpRequest):
+        require_same_origin(request)
+        response = JSONResponse({"authenticated": False})
+        response.delete_cookie(COOKIE_NAME, path="/api", secure=True, httponly=True, samesite="strict")
+        return response
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
     app.mount(
         "/vendor/d3", StaticFiles(directory=NODE_MODULES_DIR / "d3" / "dist"), name="vendor-d3"
@@ -1659,18 +1978,122 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     async def get_session() -> dict[str, dict[str, Any]]:
         return _load_session()
 
+    @app.get("/api/datasets")
+    async def datasets_catalog() -> dict[str, Any]:
+        return {
+            "public_demo": PUBLIC_DEMO,
+            "public_training": TRAINING_RUNTIME.enabled,
+            "authenticated": _cloud_member(),
+            "limits": TRAINING_RUNTIME.limits() if TRAINING_RUNTIME.enabled else {},
+            "imported": list_datasets(_dataset_root()) if not PUBLIC_DEMO or _cloud_member() else [],
+            "sources": PUBLIC_DATASETS,
+        }
+
+    @app.post("/api/datasets/import")
+    async def import_dataset(
+        request: HttpRequest, name: str = Query(..., min_length=1, max_length=100)
+    ) -> dict[str, Any]:
+        _require_training_write(request)
+        try:
+            if int(request.headers.get("content-length", "0") or 0) > MAX_ARCHIVE_BYTES:
+                raise HTTPException(status_code=413, detail="ZIP 不能超过 200 MB")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Content-Length 无效") from exc
+        total = 0
+        with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as archive:
+            async for chunk in request.stream():
+                total += len(chunk)
+                if total > MAX_ARCHIVE_BYTES:
+                    raise HTTPException(status_code=413, detail="ZIP 不能超过 200 MB")
+                archive.write(chunk)
+            try:
+                archive.seek(0)
+                def import_managed():
+                    with DATASET_IMPORT_LOCK:
+                        if TRAINING_RUNTIME.enabled:
+                            if len(list_datasets(_dataset_root())) >= TRAINING_RUNTIME.max_datasets:
+                                raise HTTPException(status_code=409, detail="共享空间已达到数据集数量上限，请联系管理员清理")
+                            if shutil.disk_usage(TRAINING_RUNTIME.root).free < MAX_EXTRACTED_BYTES + TRAINING_RUNTIME.min_free_bytes:
+                                raise HTTPException(status_code=507, detail="持久化磁盘剩余空间不足")
+                        return import_imagefolder(_dataset_root(), name, archive)
+                return await asyncio.to_thread(import_managed)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/training/jobs")
+    async def create_training_job(request: HttpRequest, payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
+        _require_training_write(request)
+        from importlib.util import find_spec
+
+        if find_spec("torch") is None or find_spec("torchvision") is None:
+            raise HTTPException(status_code=503, detail="本地训练需要安装 torch 和 torchvision")
+        try:
+            session = _validated_session_update(_load_session(), payload) if payload is not None else _load_session()
+            if TRAINING_RUNTIME.enabled:
+                session = validate_cloud_session(session, TRAINING_RUNTIME, list_datasets(_dataset_root()))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise HTTPException(status_code=422, detail="训练参数无效") from exc
+        tune, mount = session["tune"], session["mount"]
+        if mount.get("algo") not in {"fedavg", "fedprox", "fedbuff"}:
+            raise HTTPException(status_code=422, detail="主训练支持 FedAvg、FedProx 和 FedBuff；FedLEO 请使用独立验证")
+        if tune.get("dataset") not in {"mnist", "fashion_mnist", "cifar10", "femnist", "imagefolder", "custom"}:
+            raise HTTPException(status_code=422, detail="当前数据集不受训练器支持")
+        try:
+            rounds = int(tune["rounds"])
+            epochs = int(tune["epochs"])
+            satellites = int(mount["sats"])
+        except (TypeError, ValueError, KeyError) as exc:
+            raise HTTPException(status_code=422, detail="训练轮次、Epoch 和卫星数必须是整数") from exc
+        if not (1 <= rounds <= 1000 and 1 <= epochs <= 100 and 2 <= satellites <= 100):
+            raise HTTPException(status_code=422, detail="轮次、Epoch 或卫星数超出支持范围")
+        if tune["dataset"] in {"imagefolder", "custom"}:
+            data_dir = Path(str(tune.get("data_dir", ""))).resolve()
+            if not (data_dir / "train").is_dir() or not (data_dir / "test").is_dir():
+                raise HTTPException(status_code=422, detail="自定义数据集缺少 train/test 目录")
+        with JOBS_LOCK:
+            if any(job.get("kind") == "fl_training" and job["status"] in {"PENDING", "RUNNING"} for job in JOBS.values()):
+                raise HTTPException(status_code=409, detail="已有训练任务正在运行")
+            job_id = f"train_{uuid4().hex[:12]}"
+            output_dir = _training_output_root() / job_id
+            output_dir.mkdir(parents=True)
+            _write_json(output_dir / "session.json", session)
+            JOBS[job_id] = {
+                "id": job_id,
+                "kind": "fl_training",
+                "status": "PENDING",
+                "rounds": rounds,
+                "progress_round": 0,
+                "dataset": tune["dataset"],
+                "algorithm": mount["algo"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "message": "训练任务已创建",
+            }
+            _save_training_job(job_id)
+        threading.Thread(target=_run_training_job, args=(job_id, output_dir), daemon=True).start()
+        return dict(JOBS[job_id])
+
     @app.put("/api/session")
     async def put_session(
+        request: HttpRequest,
         payload: dict[str, dict[str, Any]] = Body(...),
     ) -> dict[str, Any]:
-        session = _validated_session_update(_load_session(), payload)
-        _write_json(SESSION_FILE, session)
+        if TRAINING_RUNTIME.enabled:
+            _require_training_write(request)
+        try:
+            session = _validated_session_update(_load_session(), payload)
+            if TRAINING_RUNTIME.enabled:
+                session = validate_cloud_session(session, TRAINING_RUNTIME, list_datasets(_dataset_root()))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise HTTPException(status_code=422, detail="训练参数无效") from exc
+        _write_json(_session_file(), session)
         return {"saved": True, "session": session}
 
     @app.post("/api/session/reset")
-    async def reset_session() -> dict[str, Any]:
+    async def reset_session(request: HttpRequest) -> dict[str, Any]:
+        if TRAINING_RUNTIME.enabled:
+            _require_training_write(request)
         session = _default_session()
-        _write_json(SESSION_FILE, session)
+        _write_json(_session_file(), session)
         return {"saved": True, "session": session}
 
     @app.get("/api/experiments")
@@ -1939,6 +2362,8 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
     @app.get("/api/jobs")
     async def jobs() -> list[dict[str, Any]]:
+        if TRAINING_RUNTIME.enabled and not _cloud_member():
+            return []
         with JOBS_LOCK:
             return sorted(
                 (dict(item) for item in JOBS.values()),
@@ -1948,6 +2373,8 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
 
     @app.get("/api/jobs/{job_id}")
     async def job(job_id: str) -> dict[str, Any]:
+        if TRAINING_RUNTIME.enabled and not _cloud_member():
+            raise HTTPException(status_code=401, detail="请先登录课题组训练空间")
         with JOBS_LOCK:
             if job_id not in JOBS:
                 raise HTTPException(status_code=404, detail="Job not found")

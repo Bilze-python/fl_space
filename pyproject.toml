@@ -33,6 +33,7 @@ web = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "pypdf>=4.0",
+    "Pillow>=10.0",
 ]
 research = [
     "pypdf>=4.0",

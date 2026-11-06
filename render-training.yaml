@@ -1,0 +1,28 @@
+# Paid deployment proposal. Apply only after reviewing Render's current charges.
+# For the existing URL, apply the same settings to the existing service.
+services:
+  - type: web
+    name: spacefl-research-agent
+    runtime: docker
+    dockerfilePath: ./Dockerfile.training
+    dockerContext: .
+    plan: 2c-4g
+    region: oregon
+    numInstances: 1
+    autoDeploy: false
+    healthCheckPath: /api/health
+    disk:
+      name: spacefl-data
+      mountPath: /var/lib/spacefl
+      sizeGB: 20
+    envVars:
+      - key: SPACEFL_PUBLIC_DEMO
+        value: "1"
+      - key: SPACEFL_PUBLIC_TRAINING
+        value: "1"
+      - key: SPACEFL_OFFLINE_ONLY
+        value: "1"
+      - key: SPACEFL_DATA_DIR
+        value: /var/lib/spacefl
+      - key: SPACEFL_TRAINING_ACCESS_KEY
+        sync: false

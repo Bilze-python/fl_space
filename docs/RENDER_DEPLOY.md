@@ -1,5 +1,7 @@
 # 在 Render 上部署 SpaceFL 公网演示（免费 Web Service）
 
+用户希望使用自己电脑的 CPU / GPU 时，可使用 [本地算力连接器](LOCAL_COMPUTE.md)：部署新代码后，平台仅中转任务，保留本页的免费镜像即可。需要在 Render 服务器上上传和训练时，使用 [公网训练升级说明](RENDER_TRAINING.md)。
+
 > 比赛最终作品链接的稳定方案：Render 免费 Web Service（Docker）。
 > 说明：Render 免费实例 **15 分钟无请求会休眠**，下次访问冷启动约 30–60 秒；链接域名固定。
 

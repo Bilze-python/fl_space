@@ -3,3 +3,4 @@ uvicorn[standard]>=0.29
 numpy>=1.24.0
 matplotlib>=3.7.0
 pypdf>=4.0
+Pillow>=10.0

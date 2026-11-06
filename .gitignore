@@ -66,6 +66,7 @@ _git_installer.exe
 data/MNIST/raw/
 data/FashionMNIST/raw/
 data/CIFAR10/
+data/imported/
 *.tar.gz
 *.zip
 
@@ -75,7 +76,14 @@ _verify_msg.py
 _check_*.py
 
 # CodeBuddy 会话来宾文件（WORKLOG 等协作记录仍保留在根目录）
-.codebuddy/
+.codebuddy/*
+!.codebuddy/skills/
+.codebuddy/skills/*
+!.codebuddy/skills/spacefl-workflow/
+.codebuddy/skills/spacefl-workflow/*
+!.codebuddy/skills/spacefl-workflow/SKILL.md
+!.codebuddy/skills/spacefl-workflow/references/
+!.codebuddy/skills/spacefl-workflow/references/*.md
 
 # 一次性调试脚本
 _smoke_test.py
@@ -99,3 +107,6 @@ tmp_paper_refs.txt
 
 # 演示文稿等生成产物（保留 outputs 下的项目素材）
 outputs/manual-*/
+
+# Local worker datasets, model artifacts and private training configuration
+/local-compute/

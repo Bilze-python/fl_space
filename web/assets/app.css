@@ -607,6 +607,23 @@ td strong { color: #fff; font-weight: 500; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
 .form-grid.compact { margin-top: 20px; gap: 14px 16px; }
 
+.dataset-workspace { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
+.dataset-import-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.5fr) auto; gap: 10px; align-items: center; }
+.dataset-import-row input { min-width: 0; }
+.dataset-import-row .button { white-space: nowrap; }
+.dataset-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin-top: 18px; }
+.dataset-source { display: grid; align-content: start; gap: 5px; padding: 12px 0; border-top: 1px solid var(--line); }
+.dataset-source a { font-size: 13px; font-weight: 600; }
+.dataset-source span { color: var(--text); font-size: 11px; }
+.dataset-source small { color: var(--muted); line-height: 1.5; }
+.training-runner { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.training-runner .job-monitor { display: grid; gap: 10px; margin-top: 14px; }
+.training-runner .job-monitor pre { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+@media (max-width: 760px) {
+  .dataset-import-row, .dataset-sources { grid-template-columns: minmax(0, 1fr); }
+  .local-cluster-result-panel { order: -1; }
+}
+
 .satellite-profile-editor { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
 .subsection-heading {
   display: flex;
@@ -1070,6 +1087,9 @@ input[type="file"] { padding: 8px 10px; }
 .local-cluster-note { display: block; margin: -5px 0 20px; line-height: 1.65; }
 .local-cluster-subheading { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
 .local-cluster-result-panel { min-height: 520px; }
+.cluster-diagram-wrap { margin-bottom: 18px; border: 1px solid var(--line); background: #080b0d; }
+#cluster-topology-canvas { display: block; width: 100%; height: auto; aspect-ratio: 20 / 11; }
+.cluster-diagram-meta { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .local-cluster-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
 .local-cluster-metrics .metric-panel { min-height: 104px; padding: 16px; }
 .local-cluster-metrics .metric-panel strong { font-size: 22px; overflow-wrap: anywhere; }

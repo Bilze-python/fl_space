@@ -81,11 +81,11 @@ DEFAULT_SESSION: dict[str, dict[str, Any]] = {
 }
 
 
-def load_session() -> dict[str, dict[str, Any]]:
+def load_session(path: str = SESSION_FILE) -> dict[str, dict[str, Any]]:
     """加载 session 文件。"""
-    if os.path.exists(SESSION_FILE):
+    if os.path.exists(path):
         try:
-            with open(SESSION_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             # 用默认值补全缺失字段
             for section in ("tune", "mount"):
@@ -116,7 +116,7 @@ def _get_session_or_default(args: argparse.Namespace) -> dict[str, dict[str, Any
     """读取 session，同时支持 --no-session 跳过。"""
     if getattr(args, "no_session", False):
         return _deep_copy_default()
-    return load_session()
+    return load_session(getattr(args, "session_file", None) or SESSION_FILE)
 
 
 # ── 环境检查 ─────────────────────────────────────────────────────
@@ -1784,6 +1784,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--sample-cap-strategy", choices=["preserve", "balanced"], default=None, help="????????"
     )
     p_tr.add_argument("--output", "-o", type=str, default=None, help="导出JSON")
+    p_tr.add_argument("--session-file", type=str, default=None, help="读取指定的 Session 快照")
     p_tr.add_argument("--quiet", "-q", action="store_true", help="安静模式")
     p_tr.add_argument("--no-session", action="store_true", help="忽略session使用默认值")
     p_tr.set_defaults(func=cmd_run_train)

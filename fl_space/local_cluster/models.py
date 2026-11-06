@@ -8,6 +8,7 @@ engineering specifications.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any
 
 DATASET_PROFILES: dict[str, dict[str, float | int | str]] = {
@@ -183,6 +184,13 @@ class LocalClusterConfig:
             self.model_size_mb is None or self.flops_per_sample is None
         ):
             raise ValueError("自定义数据集必须同时提供 model_size_mb 和 flops_per_sample")
+        if self.dataset not in DATASET_PROFILES:
+            self.model_size_mb = float(self.model_size_mb)
+            self.flops_per_sample = float(self.flops_per_sample)
+            if not math.isfinite(self.model_size_mb) or self.model_size_mb <= 0:
+                raise ValueError("自定义数据集模型大小必须为正数")
+            if not math.isfinite(self.flops_per_sample) or self.flops_per_sample <= 0:
+                raise ValueError("自定义数据集每样本 FLOPs 必须为正数")
 
     @classmethod
     def paper_reference(cls, **overrides: Any) -> LocalClusterConfig:

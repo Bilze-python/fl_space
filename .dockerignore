@@ -1,5 +1,6 @@
 *
 !Dockerfile
+!Dockerfile.training
 !package.json
 !package-lock.json
 !requirements-deploy.txt
@@ -10,5 +11,7 @@
 !deploy/
 !deploy/demo_data/
 !deploy/demo_data/**
+!deploy/render/
+!deploy/render/training-entrypoint.sh
 **/__pycache__/
 **/*.pyc
