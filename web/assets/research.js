@@ -206,6 +206,8 @@
       topicsInput.value = (config.topics || []).join(", ");
     }
     const demo = demoMode();
+    const providerConfig = $(".provider-config");
+    if (providerConfig) providerConfig.classList.toggle("hidden", demo);
     const providerNote = $("#provider-note");
     if (providerNote && demo) providerNote.textContent = ai.configured
       ? "公网模型由服务端配置，访客无需填写 API Key；调用失败时自动使用离线规则引擎。"

@@ -17,8 +17,7 @@
 - **备用入口（Hugging Face 免费静态 Space）**：**https://bilzepython-spacefl-agent-demo.static.hf.space**
   （自动嵌入当前在线演示；无 PRO 账号时使用静态包装）
 - 可体验：文献检索 / AI 精读 / 知识库问答、前沿情报、自然语言实验计划与实验档案结果解读
-- 说明：公网实例使用 **离线规则引擎**、只读白名单与演示数据；训练、导入与配置写入请在本地运行
-  `start_spacefl.bat`（8700 端口）体验
+- 说明：公网实例的研究助手已接入服务端 DeepSeek，调用失败会回退离线规则引擎；访客无需填写密钥。演示数据和配置保持只读。真实训练可按 [`docs/LOCAL_COMPUTE.md`](docs/LOCAL_COMPUTE.md) 使用个人电脑；服务器端上传、训练与配置写入仍未开放。
 - 部署方式与保活说明：[`deploy/README.md`](deploy/README.md)；
   链接与稳定性说明：[`docs/COMPETITION_LINK.md`](docs/COMPETITION_LINK.md)；
   Render/HF 部署步骤：[`docs/RENDER_DEPLOY.md`](docs/RENDER_DEPLOY.md)；

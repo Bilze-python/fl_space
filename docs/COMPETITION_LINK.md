@@ -12,20 +12,20 @@
 **https://spacefl-research-agent.onrender.com**
 
 - 部署：Render 免费 Web Service（Docker），代码来自公开仓库分支 `deploy-demo`；
-- 演示模式：只读 + 离线规则引擎 + `deploy/demo_data` 演示数据；
+- 演示模式：只读 + 服务端 DeepSeek（失败时离线回退）+ `deploy/demo_data` 演示数据；
 - 免费实例 **15 分钟无请求会休眠**，首次打开约 30–60 秒冷启动，之后由评审访问自动唤醒；
 - 服务状态与日志：Render Dashboard → `spacefl-research-agent`（Service ID `srv-dbm9qh08v5cc73e0b1lg`）。
 
-### 上线验收（2026-11-05）
+### 上线验收（2026-11-06）
 
 | 检查项 | 结果 |
 |---|---|
 | `/api/health` | 200，version 0.3.1 |
-| `/api/research/config` | `demo_mode=true`、`ai_configured=false`、索引 6 篇 |
+| `/api/research/config` | `demo_mode=true`、DeepSeek `configured=true`，不返回密钥字段 |
 | `/api/research/overview` | 文献 6 / 实验档案 3 / 情报 48 |
 | `/` 首页 | 200，SpaceX 风格 Hero 正常 |
 | `POST /api/research/agent/run` | 403（公网只读拦截生效） |
-| 自然语言实验计划 | 1.6s 返回（离线模式，条件/评审/引用齐全） |
+| 研究助手问答 | 公网实际请求返回 `mode=llm`，无须访客输入 API Key |
 | 实验档案解读 | 返回指标、证据链与 4 条文献引用 |
 | 文献检索 | 中文“卸载”返回 3 条结果 |
 
@@ -52,12 +52,14 @@
    对预置 3 个实验档案做结果解读（指标对照、证据链、文献对照、尚不能支持的结论）；
 5. **公网演示模式**：训练/导入/配置写入被禁用，页面会显示“公网演示模式 · 只读”。
 
-> 大模型未在公网实例启用（为避免费用与密钥泄露），Agent 使用**离线规则引擎**；
-> 界面会如实显示“离线规则引擎”，能力与引用流程完整可演示。
+> 在线模型由服务端私密环境变量启用，页面不提供密钥；调用失败自动回退离线规则引擎。
+> 访客模型请求受限额约束，训练任务仍需使用个人电脑的本地连接器。
 
 ---
 
-## 2. 部署架构（本机 + SSH 隧道）
+## 2. 历史备用架构（本机 + SSH 隧道）
+
+以下为早期备用方案，当前主链接由 Render 托管，与本机隧道无关。
 
 ```
 评委浏览器

@@ -7,7 +7,7 @@
 > 比赛最终作品链接的稳定方案：Render 免费 Web Service（Docker）。
 > 说明：Render 免费实例 **15 分钟无请求会休眠**，下次访问冷启动约 30–60 秒；链接域名固定。
 
-## 当前已部署实例（2026-11-05）
+## 当前已部署实例（2026-11-06）
 
 | 项 | 值 |
 |---|---|
@@ -17,8 +17,8 @@
 | 仓库 / 分支 | `https://github.com/Bilze-python/fl_space` / `deploy-demo` |
 | 计划 / 区域 | Free / oregon |
 | 健康检查 | `/api/health` |
-| 环境变量 | `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_OFFLINE_ONLY=1` |
-| 当前状态 | **live**（2026-11-05 上线，构建约 40 秒，部署后验收通过） |
+| 环境变量 | `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_OFFLINE_ONLY=0`、`SPACEFL_PUBLIC_LLM=1`、服务端私密 `DEEPSEEK_API_KEY` |
+| 当前状态 | **live**；研究助手问答已在公网返回 `mode=llm`，访客无需提供密钥 |
 
 
 ## 0. 前置条件
@@ -63,7 +63,7 @@
 ```bash
 # 健康检查
 curl https://<service-name>.onrender.com/api/health
-# 演示模式确认（demo_mode=true, ai.configured=false）
+# 演示模式确认（demo_mode=true；当前服务 ai.configured=true）
 curl https://<service-name>.onrender.com/api/research/config
 # 总览数据（文献 6 / 实验 3 / 情报 48）
 curl https://<service-name>.onrender.com/api/research/overview
