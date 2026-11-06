@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from web.dataset_store import MAX_ARCHIVE_BYTES, MAX_EXTRACTED_BYTES, import_imagefolder, list_datasets
+from web.public_dataset import import_eurosat_rgb
 from web.training_runtime import (
     COOKIE_NAME, COOKIE_SECONDS, TrainingRuntime, require_same_origin, validate_cloud_session,
 )
@@ -66,28 +67,36 @@ MAX_LIBRARY_FILE_SIZE = 30 * 1024 * 1024
 IMPORTED_DATASET_DIR = PROJECT_DIR / "data" / "imported"
 PUBLIC_DATASETS = [
     {
+        "id": "eurosat_rgb",
         "name": "EuroSAT",
         "task": "Sentinel-2 地物分类，适合先构建 ImageFolder 基线",
         "url": "https://github.com/phelber/EuroSAT",
-        "compatibility": "分类数据；需自行划分 train/test 并核对原始许可",
+        "compatibility": "RGB 版本可直接添加；固定按类别 80/20 划分，seed 42；MIT 许可",
+        "importable": True,
     },
     {
+        "id": "bigearthnet",
         "name": "BigEarthNet",
         "task": "Sentinel-2 多标签土地覆盖分类",
         "url": "https://bigearth.net/",
         "compatibility": "多标签任务；现有单标签训练器尚不支持直接训练",
+        "importable": False,
     },
     {
+        "id": "spacenet",
         "name": "SpaceNet",
         "task": "卫星影像中的建筑物与道路提取",
         "url": "https://registry.opendata.aws/spacenet/",
         "compatibility": "分割/检测任务；需新增标注解析和模型",
+        "importable": False,
     },
     {
+        "id": "satnogs",
         "name": "SatNOGS",
         "task": "公开卫星元数据、发射器与观测记录",
         "url": "https://db.satnogs.org/",
         "compatibility": "可用于通信/观测研究；不能作为图像分类训练集直接导入",
+        "importable": False,
     },
 ]
 
@@ -1747,7 +1756,7 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                 if TRAINING_RUNTIME.enabled:
                     if path in {"/api/training/access/login", "/api/training/access/logout"}:
                         allowed = True
-                    elif path in {"/api/datasets/import", "/api/training/jobs", "/api/session", "/api/session/reset"}:
+                    elif path in {"/api/datasets/import", "/api/datasets/public/eurosat_rgb", "/api/training/jobs", "/api/session", "/api/session/reset"}:
                         if not _cloud_member():
                             return JSONResponse(status_code=401, content={"detail": "请先登录课题组训练空间"})
                         allowed = True
@@ -2054,6 +2063,28 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                 return await asyncio.to_thread(import_managed)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/datasets/public/eurosat_rgb")
+    async def import_public_eurosat(request: HttpRequest) -> dict[str, Any]:
+        _require_training_write(request)
+
+        def import_managed():
+            with DATASET_IMPORT_LOCK:
+                existing = next((item for item in list_datasets(_dataset_root())
+                                 if item["name"] == "EuroSAT RGB"), None)
+                if existing:
+                    return existing
+                if TRAINING_RUNTIME.enabled:
+                    if len(list_datasets(_dataset_root())) >= TRAINING_RUNTIME.max_datasets:
+                        raise HTTPException(status_code=409, detail="共享空间已达到数据集数量上限")
+                    if shutil.disk_usage(TRAINING_RUNTIME.root).free < MAX_EXTRACTED_BYTES + TRAINING_RUNTIME.min_free_bytes:
+                        raise HTTPException(status_code=507, detail="持久化磁盘剩余空间不足")
+                return import_eurosat_rgb(_dataset_root())
+
+        try:
+            return await asyncio.to_thread(import_managed)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/api/training/jobs")
     async def create_training_job(request: HttpRequest, payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:

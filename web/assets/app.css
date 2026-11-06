@@ -609,6 +609,8 @@ td strong { color: #fff; font-weight: 500; }
 
 .dataset-workspace { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
 .dataset-import-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.5fr) auto; gap: 10px; align-items: center; }
+.dataset-public-row { grid-template-columns: minmax(0, 1fr) auto; }
+.dataset-public-row select { min-width: 0; }
 .dataset-import-row input { min-width: 0; }
 .dataset-import-row .button { white-space: nowrap; }
 .dataset-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin-top: 18px; }

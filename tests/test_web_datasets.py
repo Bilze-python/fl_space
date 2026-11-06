@@ -1,6 +1,7 @@
 """Local image dataset import contract and archive safety checks."""
 
 from io import BytesIO
+from hashlib import md5
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -12,6 +13,7 @@ from torchvision.datasets import ImageFolder
 
 from web.dataset_store import import_imagefolder, list_datasets
 from web import server
+from web import public_dataset
 
 
 image_buffer = BytesIO()
@@ -98,6 +100,8 @@ def test_dataset_http_import_and_public_demo_guard(tmp_path: Path, monkeypatch):
         catalog = client.get("/api/datasets").json()
         assert catalog["imported"][0]["id"] == imported.json()["id"]
         assert len(catalog["sources"]) == 4
+        assert [item["id"] for item in catalog["sources"]] == ["eurosat_rgb", "bigearthnet", "spacenet", "satnogs"]
+        assert [item["importable"] for item in catalog["sources"]] == [True, False, False, False]
         assert client.post(
             "/api/datasets/import?name=blocked",
             content=make_zip(valid_files()),
@@ -107,4 +111,39 @@ def test_dataset_http_import_and_public_demo_guard(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(server, "PUBLIC_DEMO", True)
     with TestClient(server.create_app()) as client:
         assert client.post("/api/datasets/import?name=blocked", content=b"ZIP").status_code == 403
+        assert client.post("/api/datasets/public/eurosat_rgb").status_code == 403
         assert client.get("/api/datasets").json()["imported"] == []
+
+
+def test_server_public_eurosat_import_is_idempotent(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(server, "IMPORTED_DATASET_DIR", tmp_path / "imported")
+    monkeypatch.setattr(server, "PUBLIC_DEMO", False)
+    calls = []
+
+    def fake_import(root):
+        calls.append(root)
+        return import_imagefolder(root, "EuroSAT RGB", make_zip(valid_files()))
+
+    monkeypatch.setattr(server, "import_eurosat_rgb", fake_import)
+    with TestClient(server.create_app(), base_url="http://127.0.0.1:8721", client=("127.0.0.1", 50000)) as client:
+        first = client.post("/api/datasets/public/eurosat_rgb")
+        second = client.post("/api/datasets/public/eurosat_rgb")
+        assert first.status_code == second.status_code == 200
+        assert first.json()["id"] == second.json()["id"]
+        assert calls == [tmp_path / "imported"]
+
+
+def test_eurosat_rgb_download_checksum_and_fixed_split(tmp_path: Path, monkeypatch):
+    files = {f"EuroSAT_RGB/{category}/{index}.png": PNG
+             for category in ("forest", "urban") for index in range(5)}
+    archive = make_zip(files)
+    monkeypatch.setattr(public_dataset, "EUROSAT_RGB_MD5", md5(archive).hexdigest())
+    monkeypatch.setattr(public_dataset, "EUROSAT_CLASSES", 2)
+    monkeypatch.setattr(public_dataset, "EUROSAT_IMAGES", 10)
+    imported = public_dataset.import_eurosat_rgb(tmp_path / "datasets", source=BytesIO(archive))
+    assert imported["train_images"] == 8
+    assert imported["test_images"] == 2
+    assert imported["provenance"]["seed"] == 42
+    assert list_datasets(tmp_path / "datasets")[0]["provenance"]["record"] == "Zenodo 7711810"
+    with pytest.raises(ValueError, match="校验失败"):
+        public_dataset.import_eurosat_rgb(tmp_path / "datasets", source=BytesIO(archive + b"x"))

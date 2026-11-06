@@ -19,6 +19,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from web.dataset_store import import_imagefolder, list_datasets
 from web.local_compute import PREFIX, public_datasets, validate_local_session
+from web.public_dataset import import_eurosat_rgb
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 PROGRESS = re.compile(r"(?:Round|FedBuff update)\s+(\d+)\s*/\s*(\d+).*accuracy=([\d.]+)")
@@ -186,13 +187,39 @@ def execute_job(client, job: dict, root: Path, device: str, threads: int,
     return state
 
 
+def execute_dataset_import(client, job: dict, root: Path) -> dict:
+    if job.get("source") != "eurosat_rgb" or not re.fullmatch(r"[a-f0-9]{24}", job.get("id", "")):
+        raise ValueError("不支持的数据集导入任务")
+    endpoint = f"/{client.worker_id}/jobs/{job['id']}"
+
+    def report(message):
+        try:
+            client.post(endpoint, {"status": "RUNNING", "message": message})
+        except (HTTPError, URLError, TimeoutError, OSError):
+            pass
+        print(message, flush=True)
+
+    try:
+        result = import_eurosat_rgb(root / "datasets", report)
+        client.post(endpoint, {"status": "DONE", "message": "EuroSAT RGB 已导入本机",
+                               "imported_id": result["id"], "datasets": dataset_metadata(root)})
+        return result
+    except Exception as exc:
+        try:
+            client.post(endpoint, {"status": "FAILED", "message": f"导入失败：{str(exc)[:140]}"})
+        except (HTTPError, URLError, TimeoutError, OSError):
+            pass
+        raise
+
+
 def connect(args):
     root = args.workspace.expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     device = choose_device(args.device)
     client = RelayClient(args.server)
     registration = client.post("/register", {"name": args.name or socket.gethostname(),
-                                            "device": device, "datasets": dataset_metadata(root)})
+                                            "device": device, "datasets": dataset_metadata(root),
+                                            "capabilities": ["eurosat_rgb_import"]})
     client.token, client.worker_id = registration["token"], registration["id"]
     print(f"\n本机设备：{device}；CPU 线程上限：{args.threads}；任务限时：{args.max_seconds} 秒", flush=True)
     print(f"配对码：{registration['pair_code']}（10 分钟内在网页填写，仅交给本人）", flush=True)
@@ -202,7 +229,14 @@ def connect(args):
             try:
                 reply = client.post(f"/{client.worker_id}/poll", {"datasets": dataset_metadata(root)})
                 if reply.get("job"):
-                    execute_job(client, reply["job"], root, device, args.threads, args.max_seconds)
+                    job = reply["job"]
+                    if job.get("kind") == "dataset_import":
+                        try:
+                            execute_dataset_import(client, job, root)
+                        except Exception as exc:
+                            print(f"数据集导入失败：{exc}", file=sys.stderr, flush=True)
+                    else:
+                        execute_job(client, job, root, device, args.threads, args.max_seconds)
                 time.sleep(3)
             except HTTPError as exc:
                 if exc.code in {401, 404}:

@@ -430,6 +430,11 @@
                 </div>
                 <div class="dataset-workspace">
                   <div class="subsection-heading"><div><h3>卫星影像数据</h3></div></div>
+                  <div class="dataset-import-row dataset-public-row">
+                    <select id="public-dataset-source" aria-label="选择公开数据集"></select>
+                    <button type="button" class="button secondary" id="public-dataset-add">添加到数据集</button>
+                  </div>
+                  <p id="public-dataset-status" class="field-note" aria-live="polite"></p>
                   <div id="training-access-panel" class="hidden">
                     <p class="field-note">课题组共享训练空间：成员可以查看组内上传的数据、训练配置和结果。访客可以浏览演示。</p>
                     <div class="dataset-import-row">

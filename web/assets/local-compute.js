@@ -7,6 +7,7 @@ window.SpaceFLLocal = (() => {
   let initializedBackend = false;
   let datasetSignature = "";
   let polling = false;
+  let selectedImportJobId = null;
   const storageKey = "spacefl-local-connection";
   const isLocal = () => document.querySelector("#compute-backend").value === "local";
   const selectedDatasetId = () => {
@@ -36,7 +37,7 @@ window.SpaceFLLocal = (() => {
     }
     $('#session-form button[type="submit"]').disabled = local || !state.trainingAllowed;
     $("#reset-session").disabled = local || !state.trainingAllowed;
-    if (local) $("#dataset-import-status").textContent = "当前使用我的电脑：请通过上方命令在本机导入 ZIP，再在数据集选项中选择。原始图片不会上传平台；网页只接收数据集目录信息和准确率曲线。参数直接随任务提交。";
+    if (local) $("#dataset-import-status").textContent = "自定义 ZIP 可按上方本机命令导入；EuroSAT RGB 可直接点“添加到数据集”。原始图片留在本机。";
     const limits = local ? {max_rounds: 1000, max_epochs: 100, max_satellites: 100, max_batch_size: 512, max_samples: 20000} : catalog.limits;
     if (local || catalog.public_training) {
       for (const [name, value] of Object.entries({"tune.rounds": limits.max_rounds, "tune.epochs": limits.max_epochs, "tune.max_contact_epochs": limits.max_epochs, "mount.sats": limits.max_satellites, "tune.batch_size": limits.max_batch_size, "tune.max_samples": limits.max_samples})) {
@@ -77,11 +78,26 @@ window.SpaceFLLocal = (() => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "button secondary";
-      button.textContent = `${job.algorithm} · ${job.dataset} · ${job.status} · ${job.progress_round}/${job.rounds} 轮`;
-      button.addEventListener("click", () => renderTrainingJob(job));
+      button.textContent = job.kind === "dataset_import"
+        ? `${job.dataset} · ${job.message}`
+        : `${job.algorithm} · ${job.dataset} · ${job.status} · ${job.progress_round}/${job.rounds} 轮`;
+      button.addEventListener("click", () => {
+        if (job.kind === "dataset_import") $("#public-dataset-status").textContent = job.message;
+        else renderTrainingJob(job);
+      });
       container.appendChild(button);
     }
     renderDatasets();
+    const activeImport = [...(worker?.jobs || [])].reverse().find(job => job.kind === "dataset_import" && ["PENDING", "RUNNING", "FAILED"].includes(job.status));
+    if (isLocal() && activeImport && $("#public-dataset-source").value === "eurosat_rgb") {
+      $("#public-dataset-status").textContent = activeImport.message;
+    }
+    const imported = [...(worker?.jobs || [])].reverse().find(job => job.kind === "dataset_import" && job.status === "DONE" && job.imported_id);
+    if (isLocal() && imported && imported.id !== selectedImportJobId) {
+      selectedImportJobId = imported.id;
+      $("#training-dataset").value = `local:${imported.imported_id}`;
+      $("#public-dataset-status").textContent = `${imported.dataset} 已导入本机并选中，可启动训练。`;
+    }
     updateControls();
   }
 
@@ -91,9 +107,9 @@ window.SpaceFLLocal = (() => {
     try {
       worker = await request();
       if (isLocal()) {
-        const latest = worker.jobs.at(-1);
-        state.trainingActive = Boolean(latest && ["PENDING", "RUNNING"].includes(latest.status));
+        const latest = [...worker.jobs].reverse().find(job => job.kind === "local_training");
         if (latest) renderTrainingJob(latest);
+        state.trainingActive = worker.jobs.some(job => ["PENDING", "RUNNING"].includes(job.status));
       }
       renderWorker();
     } catch (error) {
@@ -160,6 +176,17 @@ window.SpaceFLLocal = (() => {
     await refresh();
   }
 
+  async function importPublic(source) {
+    if (!allowed()) throw new Error("请先启动本地连接器并完成配对");
+    const job = await request("/datasets/import", {source});
+    if (job.status === "DONE" && job.imported_id) {
+      $("#training-dataset").value = `local:${job.imported_id}`;
+      $("#public-dataset-status").textContent = "EuroSAT RGB 已在本机数据集列表中，已选中。";
+    }
+    await refresh();
+    return job;
+  }
+
   function result(job) {
     const rows = job.history || [];
     const blob = new Blob([JSON.stringify(job, null, 2)], {type: "application/json"});
@@ -192,5 +219,5 @@ window.SpaceFLLocal = (() => {
     catch (error) { toast(error.message, "error"); }
   }
 
-  return {initialize, decorate, isLocal, allowed, start, refresh, result, cancel, selectedDatasetId};
+  return {initialize, decorate, isLocal, allowed, start, importPublic, refresh, result, cancel, selectedDatasetId};
 })();

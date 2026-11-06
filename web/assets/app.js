@@ -758,9 +758,54 @@ async function loadDatasets() {
         <small>${escapeHtml(item.compatibility)}</small>
       </div>
     `).join("");
+    state.publicSources = catalog.sources;
+    const publicSelect = $("#public-dataset-source");
+    const previousSource = publicSelect.value;
+    publicSelect.replaceChildren();
+    catalog.sources.forEach(item => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.name}${item.importable ? " RGB · 可导入" : " · 查看来源"}`;
+      publicSelect.appendChild(option);
+    });
+    if ([...publicSelect.options].some(option => option.value === previousSource)) publicSelect.value = previousSource;
+    updatePublicDatasetAction();
     if (!SpaceFLLocal.isLocal() || !state.formPopulated) populateSessionForm();
     SpaceFLLocal.decorate(catalog);
   } catch (error) { toast(`数据集目录读取失败：${error.message}`, "error"); }
+}
+
+function updatePublicDatasetAction() {
+  const source = (state.publicSources || []).find(item => item.id === $("#public-dataset-source").value);
+  $("#public-dataset-add").textContent = source?.importable ? "添加到数据集" : "查看来源";
+  $("#public-dataset-status").textContent = source?.compatibility || "";
+}
+
+async function addPublicDataset() {
+  const source = (state.publicSources || []).find(item => item.id === $("#public-dataset-source").value);
+  if (!source) return;
+  if (!source.importable) {
+    window.open(source.url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const button = $("#public-dataset-add");
+  button.disabled = true;
+  try {
+    if (SpaceFLLocal.isLocal()) {
+      const job = await SpaceFLLocal.importPublic(source.id);
+      if (job.status !== "DONE") $("#public-dataset-status").textContent = "已提交给本机连接器；下载、校验和划分完成后会自动选中。";
+    } else {
+      if (!state.trainingAllowed) throw new Error("请先登录课题组训练空间，或切换到我的电脑并配对连接器");
+      $("#public-dataset-status").textContent = "正在从官方来源下载并导入，请保持页面打开。";
+      const imported = await api(`/api/datasets/public/${source.id}`, {method: "POST", body: "{}"});
+      await loadDatasets();
+      $("#training-dataset").value = `imported:${imported.id}`;
+      $("#public-dataset-status").textContent = `${imported.name} 已导入并选中：训练 ${imported.train_images} 张，测试 ${imported.test_images} 张。`;
+    }
+  } catch (error) {
+    $("#public-dataset-status").textContent = `添加失败：${error.message}`;
+    toast(`添加失败：${error.message}`, "error");
+  } finally { button.disabled = false; }
 }
 
 function renderTrainingJob(job) {
@@ -1360,6 +1405,8 @@ function bindEvents() {
   }));
   $("#session-form").addEventListener("submit", saveSession);
   $("#dataset-import-button").addEventListener("click", importDataset);
+  $("#public-dataset-source").addEventListener("change", updatePublicDatasetAction);
+  $("#public-dataset-add").addEventListener("click", addPublicDataset);
   $("#training-login").addEventListener("click", () => changeTrainingAccess(true));
   $("#training-logout").addEventListener("click", () => changeTrainingAccess(false));
   $("#training-password").addEventListener("keydown", event => {

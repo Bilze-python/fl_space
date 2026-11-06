@@ -180,6 +180,7 @@ class LocalComputeRelay:
     def view(self, worker):
         return {"id": worker["id"], "name": worker["name"], "device": worker["device"],
                 "online": self.clock() - worker["seen"] < ONLINE_SECONDS,
+                "capabilities": worker["capabilities"],
                 "datasets": worker["datasets"], "jobs": list(worker["jobs"].values()),
                 "limits": LOCAL_LIMITS.limits()}
 
@@ -192,8 +193,10 @@ def create_local_compute_router(relay: LocalComputeRelay) -> APIRouter:
         body = await _body(request)
         datasets = public_datasets(body.get("datasets", []))
         name, device = body.get("name", "本机"), body.get("device", "cpu")
+        capabilities = body.get("capabilities", [])
         if (not isinstance(name, str) or not 1 <= len(name) <= 80
-                or not isinstance(device, str) or device not in {"cpu", "cuda"}):
+                or not isinstance(device, str) or device not in {"cpu", "cuda"}
+                or not isinstance(capabilities, list) or any(item != "eurosat_rgb_import" for item in capabilities)):
             raise HTTPException(422, "设备名称或类型无效")
         with relay.lock:
             relay.rate_limit(request)
@@ -203,6 +206,7 @@ def create_local_compute_router(relay: LocalComputeRelay) -> APIRouter:
             code = secrets.token_hex(6).upper()
             relay.workers[worker_id] = {
                 "id": worker_id, "name": name, "device": device, "datasets": datasets,
+                "capabilities": capabilities,
                 "worker": _hash(token), "browser": "", "code": _hash(code),
                 "code_expires": relay.clock() + 600, "expires": relay.clock() + LEASE_SECONDS,
                 "seen": relay.clock(), "jobs": {},
@@ -251,6 +255,34 @@ def create_local_compute_router(relay: LocalComputeRelay) -> APIRouter:
             worker["jobs"][job_id] = job
             return deepcopy(job)
 
+    @router.post("/{worker_id}/datasets/import")
+    async def import_public_dataset(worker_id: str, request: Request):
+        body = await _body(request)
+        if body != {"source": "eurosat_rgb"}:
+            raise HTTPException(422, "目前仅支持直接添加 EuroSAT RGB")
+        with relay.lock:
+            worker = relay.authorize(request, worker_id, "browser")
+            if relay.clock() - worker["seen"] >= ONLINE_SECONDS:
+                raise HTTPException(409, "本地程序已离线，请检查电脑连接")
+            if "eurosat_rgb_import" not in worker["capabilities"]:
+                raise HTTPException(409, "本地连接器版本过旧，请更新 SpaceFL 并重新启动连接器")
+            if any(job["status"] in {"PENDING", "RUNNING"} for job in worker["jobs"].values()):
+                raise HTTPException(409, "本机已有训练或导入任务")
+            existing = next((item for item in worker["datasets"]
+                             if item["name"] == "EuroSAT RGB"), None)
+            if existing:
+                return {"id": "", "kind": "dataset_import", "status": "DONE",
+                        "imported_id": existing["id"], "dataset": "EuroSAT RGB",
+                        "message": "EuroSAT RGB 已在本机数据集列表中"}
+            job_id = secrets.token_hex(12)
+            job = {"id": job_id, "kind": "dataset_import", "source": "eurosat_rgb",
+                   "dataset": "EuroSAT RGB", "status": "PENDING", "message": "等待本机下载",
+                   "created_at": relay.clock()}
+            while len(worker["jobs"]) >= 10:
+                del worker["jobs"][next(iter(worker["jobs"]))]
+            worker["jobs"][job_id] = job
+            return deepcopy(job)
+
     @router.post("/{worker_id}/cancel")
     async def cancel(worker_id: str, request: Request):
         await _body(request)
@@ -293,6 +325,27 @@ def create_local_compute_router(relay: LocalComputeRelay) -> APIRouter:
         with relay.lock:
             worker = relay.authorize(request, worker_id, "worker")
             job = worker["jobs"].get(job_id)
+            if job and job["kind"] == "dataset_import":
+                if job["status"] in {"DONE", "FAILED"} and body.get("status") == job["status"]:
+                    return {"ok": True}
+                if job["status"] != "RUNNING" or body.get("status") not in {"RUNNING", "DONE", "FAILED"}:
+                    raise HTTPException(409, "导入任务不存在或已结束")
+                message = body.get("message", "")
+                if not isinstance(message, str) or not 1 <= len(message) <= 160:
+                    raise HTTPException(422, "导入状态无效")
+                if body["status"] == "DONE":
+                    datasets = public_datasets(body.get("datasets", []))
+                    imported_id = body.get("imported_id")
+                    if not any(item["id"] == imported_id and item["name"] == "EuroSAT RGB"
+                               for item in datasets):
+                        raise HTTPException(422, "导入结果不在本机数据集列表中")
+                    worker["datasets"] = datasets
+                    job["imported_id"] = imported_id
+                worker["seen"] = relay.clock()
+                job.update(status=body["status"], message=message, confirmed=True)
+                if body["status"] != "RUNNING":
+                    job["finished_at"] = relay.clock()
+                return {"ok": True}
             if (job and job["status"] in {"DONE", "FAILED", "CANCELLED"}
                     and all(body.get(key) == job.get(key) for key in
                             ("status", "progress_round", "accuracy"))

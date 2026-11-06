@@ -12,6 +12,7 @@ description: 在 SpaceFL 仓库中修改或构建训练、数据集、卫星仿�
 - 网页入口与 API：`web/index.html`、`web/assets/app.js`、`web/assets/app.css`、`web/server.py`。
 - 联邦训练：`fl_space/cli.py` 的 `run train`，以及 `fl_space/fl/runner.py`、`server.py`、`config.py`。
 - 数据集导入：`web/dataset_store.py`；训练器当前支持 MNIST、Fashion-MNIST、CIFAR-10、FEMNIST 和 `ImageFolder` 单标签分类。
+- 公开数据集：`web/public_dataset.py` 负责从 Zenodo 下载、校验 EuroSAT RGB 并按 seed 42 分层划分；网页目录还列出 BigEarthNet、SpaceNet、SatNOGS 的来源和任务边界，后三者尚不能直接作为分类训练集。
 - 用户本机算力：`web/local_compute.py` 为无 PyTorch 的内存中转队列；`web/local_worker.py` 主动出站连接平台，按配对控制权运行固定训练 CLI；`web/assets/local-compute.js` 提供网页配对、队列和摘要下载。使用说明：`docs/LOCAL_COMPUTE.md`，Windows 启动：`start-local-compute.ps1`。
 - 本机连接和课题组口令是独立权限。不得让网页指定任意本机路径或命令；平台和本机都校验 Session，用本地数据集逻辑 ID 映射路径。原始数据、完整输出保留本机，平台只接收元数据和指标。中转记录只在单进程内存中，重启后需重新配对；不可宣称跨重启恢复或已上线。
 - 局部星簇解析实验：`fl_space/local_cluster/`；网页接口在 `web/server.py`，可视化在 `web/assets/app.js`。

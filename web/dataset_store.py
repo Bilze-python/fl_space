@@ -49,7 +49,7 @@ def list_datasets(root: Path) -> list[dict]:
     return datasets
 
 
-def import_imagefolder(root: Path, name: str, archive: bytes | BinaryIO) -> dict:
+def import_imagefolder(root: Path, name: str, archive: bytes | BinaryIO, progress=None) -> dict:
     name = name.strip()
     if isinstance(archive, bytes):
         archive_size = len(archive)
@@ -94,7 +94,7 @@ def import_imagefolder(root: Path, name: str, archive: bytes | BinaryIO) -> dict
             target = root / dataset_id
             staging.mkdir()
             try:
-                for item in entries:
+                for index, item in enumerate(entries, 1):
                     destination = staging.joinpath(*PurePosixPath(item.filename).parts)
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(item) as source, destination.open("wb") as output:
@@ -115,6 +115,8 @@ def import_imagefolder(root: Path, name: str, archive: bytes | BinaryIO) -> dict
                             image.verify()
                     except (OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
                         raise ValueError(f"图片无法解码: {item.filename}") from exc
+                    if progress and index % 3000 == 0:
+                        progress(f"正在校验 EuroSAT RGB 图片（{index}/{len(entries)} 张）")
                 metadata = {
                     "id": dataset_id,
                     "name": name,

@@ -14,7 +14,7 @@ from fl_space.cli import DEFAULT_SESSION
 from web import server
 from web.dataset_store import import_imagefolder
 from web.local_compute import PREFIX, validate_local_session
-from web.local_worker import RelayClient, choose_device, dataset_metadata, execute_job
+from web.local_worker import RelayClient, choose_device, dataset_metadata, execute_job, execute_dataset_import
 from web.training_runtime import TrainingRuntime
 
 
@@ -27,8 +27,9 @@ def portal(monkeypatch):
         yield client, app.state.local_compute
 
 
-def register(client, datasets=None):
-    response = client.post(PREFIX + "/register", json={"name": "test-PC", "device": "cpu", "datasets": datasets or []})
+def register(client, datasets=None, capabilities=None):
+    response = client.post(PREFIX + "/register", json={"name": "test-PC", "device": "cpu", "datasets": datasets or [],
+                                                        "capabilities": capabilities or []})
     assert response.status_code == 200, response.text
     agent = response.json()
     response = client.post(PREFIX + "/pair", json={"code": agent["pair_code"]})
@@ -210,3 +211,35 @@ def test_https_and_cuda_selection(monkeypatch):
         choose_device("cuda")
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     assert choose_device("auto") == "cuda"
+
+
+def test_public_dataset_import_requires_pairing_and_reports_completion(portal, tmp_path, monkeypatch):
+    client, _ = portal
+    old_agent, old_browser = register(client)
+    assert client.post(PREFIX + "/" + old_agent["id"] + "/datasets/import",
+                       json={"source": "eurosat_rgb"}, headers=auth(old_browser)).status_code == 409
+    agent, browser = register(client, capabilities=["eurosat_rgb_import"])
+    path = PREFIX + "/" + agent["id"]
+    endpoint = path + "/datasets/import"
+    assert client.post(endpoint, json={"source": "eurosat_rgb"}).status_code == 401
+    assert client.post(endpoint, json={"source": "spacenet"}, headers=auth(browser)).status_code == 422
+    response = client.post(endpoint, json={"source": "eurosat_rgb"}, headers=auth(browser))
+    assert response.status_code == 200, response.text
+    job = response.json()
+    assert job["kind"] == "dataset_import"
+    assert client.post(endpoint, json={"source": "eurosat_rgb"}, headers=auth(browser)).status_code == 409
+    adapter = InProcessAgent(client, agent)
+    claimed = adapter.post("/" + agent["id"] + "/poll", {"datasets": []})["job"]
+    assert claimed["id"] == job["id"]
+
+    def fake_import(root, progress):
+        progress("正在准备测试数据")
+        return import_imagefolder(root, "EuroSAT RGB", make_zip())
+
+    monkeypatch.setattr("web.local_worker.import_eurosat_rgb", fake_import)
+    result = execute_dataset_import(adapter, claimed, tmp_path)
+    status = client.get(path, headers=auth(browser)).json()
+    assert status["jobs"][-1]["status"] == "DONE"
+    assert status["jobs"][-1]["imported_id"] == result["id"]
+    assert status["datasets"][0]["id"] == result["id"]
+    assert client.post(endpoint, json={"source": "eurosat_rgb"}, headers=auth(browser)).json()["imported_id"] == result["id"]
