@@ -19,6 +19,7 @@ description: 在 SpaceFL 仓库中修改或构建训练、数据集、卫星仿�
 - 学习任务与航天任务：`fl_space/study/`、`fl_space/mission/`。
 - 公网 Render 部署：免费演示使用 `render.yaml`、`Dockerfile`；课题组训练使用 `render-training.yaml`、`Dockerfile.training` 和 `web/training_runtime.py`。详见 `docs/RENDER_TRAINING.md`。
 - 公网训练必须同时保留 `SPACEFL_PUBLIC_DEMO=1` 和 `SPACEFL_PUBLIC_TRAINING=1`：访客只读，口令登录成员可上传并训练；其他配置、文件与任意执行接口继续受只读限制。
+- 公网研究助手默认仍是离线规则引擎。只有明确配置 `SPACEFL_PUBLIC_LLM=1`、`SPACEFL_OFFLINE_ONLY=0` 和服务端 `DEEPSEEK_API_KEY` 时才开放在线模型；密钥只放 Render 私密环境变量，不进仓库/前端/日志。公网调用有进程内限流，供应商账户还需单独设置费用上限；免费服务重启会重置进程内计数。
 - “平台内置 skill”指本仓库的 `spacefl-workflow`。维护此文件中的入口、能力边界与验证命令；代码由具备本地工作区权限的编码工具修改。
 
 ## 直接编码与构建

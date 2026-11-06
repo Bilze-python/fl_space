@@ -396,6 +396,8 @@ class ResearchService:
         try:
             from fl_space.research import providers
 
+            if self.public_demo and os.environ.get("SPACEFL_PUBLIC_LLM", "").strip() != "1":
+                return providers.ProviderConfig()
             if os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip().lower() in {
                 "1",
                 "true",
@@ -414,7 +416,10 @@ class ResearchService:
 
     def ai_status(self) -> dict[str, Any]:
         """返回脱敏后的 AI 供应商状态。"""
-        return self._provider().public()
+        status = self._provider().public()
+        if self.public_demo:
+            status.pop("masked_api_key", None)
+        return status
 
     def ai_test(self) -> dict[str, Any]:
         """测试当前 AI 供应商连通性。"""

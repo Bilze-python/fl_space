@@ -2,6 +2,8 @@
 
 用户希望使用自己电脑的 CPU / GPU 时，可使用 [本地算力连接器](LOCAL_COMPUTE.md)：部署新代码后，平台仅中转任务，保留本页的免费镜像即可。需要在 Render 服务器上上传和训练时，使用 [公网训练升级说明](RENDER_TRAINING.md)。
 
+研究助手默认使用离线规则引擎。若项目所有者明确启用公网 DeepSeek，需在 Render 服务端设置 `DEEPSEEK_API_KEY` 为原始密钥、`SPACEFL_OFFLINE_ONLY=0` 和 `SPACEFL_PUBLIC_LLM=1`，并使用包含公网限流保护的代码。密钥不得写在 Blueprint、仓库或网页中；Base64 不提供保密性。访客不需要输入密钥，研究助手失败时回退到离线规则引擎。进程内限额为每来源每小时 8 次、全站每日 100 次，免费实例休眠/重启会重置计数；必须在 DeepSeek 账户侧另设独立的消费上限并监测余额。
+
 > 比赛最终作品链接的稳定方案：Render 免费 Web Service（Docker）。
 > 说明：Render 免费实例 **15 分钟无请求会休眠**，下次访问冷启动约 30–60 秒；链接域名固定。
 

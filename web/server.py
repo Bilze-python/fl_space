@@ -1708,6 +1708,11 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     )
 
     if PUBLIC_DEMO:
+        public_llm = (
+            os.environ.get("SPACEFL_PUBLIC_LLM", "").strip() == "1"
+            and os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip() == "0"
+            and bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+        )
         allowed_mutations = {
             "/api/research/agent/plan",
             "/api/research/agent/review",
@@ -1726,7 +1731,11 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             "/api/research/library/ask",
             "/api/research/intel/brief",
         }
+        def costed_path(path: str) -> bool:
+            return path in llm_paths or bool(digest_pattern.match(path))
         demo_hits: dict[str, list[float]] = {}
+        paid_hits: dict[str, list[float]] = {}
+        paid_total: list[float] = []
         demo_lock = threading.Lock()
 
         @app.middleware("http")
@@ -1750,10 +1759,14 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                             "完整功能请在本地部署体验。"
                         },
                     )
-            if path in llm_paths:
+            if costed_path(path):
                 client_host = request.client.host if request.client else "anonymous"
                 now = time.time()
                 with demo_lock:
+                    for host in list(demo_hits):
+                        demo_hits[host] = [stamp for stamp in demo_hits[host] if now - stamp < 60]
+                        if not demo_hits[host]:
+                            del demo_hits[host]
                     bucket = [stamp for stamp in demo_hits.get(client_host, []) if now - stamp < 60]
                     if len(bucket) >= 20:
                         return JSONResponse(
@@ -1762,7 +1775,29 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                         )
                     bucket.append(now)
                     demo_hits[client_host] = bucket
-            return await call_next(request)
+                    if public_llm:
+                        # One process, one small public budget. Provider-side billing caps remain essential.
+                        for host in list(paid_hits):
+                            paid_hits[host] = [stamp for stamp in paid_hits[host] if now - stamp < 3600]
+                            if not paid_hits[host]:
+                                del paid_hits[host]
+                        paid_total[:] = [stamp for stamp in paid_total if now - stamp < 86400]
+                        if len(paid_hits.get(client_host, [])) >= 8 or len(paid_total) >= 100:
+                            return JSONResponse(status_code=429, content={"detail": "在线模型体验额度已用完，请稍后再试"})
+                        if request.method != "POST" or request.headers.get("sec-fetch-site") == "cross-site":
+                            return JSONResponse(status_code=403, content={"detail": "跨站模型请求已拒绝"})
+                        origin = request.headers.get("origin")
+                        if origin and origin != f"{request.url.scheme}://{request.headers.get('host', '')}":
+                            return JSONResponse(status_code=403, content={"detail": "跨站模型请求已拒绝"})
+                        raw_length = request.headers.get("content-length", "0") or "0"
+                        if not raw_length.isascii() or not raw_length.isdecimal() or int(raw_length) > 32768:
+                            return JSONResponse(status_code=413, content={"detail": "模型输入不能超过 32 KB"})
+                        paid_hits.setdefault(client_host, []).append(now)
+                        paid_total.append(now)
+            response = await call_next(request)
+            if public_llm and costed_path(path):
+                response.headers["Cache-Control"] = "private, no-store"
+            return response
 
     @app.middleware("http")
     async def training_access_scope(request: HttpRequest, call_next):

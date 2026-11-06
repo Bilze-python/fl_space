@@ -10,3 +10,5 @@ services:
         value: "1"
       - key: SPACEFL_OFFLINE_ONLY
         value: "1"
+      - key: SPACEFL_PUBLIC_LLM
+        value: "0"

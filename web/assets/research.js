@@ -206,6 +206,10 @@
       topicsInput.value = (config.topics || []).join(", ");
     }
     const demo = demoMode();
+    const providerNote = $("#provider-note");
+    if (providerNote && demo) providerNote.textContent = ai.configured
+      ? "公网模型由服务端配置，访客无需填写 API Key；调用失败时自动使用离线规则引擎。"
+      : "公网当前使用离线规则引擎。";
     const goalSaveButton = $("#research-goal-save");
     if (goalSaveButton) {
       goalSaveButton.disabled = demo;
@@ -218,8 +222,8 @@
     if (demo) {
       const statusBadge = $("#agent-provider-status");
       if (statusBadge) {
-        statusBadge.textContent = "演示模式 · 只读";
-        statusBadge.className = "status-badge amber";
+        statusBadge.textContent = ai.configured ? `${ai.provider || "在线模型"} · 演示只读` : "离线演示 · 只读";
+        statusBadge.className = `status-badge ${ai.configured ? "green" : "amber"}`;
       }
     }
     ensureDemoBanner(demo);
