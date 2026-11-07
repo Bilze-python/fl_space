@@ -176,6 +176,8 @@ function syncClusterDatasetFields() {
   const imported = $("#cluster-dataset").value.startsWith("imported:");
   $("#cluster-model-size-field").classList.toggle("hidden", !imported);
   $("#cluster-flops-field").classList.toggle("hidden", !imported);
+  $("#cluster-model-size").disabled = !imported;
+  $("#cluster-flops").disabled = !imported;
   $("#cluster-workload-note").classList.toggle("hidden", !imported);
 }
 

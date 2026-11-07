@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpaceFL · 安全访问</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: #050506; color: #e8e8ea;
+      font-family: "Bahnschrift", "Segoe UI", "Microsoft YaHei", sans-serif;
+      display: grid; place-items: center;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(circle at 70% 20%, rgba(80, 110, 190, .16), transparent 42%),
+                  radial-gradient(circle at 20% 80%, rgba(160, 140, 80, .08), transparent 40%);
+    }
+    .shell { position: relative; width: min(440px, calc(100vw - 40px)); }
+    .brand { letter-spacing: .34em; font-size: 18px; font-weight: 700; }
+    .brand small { display: block; margin-top: 6px; letter-spacing: .26em; font-size: 10px; color: #8a8a93; }
+    .rule { height: 1px; background: linear-gradient(90deg, #fff, #333 60%, transparent); margin: 22px 0; }
+    .kicker { font-size: 10px; letter-spacing: .3em; color: #a9a9b2; margin-bottom: 12px; }
+    h1 { margin: 0 0 8px; font-size: 26px; letter-spacing: .06em; font-weight: 700; }
+    .sub { margin: 0 0 26px; color: #8a8a93; font-size: 13px; line-height: 1.8; }
+    form { border: 1px solid #1e1e22; background: rgba(8, 8, 10, .72); padding: 26px; }
+    label { display: block; font-size: 11px; letter-spacing: .16em; color: #9b9ba4; margin: 0 0 8px; }
+    input {
+      width: 100%; background: #0b0b0d; border: 1px solid #26262b; color: #fff;
+      padding: 12px 13px; font-size: 14px; outline: none; margin-bottom: 18px;
+    }
+    input:focus { border-color: #cfcfd6; }
+    button {
+      width: 100%; padding: 13px 16px; border: 0; background: #fff; color: #050506;
+      font-size: 12px; font-weight: 700; letter-spacing: .16em; cursor: pointer;
+    }
+    button:hover { background: #d9d9de; }
+    .error { border: 1px solid #6b2a2a; background: rgba(255, 80, 80, .08); color: #ffb4b4;
+      font-size: 12px; padding: 10px 12px; margin-bottom: 18px; }
+    .note { margin-top: 18px; color: #66666f; font-size: 11px; line-height: 1.8; }
+    .note a { color: #bdbdc6; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand">SPACEFL<small>RESEARCH PLATFORM · SECURE ACCESS</small></div>
+    <div class="rule"></div>
+    <p class="kicker">RESTRICTED DEMO</p>
+    <h1>进入科研工作台</h1>
+    <p class="sub">该演示环境仅向受邀账号开放。请使用比赛提供的账号登录，登录后可体验文献精读、实验规划与结果解读。</p>
+    __ERROR__
+    <form method="post" action="/login" autocomplete="off">
+      <input type="hidden" name="next" value="__NEXT__" />
+      <label for="username">账号 / ACCOUNT</label>
+      <input id="username" name="username" type="text" maxlength="64" required autofocus />
+      <label for="password">密码 / PASSWORD</label>
+      <input id="password" name="password" type="password" maxlength="128" required />
+      <button type="submit">登录平台</button>
+    </form>
+    <p class="note">SpaceFL · 太空联邦学习科研智能平台<br />访问受限于比赛评审与演示账号。</p>
+  </main>
+</body>
+</html>

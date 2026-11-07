@@ -1086,6 +1086,7 @@ input[type="file"] { padding: 8px 10px; }
    14. 局部星簇（local-cluster）
    ========================================================================= */
 .local-cluster-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr); gap: 14px; }
+.local-cluster-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 .local-cluster-note { display: block; margin: -5px 0 20px; line-height: 1.65; }
 .local-cluster-subheading { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
 .local-cluster-result-panel { min-height: 520px; }

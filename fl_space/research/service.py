@@ -539,12 +539,17 @@ class ResearchService:
             provider=provider,
             literature=literature,
         )
+        # 公网演示可只对"计划生成"调用大模型，评审走离线规则以控制响应时延
+        # （Render 免费实例的 HTTP 请求有超时限制）。
+        fast_public = os.environ.get("SPACEFL_PUBLIC_LLM_FAST", "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
         review = analyzer.review_plan(
             plan,
             goal=goal,
             context_text=context_text,
             citations=citations,
-            provider=provider,
+            provider=None if fast_public else provider,
         )
         steps = [
             _step("解析研究指令", f"识别到 {len(plan.get('conditions') or [])} 个实验条件"),

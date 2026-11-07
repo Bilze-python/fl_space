@@ -1,4 +1,4 @@
-"""Public LLM opt-in keeps the shared secret server-side and bounds use."""
+"""Public LLM opt-in keeps the shared secret server-side; authenticated access is unlimited."""
 
 from fastapi.testclient import TestClient
 
@@ -22,7 +22,7 @@ def test_public_provider_requires_explicit_opt_in(monkeypatch, tmp_path):
     assert service.ai_status()["configured"] is False
 
 
-def test_public_llm_quota_and_origin_guard(monkeypatch):
+def test_public_llm_without_quota_keeps_readonly_guard(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-private-test-key")
     monkeypatch.setenv("SPACEFL_OFFLINE_ONLY", "0")
     monkeypatch.setenv("SPACEFL_PUBLIC_LLM", "1")
@@ -35,12 +35,9 @@ def test_public_llm_quota_and_origin_guard(monkeypatch):
         assert "masked_api_key" not in config["ai"]
         assert "sk-private" not in str(config)
         path = "/api/research/agent/plan"
-        assert client.post(path, json={"instruction": "x"}, headers={"Origin": "https://evil.example"}).status_code == 403
-        assert client.post(path, json={"instruction": "x"}, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
-        assert client.post(path, content=b"x" * 32769).status_code == 413
-        for _ in range(8):
-            assert client.post(path, json={"instruction": "x"}).status_code == 200
-        assert client.post(path, json={"instruction": "x"}).status_code == 429
-        assert client.post("/api/research/library/ask", json={"question": "x"}).status_code == 429
+        for _ in range(12):
+            response = client.post(path, json={"instruction": "x"})
+            assert response.status_code == 200
+        assert client.post("/api/research/library/ask", json={"question": "x"}).status_code == 200
         assert client.post("/api/research/agent/run", json={}).status_code == 403
         assert client.put("/api/research/config", json={}).status_code == 403

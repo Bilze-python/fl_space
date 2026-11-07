@@ -6,11 +6,13 @@ import asyncio
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 import hashlib
+import hmac
+import html
 import json
 import os
 from pathlib import Path
 import re
-import hmac
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -20,7 +22,7 @@ import threading
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -28,14 +30,23 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi import Request as HttpRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from web.dataset_store import MAX_ARCHIVE_BYTES, MAX_EXTRACTED_BYTES, import_imagefolder, list_datasets
+from web.dataset_store import (
+    MAX_ARCHIVE_BYTES,
+    MAX_EXTRACTED_BYTES,
+    import_imagefolder,
+    list_datasets,
+)
 from web.public_dataset import import_eurosat_rgb
 from web.training_runtime import (
-    COOKIE_NAME, COOKIE_SECONDS, TrainingRuntime, require_same_origin, validate_cloud_session,
+    COOKIE_NAME,
+    COOKIE_SECONDS,
+    TrainingRuntime,
+    require_same_origin,
+    validate_cloud_session,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -104,6 +115,17 @@ PUBLIC_DATASETS = [
 PUBLIC_DEMO = os.environ.get("SPACEFL_PUBLIC_DEMO", "").strip().lower() in {
     "1", "true", "yes", "on"
 }
+
+# 单账号访问控制：公网演示默认启用；可用环境变量覆盖（本地开发默认关闭）。
+_AUTH_FLAG = os.environ.get("SPACEFL_AUTH_ENABLED", "").strip().lower()
+AUTH_ENABLED = PUBLIC_DEMO if _AUTH_FLAG == "" else _AUTH_FLAG in {"1", "true", "yes", "on"}
+AUTH_USER = os.environ.get("SPACEFL_AUTH_USER", "spaceTS").strip() or "spaceTS"
+AUTH_PASSWORD = os.environ.get("SPACEFL_AUTH_PASSWORD", "11451467")
+AUTH_COOKIE = "spacefl_account"
+try:
+    AUTH_SESSION_SECONDS = max(300, int(os.environ.get("SPACEFL_AUTH_SESSION_HOURS", "168")) * 3600)
+except ValueError:
+    AUTH_SESSION_SECONDS = 7 * 24 * 3600
 TRAINING_RUNTIME = TrainingRuntime.from_env()
 TRAINING_MEMBER: ContextVar[bool] = ContextVar("training_member", default=False)
 DATASET_IMPORT_LOCK = threading.Lock()
@@ -1717,10 +1739,16 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
     )
 
     if PUBLIC_DEMO:
+        def _public_env_flag(name: str) -> bool:
+            return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
         public_llm = (
-            os.environ.get("SPACEFL_PUBLIC_LLM", "").strip() == "1"
-            and os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip() == "0"
-            and bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+            _public_env_flag("SPACEFL_PUBLIC_LLM")
+            and not _public_env_flag("SPACEFL_OFFLINE_ONLY")
+            and any(
+                os.environ.get(name, "").strip()
+                for name in ("SPACEFL_AI_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY")
+            )
         )
         allowed_mutations = {
             "/api/research/agent/plan",
@@ -1742,16 +1770,12 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
         }
         def costed_path(path: str) -> bool:
             return path in llm_paths or bool(digest_pattern.match(path))
-        demo_hits: dict[str, list[float]] = {}
-        paid_hits: dict[str, list[float]] = {}
-        paid_total: list[float] = []
-        demo_lock = threading.Lock()
-
         @app.middleware("http")
         async def public_demo_guard(request: HttpRequest, call_next):
             path = request.url.path
             if request.method not in ("GET", "HEAD", "OPTIONS"):
                 allowed = (path in allowed_mutations or bool(digest_pattern.match(path))
+                           or path in {"/login", "/logout"}
                            or path.startswith("/api/local-compute/"))
                 if TRAINING_RUNTIME.enabled:
                     if path in {"/api/training/access/login", "/api/training/access/logout"}:
@@ -1768,41 +1792,6 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
                             "完整功能请在本地部署体验。"
                         },
                     )
-            if costed_path(path):
-                client_host = request.client.host if request.client else "anonymous"
-                now = time.time()
-                with demo_lock:
-                    for host in list(demo_hits):
-                        demo_hits[host] = [stamp for stamp in demo_hits[host] if now - stamp < 60]
-                        if not demo_hits[host]:
-                            del demo_hits[host]
-                    bucket = [stamp for stamp in demo_hits.get(client_host, []) if now - stamp < 60]
-                    if len(bucket) >= 20:
-                        return JSONResponse(
-                            status_code=429,
-                            content={"detail": "演示模式请求过于频繁，请稍后再试"},
-                        )
-                    bucket.append(now)
-                    demo_hits[client_host] = bucket
-                    if public_llm:
-                        # One process, one small public budget. Provider-side billing caps remain essential.
-                        for host in list(paid_hits):
-                            paid_hits[host] = [stamp for stamp in paid_hits[host] if now - stamp < 3600]
-                            if not paid_hits[host]:
-                                del paid_hits[host]
-                        paid_total[:] = [stamp for stamp in paid_total if now - stamp < 86400]
-                        if len(paid_hits.get(client_host, [])) >= 8 or len(paid_total) >= 100:
-                            return JSONResponse(status_code=429, content={"detail": "在线模型体验额度已用完，请稍后再试"})
-                        if request.method != "POST" or request.headers.get("sec-fetch-site") == "cross-site":
-                            return JSONResponse(status_code=403, content={"detail": "跨站模型请求已拒绝"})
-                        origin = request.headers.get("origin")
-                        if origin and origin != f"{request.url.scheme}://{request.headers.get('host', '')}":
-                            return JSONResponse(status_code=403, content={"detail": "跨站模型请求已拒绝"})
-                        raw_length = request.headers.get("content-length", "0") or "0"
-                        if not raw_length.isascii() or not raw_length.isdecimal() or int(raw_length) > 32768:
-                            return JSONResponse(status_code=413, content={"detail": "模型输入不能超过 32 KB"})
-                        paid_hits.setdefault(client_host, []).append(now)
-                        paid_total.append(now)
             response = await call_next(request)
             if public_llm and costed_path(path):
                 response.headers["Cache-Control"] = "private, no-store"
@@ -1819,6 +1808,120 @@ def create_app(**sim_kwargs: Any) -> FastAPI:
             return response
         finally:
             TRAINING_MEMBER.reset(token)
+
+    # ── 单账号登录（比赛演示） ───────────────────────────────
+    account_sessions: dict[str, tuple[str, float]] = {}
+    account_lock = threading.Lock()
+    account_login_hits: dict[str, list[float]] = {}
+
+    def _account_session_valid(token: str) -> bool:
+        if not token:
+            return False
+        now = time.time()
+        with account_lock:
+            entry = account_sessions.get(token)
+            if entry is None:
+                return False
+            user, expires_at = entry
+            if expires_at <= now:
+                account_sessions.pop(token, None)
+                return False
+            return user == AUTH_USER
+
+    def _issue_account_session() -> str:
+        token = secrets.token_urlsafe(32)
+        now = time.time()
+        with account_lock:
+            for stale in [key for key, (_, expires_at) in account_sessions.items() if expires_at <= now]:
+                account_sessions.pop(stale, None)
+            account_sessions[token] = (AUTH_USER, now + AUTH_SESSION_SECONDS)
+        return token
+
+    def _drop_account_session(token: str) -> None:
+        if not token:
+            return
+        with account_lock:
+            account_sessions.pop(token, None)
+
+    def _safe_next(value: str) -> str:
+        value = str(value or "").strip()
+        if not value.startswith("/") or value.startswith("//") or "\r" in value or "\n" in value:
+            return "/"
+        return value
+
+    def _login_response(error: str = "", next_path: str = "/") -> HTMLResponse:
+        page = (WEB_DIR / "login.html").read_text(encoding="utf-8")
+        page = page.replace("__NEXT__", html.escape(_safe_next(next_path), quote=True))
+        if error:
+            page = page.replace("__ERROR__", f'<div class="error">{html.escape(error)}</div>')
+        else:
+            page = page.replace("__ERROR__", "")
+        return HTMLResponse(page)
+
+    @app.middleware("http")
+    async def account_auth_guard(request: HttpRequest, call_next):
+        if not AUTH_ENABLED:
+            return await call_next(request)
+        path = request.url.path
+        if path in {"/login", "/logout", "/api/health", "/favicon.ico"} or path.startswith(("/assets/", "/vendor/", "/cesium/")):
+            return await call_next(request)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        if _account_session_valid(request.cookies.get(AUTH_COOKIE, "")):
+            return await call_next(request)
+        if path.startswith("/api/"):
+            return JSONResponse(status_code=401, content={"detail": "请先登录 SpaceFL 演示账号"})
+        return RedirectResponse(f"/login?next={quote(path)}", status_code=302)
+
+    @app.get("/login")
+    async def login_page(request: HttpRequest):
+        if not AUTH_ENABLED or _account_session_valid(request.cookies.get(AUTH_COOKIE, "")):
+            return RedirectResponse("/", status_code=302)
+        error = "账号或密码不正确，请重试。" if request.query_params.get("error") else ""
+        return _login_response(error, request.query_params.get("next", "/"))
+
+    @app.post("/login")
+    async def login_submit(request: HttpRequest):
+        if not AUTH_ENABLED:
+            return RedirectResponse("/", status_code=302)
+        body = await request.body()
+        if len(body) > 16 * 1024:
+            return _login_response("登录请求过大。", "/")
+        fields = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
+        username = (fields.get("username") or [""])[0]
+        password = (fields.get("password") or [""])[0]
+        next_path = _safe_next((fields.get("next") or ["/"])[0])
+        host = request.client.host if request.client else "unknown"
+        now = time.time()
+        with account_lock:
+            for key in list(account_login_hits):
+                account_login_hits[key] = [stamp for stamp in account_login_hits[key] if now - stamp < 900]
+                if not account_login_hits[key]:
+                    account_login_hits.pop(key, None)
+            bucket = account_login_hits.setdefault(host, [])
+            if len(bucket) >= 10:
+                return _login_response("登录尝试过多，请 15 分钟后重试。", next_path)
+            bucket.append(now)
+        if not (
+            hmac.compare_digest(username.encode("utf-8"), AUTH_USER.encode("utf-8"))
+            and hmac.compare_digest(password.encode("utf-8"), AUTH_PASSWORD.encode("utf-8"))
+        ):
+            return RedirectResponse(f"/login?error=1&next={quote(next_path)}", status_code=302)
+        token = _issue_account_session()
+        response = RedirectResponse(next_path, status_code=302)
+        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+        response.set_cookie(
+            AUTH_COOKIE, token, max_age=AUTH_SESSION_SECONDS, httponly=True,
+            secure=secure, samesite="lax", path="/",
+        )
+        return response
+
+    @app.get("/logout")
+    async def logout(request: HttpRequest):
+        _drop_account_session(request.cookies.get(AUTH_COOKIE, ""))
+        response = RedirectResponse("/login", status_code=302)
+        response.delete_cookie(AUTH_COOKIE, path="/")
+        return response
 
     login_hits: dict[str, list[float]] = {}
 

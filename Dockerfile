@@ -8,8 +8,7 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    SPACEFL_PUBLIC_DEMO=1 \
-    SPACEFL_OFFLINE_ONLY=1
+    SPACEFL_PUBLIC_DEMO=1
 
 WORKDIR /app
 
@@ -27,4 +26,5 @@ USER spacefl
 EXPOSE 8720
 
 # Render/HF set PORT automatically; fall back to 8720 for the local Docker workflow.
-CMD ["sh", "-c", "python -m uvicorn --factory web.server:create_app --host 0.0.0.0 --port ${PORT:-8720} --log-level warning"]
+# proxy-headers keeps request.url.scheme / client IP correct behind Render's TLS proxy.
+CMD ["sh", "-c", "python -m uvicorn --factory web.server:create_app --host 0.0.0.0 --port ${PORT:-8720} --proxy-headers --forwarded-allow-ips='*' --log-level warning"]

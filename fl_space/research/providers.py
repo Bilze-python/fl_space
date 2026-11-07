@@ -211,7 +211,22 @@ def _cc_switch_config(raw: Mapping[str, Any] | None) -> ProviderConfig | None:
 
 
 def _environment_config(env: Mapping[str, str] | None) -> ProviderConfig | None:
-    """解析环境变量供应商：DeepSeek 优先，其次 OpenAI。"""
+    """解析环境变量供应商：SPACEFL_AI_*（通用）优先，其次 DeepSeek / OpenAI。"""
+    custom_key = _env_get(env, "SPACEFL_AI_API_KEY")
+    if custom_key:
+        return ProviderConfig(
+            configured=True,
+            source="environment",
+            provider=_env_get(env, "SPACEFL_AI_PROVIDER") or "Custom",
+            model=_env_get(env, "SPACEFL_AI_MODEL") or "gpt-4o-mini",
+            base_url=_env_get(env, "SPACEFL_AI_BASE_URL") or DEFAULT_OPENAI_BASE_URL,
+            wire_api=_normalize_wire_api(_env_get(env, "SPACEFL_AI_WIRE_API") or "chat"),
+            api_key=custom_key,
+            timeout=_coerce_timeout(_env_get(env, "SPACEFL_AI_TIMEOUT") or None),
+            reasoning_effort=_env_get(env, "SPACEFL_AI_REASONING_EFFORT"),
+            disable_response_storage=_env_get(env, "SPACEFL_AI_DISABLE_RESPONSE_STORAGE")
+            in {"1", "true", "yes", "on"},
+        )
     deepseek_key = _env_get(env, "DEEPSEEK_API_KEY")
     if deepseek_key:
         return ProviderConfig(

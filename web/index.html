@@ -34,6 +34,7 @@
       </nav>
       <div class="header-meta">
         <div class="system-state"><span class="state-dot"></span><span>本地服务在线</span></div>
+        <button class="header-action" type="button" onclick="location.href='/logout'">退出登录</button>
         <button class="header-action" id="quick-run-button">运行 FedLEO 验证</button>
       </div>
     </header>
@@ -514,7 +515,10 @@
           <section class="panel">
             <div class="panel-head">
               <div><p class="panel-kicker">ISOLATED CLUSTER LAB</p><h2>局部星簇构建</h2></div>
-              <span class="status-badge amber">独立实验</span>
+              <div class="local-cluster-heading-actions">
+                <span class="status-badge amber">独立实验</span>
+                <button class="button primary" type="submit" form="local-cluster-form" id="local-cluster-run">运行局部测试</button>
+              </div>
             </div>
             <p class="field-note local-cluster-note">
               该实验只计算局部星簇的链路、训练和聚合效率，不修改全局 Session，也不会自动启动主训练。
@@ -525,12 +529,12 @@
                 <label>星簇半径 km<input id="cluster-radius" type="number" min="0.01" step="0.01" value="1"></label>
                 <label>平均轨道高度 km<input id="cluster-altitude" type="number" min="100" max="2000" value="650"></label>
                 <label>拓扑<select id="cluster-topology"><option value="ring">环形</option><option value="grid">网格</option><option value="mesh">全连接近似</option></select></label>
-                <label>卫星算力 GFLOPS<input id="cluster-gflops" type="number" min="0.01" step="0.1" value="10"></label>
+                <label>卫星算力 GFLOPS<input id="cluster-gflops" type="number" min="0.01" step="any" value="10"></label>
                 <label>数据集<select id="cluster-dataset"><option value="mnist">MNIST</option><option value="fashion_mnist">Fashion-MNIST</option><option value="cifar10">CIFAR-10</option><option value="femnist">FEMNIST</option></select></label>
                 <label>每星样本数<input id="cluster-samples" type="number" min="1" value="1000"></label>
                 <label>实验轮次<input id="cluster-rounds" type="number" min="1" max="1000" value="10"></label>
-                <label id="cluster-model-size-field" class="hidden">模型大小 MB<input id="cluster-model-size" type="number" min="0.001" step="0.01" value="1.2"></label>
-                <label id="cluster-flops-field" class="hidden">每样本 FLOPs<input id="cluster-flops" type="number" min="1" step="1" value="2000000"></label>
+                <label id="cluster-model-size-field" class="hidden">模型大小 MB<input id="cluster-model-size" type="number" min="0.001" step="any" value="1.2" disabled></label>
+                <label id="cluster-flops-field" class="hidden">每样本 FLOPs<input id="cluster-flops" type="number" min="1" step="1" value="2000000" disabled></label>
               </div>
               <p id="cluster-workload-note" class="field-note hidden">默认沿用 CIFAR-10 CNN 的计算量假设，请按实际模型调整。</p>
               <div class="subsection-heading local-cluster-subheading"><div><h3>光学星间链路</h3><p>论文参考值可修改；实际工程参数需另行标注来源。</p></div></div>
@@ -544,7 +548,6 @@
               </div>
               <div class="form-actions">
                 <button class="button secondary" type="button" id="local-cluster-reset">恢复论文参考值</button>
-                <button class="button primary" type="submit" id="local-cluster-run">运行局部测试</button>
               </div>
             </form>
           </section>
@@ -788,10 +791,24 @@
     </form>
   </div>
 
+  <script>
+    // 登录会话失效时统一回到登录页（API 401）。
+    (function () {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = async function (input, init) {
+        const response = await originalFetch(input, init);
+        if (response.status === 401 && !location.pathname.startsWith("/login")) {
+          const next = location.pathname + location.search + location.hash;
+          location.href = "/login?next=" + encodeURIComponent(next);
+        }
+        return response;
+      };
+    })();
+  </script>
   <script src="/vendor/marked/marked.umd.js"></script>
   <script src="/vendor/dompurify/purify.min.js"></script>
   <script src="/assets/local-compute.js?v=20261106-local-v1"></script>
-  <script src="/assets/app.js?v=20261106-local-v1"></script>
+  <script src="/assets/app.js?v=20261107-cluster-form-v1"></script>
   <script src="/assets/research.js?v=20261106-deepseek-v2"></script>
 </body>
 </html>
