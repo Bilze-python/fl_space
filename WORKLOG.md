@@ -789,6 +789,35 @@ web: `server.py`
 
 ---
 
+## 2026-11-07 — 修复“电脑周期性弹 cmd 窗口”
+
+### 原因
+之前为保活本机 SSH 隧道注册的计划任务 `SpaceFLPublicDemo` 每 2 分钟运行
+`deploy/run_keepalive.bat`（.bat 由 cmd.exe 执行）。Task Scheduler 每次触发都会创建
+一个 **cmd 控制台窗口**；启动文件夹里的 `SpaceFLPublicDemo.lnk` 也会在登录时拉起保活。
+这就是“莫名其妙弹出 cmd 窗口”的来源。
+
+### 修复
+1. 删除计划任务 `SpaceFLPublicDemo`（及不存在的 `SpaceFLPublicDemoBoot`）；
+2. 删除启动文件夹快捷方式 `SpaceFLPublicDemo.lnk`；
+3. 停止本机 SSH 隧道与 8720 演示服务器（Render 主链接不依赖本机）；
+4. 如以后仍需要本机备用隧道，改用隐藏启动器：
+   `deploy/run_keepalive_hidden.vbs` + `wscript.exe`（GUI 子系统，不创建控制台窗口），
+   并把 `install_public_demo.ps1` 改成注册**隐藏任务**（默认 10 分钟）；
+5. 文档更新：`deploy/README.md`、`docs/COMPETITION_LINK.md`、`docs/COMPETITION_PLAN.md`
+   明确 Render 为主链接、本机任务已移除、备用隧道为可选项。
+
+### 结果
+- 计划任务列表与启动文件夹中已无 SpaceFL 项；`cmd.exe` 进程为空；
+- Render 主链接仍正常：`/api/health` 200；
+- 比赛期间无需本机常开，也不再周期性弹窗。
+
+> 备注：Windows 自带的 `Monitoring` 等计划任务、第三方软件自动更新也可能弹 cmd；
+> 本次扫描到的周期性来源是上述 SpaceFL 任务，已移除。若后续再出现，可按
+> “任务计划程序 → 查看历史记录”或 `Get-ScheduledTask` 的 Actions 继续定位。
+
+---
+
 ## 2026-11-06 — 6 分钟演示视频方案、讲稿与 400 字作品介绍
 
 ### 背景

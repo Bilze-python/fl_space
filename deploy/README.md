@@ -33,13 +33,17 @@ seed 42 的真实 FedLEO 卸载对照功能验证，不能宣称为论文级复�
    - 在 **8720 端口**启动演示模式服务器（`SPACEFL_PUBLIC_DEMO=1` + `SPACEFL_OFFLINE_ONLY=1`），
      只读取 `deploy/demo_data/`（演示文献与演示实验），与本地 8700 完整平台隔离；
    - 通过本机 OpenSSH 建立 `https://<随机名>.lhr.life` 反向隧道（无需下载额外程序）；
-   - 注册 Windows 计划任务 `SpaceFLPublicDemo`（每 5 分钟保活），并创建开机启动快捷方式；
+   - **可选**注册 Windows 计划任务 `SpaceFLPublicDemo`（默认每 10 分钟保活）；
+     任务通过 `wscript.exe + run_keepalive_hidden.vbs` 隐藏启动，不会弹 cmd 窗口；
    - 把当前公网地址写入 `deploy\public_url.txt`。
 3. 把 `deploy\public_url.txt` 中的地址作为作品链接提交。
 
+> **当前主链接是 Render（https://spacefl-research-agent.onrender.com），本机隧道只是备用**。
+> 为避免反复弹窗，旧“每 2 分钟运行 .bat”的计划任务与开机启动快捷方式已移除；
+> 只有需要本机隧道时才手动运行 `deploy\start_public_demo.bat`（它注册的是隐藏任务，不会弹窗）。
+>
 > 说明：localhost.run 免费隧道地址为随机子域名；**隧道重连后地址会变化**，保活任务会自动重写
-> `deploy\public_url.txt`。提交前请记录当前地址；如需长期稳定链接，请使用第 2/3 节的
-> Hugging Face Space 或自有服务器方案。
+> `deploy\public_url.txt`。如需长期稳定链接，优先使用 Render，其次 Hugging Face Space 或自有服务器。
 
 如果网络可以访问 GitHub Release（`cloudflared.exe` 下载正常），保活脚本也支持
 Cloudflare 快速隧道（`trycloudflare.com`）：把 `cloudflared.exe` 放到 `deploy\bin\` 即可自动优先使用。

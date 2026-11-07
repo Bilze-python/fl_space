@@ -3,14 +3,16 @@
 > 提交截止：**2026-11-10**；当前日期：2026-11-05；实际可用时间约 **5 天**。
 > 目标（已建立持久 Goal，自动续跑至达成）：交付**可公网访问的可部署 Agent 作品链接** + 完整提交材料。
 
-## 当前进度（2026-11-05 晚）
+## 当前进度（2026-11-06）
 
-- ✅ 公网作品链接已上线：**https://3dc0aad7d362e9.lhr.life/**（只读演示模式，离线规则引擎）
+- ✅ 公网作品主链接已上线：**https://spacefl-research-agent.onrender.com**（Render 免费 Web Service，只读演示模式，离线规则引擎）
+- ✅ 备用入口：Hugging Face 免费静态 Space（已指向 Render）
 - ✅ 公网演示安全加固：只读白名单 + 限流 + 演示数据隔离（`deploy/demo_data/`）
 - ✅ 演示数据：6 篇原创演示文献 + 3 个脱敏实验档案（检索/精读/问答/计划/结果解读均可演示）
-- ✅ 保活：计划任务每 5 分钟 + 登录启动快捷方式；`deploy/public_url.txt` 自动更新
-- ✅ 部署脚本：`deploy/start_public_demo.bat` / `status_public_demo.bat` / `stop_public_demo.bat`
-- ⏳ 待办：稳定链接（HF Space 或云服务器）决策、提交材料撰写、演示录屏、提交前回归与链接验收
+- ✅ 本机弹窗修复：移除每 2 分钟运行 .bat 的旧计划任务与开机快捷方式；Render 不依赖本机，备用隧道改为可选隐藏任务
+- ✅ 视频材料：6 分钟录制方案/讲稿 + 400 字作品介绍（`docs/video/`）
+- ✅ 可靠性分析：405 次实验 / 194,992 轮 / 0 失败 / 同种子复现零差异（`docs/analysis/`）
+- ⏳ 待办：提交材料定稿、演示录屏、提交前回归与链接验收
 - 详细链接与访问说明见 [`COMPETITION_LINK.md`](COMPETITION_LINK.md)，部署手册见 [`../deploy/README.md`](../deploy/README.md)
 
 ---

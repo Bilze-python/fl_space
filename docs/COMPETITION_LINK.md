@@ -83,18 +83,17 @@ localhost.run（公网边缘）  ──SSH 反向隧道──►  本机 OpenSSH
 
 | 组件 | 机制 |
 |---|---|
-| 演示服务器 | 保活脚本检查 `http://127.0.0.1:8720/api/health`，异常则重启（`SPACEFL_PUBLIC_DEMO=1`） |
-| 公网隧道 | 检查本地 `localhost.run` SSH 进程与已保存 URL 是否健康，异常则重连并写回新 URL |
-| 计划任务 | `SpaceFLPublicDemo` 每 2 分钟运行一次 `deploy/run_keepalive.bat` |
-| 开机启动 | 用户启动文件夹快捷方式 `SpaceFLPublicDemo.lnk`（登录后自动执行保活） |
-| HF 静态入口 | 隧道 URL 变化时，保活脚本调用 `deploy/huggingface/update_static_space.py` 更新 `live.json` |
+| **Render 主链接** | Render 平台负责运行；免费实例空闲 15 分钟休眠，首次访问冷启动 30–60 秒 |
+| 本机隧道（备用，默认关闭） | 需要时手动运行 `deploy\start_public_demo.bat`；脚本通过 `wscript.exe + run_keepalive_hidden.vbs` 注册**隐藏**计划任务，不会弹 cmd 窗口 |
+| 已移除的旧任务 | 旧的每 2 分钟 `SpaceFLPublicDemo` 计划任务与开机启动快捷方式已移除（会反复弹 cmd 窗口） |
+| HF 静态入口 | 已指向 Render（`live.json`），不依赖本机隧道 |
 
-常用命令：
+常用命令（仅在需要备用隧道时使用）：
 
 ```
-deploy\start_public_demo.bat     # 一键启动/刷新公网演示，输出链接
+deploy\start_public_demo.bat     # 手动启动本机备用隧道（注册隐藏任务）
 deploy\status_public_demo.bat    # 查看链接、本地服务、隧道与计划任务状态
-deploy\stop_public_demo.bat      # 停止演示（不影响本地 8700 完整平台）
+deploy\stop_public_demo.bat      # 停止备用隧道（不影响 Render 和本地 8700 平台）
 ```
 
 日志：`deploy/logs/keepalive.log`、`deploy/logs/ssh-tunnel.out.log`、`deploy/logs/server.err.log`。
@@ -109,7 +108,7 @@ deploy\stop_public_demo.bat      # 停止演示（不影响本地 8700 完整平
 | **Hugging Face 免费静态入口** | ★★ 固定域名，内嵌实时隧道 | 无（已创建） | `https://bilzepython-spacefl-agent-demo.static.hf.space`，自动同步 `live.json` |
 | **Hugging Face Docker Space** | ★★★ 永久链接 | HF PRO 订阅 + Token | 免费账号创建 Docker Space 会返回 402；PRO 后使用根目录 `Dockerfile` |
 | **自有云服务器 + 域名** | ★★★ 可控 | 服务器 SSH + 域名 | 使用 `deploy/systemd/spacefl.service` + `deploy/Caddyfile` 反代 8720 |
-| 本机 SSH 隧道（调试） | ★★ 机器需常开，重启后换 URL | 无 | 已配置 2 分钟保活任务，`public_url.txt` 自动更新 |
+| 本机 SSH 隧道（调试） | ★★ 机器需常开，重启后换 URL | 无 | 默认关闭；需要时手动 `deploy\start_public_demo.bat`（隐藏任务） |
 
 > 若切到 Render/HF PRO/云服务器，只需把提交材料里的链接替换为新固定域名；
 > 代码、演示数据与安全模式无需修改（Docker 镜像默认读取 `deploy/demo_data` 并按演示模式运行）。
@@ -122,6 +121,7 @@ deploy\stop_public_demo.bat      # 停止演示（不影响本地 8700 完整平
 - [x] Agent 主流程可用：文献检索/精读/问答、情报、自然语言实验规划、实验档案解读
 - [x] 公网演示模式只读（训练/导入/配置写入返回 403）
 - [x] 演示数据已脱敏（仅 `deploy/demo_data` 的演示文献与演示实验）
-- [x] 保活任务 + 开机启动已配置
+- [x] Render 主链接在线，且不再依赖本机计划任务（旧弹窗任务已移除）
+- [x] 公网只读演示模式与演示数据脱敏
 - [ ] 最终提交前再次确认链接可用（建议 11-09 与 11-10 各检查一次）
 - [ ] 若改用 HF Space / 云服务器，更新本文件与提交材料的链接
