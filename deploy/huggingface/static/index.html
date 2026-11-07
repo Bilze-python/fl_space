@@ -7,63 +7,61 @@
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #050506; color: #e8e8ea; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; border-bottom: 1px solid #1b1b1f; flex-wrap: wrap; }
-    .brand { letter-spacing: .28em; font-size: 13px; color: #fff; }
-    .brand small { display: block; letter-spacing: .18em; color: #8a8a93; font-size: 10px; margin-top: 3px; }
-    .meta { color: #8a8a93; font-size: 12px; }
-    .actions a { color: #050506; background: #fff; text-decoration: none; padding: 9px 14px; font-size: 12px; letter-spacing: .08em; }
-    .actions a.secondary { background: transparent; color: #e8e8ea; border: 1px solid #333; margin-left: 8px; }
-    iframe { display: block; width: 100%; height: calc(100vh - 110px); border: 0; background: #050506; }
-    .hint { padding: 10px 22px; color: #8a8a93; font-size: 12px; border-top: 1px solid #1b1b1f; line-height: 1.7; }
-    .hint code { color: #d8cba8; }
-    .hint button { background: transparent; color: #e8e8ea; border: 1px solid #333; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+    body {
+      margin: 0; min-height: 100vh; background: #050506; color: #e8e8ea;
+      font-family: "Bahnschrift", "Segoe UI", "Microsoft YaHei", sans-serif;
+      display: grid; place-items: center;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(circle at 70% 20%, rgba(80, 110, 190, .16), transparent 42%),
+                  radial-gradient(circle at 20% 80%, rgba(160, 140, 80, .08), transparent 40%);
+    }
+    .shell { position: relative; width: min(520px, calc(100vw - 40px)); }
+    .brand { letter-spacing: .34em; font-size: 18px; font-weight: 700; }
+    .brand small { display: block; margin-top: 6px; letter-spacing: .26em; font-size: 10px; color: #8a8a93; }
+    .rule { height: 1px; background: linear-gradient(90deg, #fff, #333 60%, transparent); margin: 22px 0; }
+    .kicker { font-size: 10px; letter-spacing: .3em; color: #a9a9b2; margin-bottom: 12px; }
+    h1 { margin: 0 0 10px; font-size: 26px; letter-spacing: .06em; }
+    p { color: #9b9ba4; font-size: 13px; line-height: 1.9; margin: 0 0 18px; }
+    a.button {
+      display: inline-block; background: #fff; color: #050506; text-decoration: none;
+      padding: 13px 20px; font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    }
+    a.button:hover { background: #d9d9de; }
+    code { color: #d8cba8; }
+    .note { margin-top: 22px; color: #66666f; font-size: 11px; line-height: 1.9; }
+    .note a { color: #bdbdc6; }
   </style>
 </head>
 <body>
-  <header>
+  <main class="shell">
     <div class="brand">SPACEFL<small>RESEARCH PLATFORM · ONLINE DEMO</small></div>
-    <div class="meta">太空联邦学习科研智能平台 · 公网演示入口</div>
-    <div class="actions">
-      <a id="fullscreen" href="#" target="_blank" rel="noopener">全屏打开</a>
-      <a class="secondary" href="https://github.com/Bilze-python/fl_space" target="_blank" rel="noopener">源码仓库</a>
-    </div>
-  </header>
-  <iframe id="demo" src="about:blank" title="SpaceFL 科研智能平台在线演示" allow="clipboard-read; clipboard-write"></iframe>
-  <div class="hint">
-    <span id="status">正在连接演示实例…</span>
-    演示使用离线规则引擎与预置数据；训练、导入与配置写入已禁用。
-    若页面暂时无法加载，请点击“全屏打开”或稍等 30–60 秒。
-    <button id="retry" type="button">重新连接</button>
-  </div>
+    <div class="rule"></div>
+    <p class="kicker">PUBLIC DEMO · SECURE ACCESS</p>
+    <h1>进入在线演示</h1>
+    <p>主演示部署在 Render 上，需要比赛账号登录。点击下方按钮将跳转到主站；登录后即可体验文献精读、实验规划与实验档案解读。</p>
+    <a class="button" id="open" href="https://spacefl-research-agent.onrender.com/" target="_blank" rel="noopener">打开 SpaceFL 演示</a>
+    <p class="note">
+      备选直接地址：<code id="url">https://spacefl-research-agent.onrender.com/</code><br />
+      若主站冷启动较慢，请等待 30–60 秒后刷新。<br />
+      源码：<a href="https://github.com/Bilze-python/fl_space" target="_blank" rel="noopener">Bilze-python/fl_space</a>
+    </p>
+  </main>
   <script>
-    (function () {
-      var frame = document.getElementById("demo");
-      var full = document.getElementById("fullscreen");
-      var status = document.getElementById("status");
-      var retry = document.getElementById("retry");
-      var current = "";
-
-      async function load() {
-        try {
-          var response = await fetch("./live.json?t=" + Date.now(), { cache: "no-store" });
-          if (!response.ok) throw new Error("HTTP " + response.status);
-          var data = await response.json();
-          if (!data || !data.url) throw new Error("missing url");
-          if (data.url !== current) {
-            current = data.url;
-            frame.src = data.url + (data.url.indexOf("#") >= 0 ? "" : "#overview");
-            full.href = data.url;
-            status.textContent = "已连接：" + data.url + "（每 60 秒自动检查更新）";
-          }
-        } catch (error) {
-          status.textContent = "演示实例暂时不可用（" + error.message + "），请点击“重新连接”或稍后再试。";
+    // live.json is kept up to date; top-level navigation avoids third-party-cookie
+    // issues with login sessions inside a cross-origin iframe.
+    (async function () {
+      try {
+        const response = await fetch("./live.json?t=" + Date.now(), { cache: "no-store" });
+        const data = await response.json();
+        if (data && data.url) {
+          document.getElementById("open").href = data.url;
+          document.getElementById("url").textContent = data.url;
         }
+      } catch (error) {
+        /* keep the default Render URL */
       }
-
-      retry.addEventListener("click", load);
-      load();
-      setInterval(load, 60000);
     })();
   </script>
 </body>

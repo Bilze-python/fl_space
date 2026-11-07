@@ -2,23 +2,27 @@
 
 用户希望使用自己电脑的 CPU / GPU 时，可使用 [本地算力连接器](LOCAL_COMPUTE.md)：部署新代码后，平台仅中转任务，保留本页的免费镜像即可。需要在 Render 服务器上上传和训练时，使用 [公网训练升级说明](RENDER_TRAINING.md)。
 
-研究助手默认使用离线规则引擎。若项目所有者明确启用公网 DeepSeek，需在 Render 服务端设置 `DEEPSEEK_API_KEY` 为原始密钥、`SPACEFL_OFFLINE_ONLY=0` 和 `SPACEFL_PUBLIC_LLM=1`，并使用包含公网限流保护的代码。密钥不得写在 Blueprint、仓库或网页中；Base64 不提供保密性。访客不需要输入密钥，研究助手失败时回退到离线规则引擎。进程内限额为每来源每小时 8 次、全站每日 100 次，免费实例休眠/重启会重置计数；必须在 DeepSeek 账户侧另设独立的消费上限并监测余额。
+研究助手默认使用离线规则引擎。当前比赛实例已启用服务端 DeepSeek 并**解除公网 LLM 的调用额度限制**：
+在 Render 服务端设置 `DEEPSEEK_API_KEY`（原始密钥）、`SPACEFL_OFFLINE_ONLY=0`、`SPACEFL_PUBLIC_LLM=1`。
+访客不需要输入密钥；未登录访客不能调用任何平台 API，登录账号为 `spaceTS` / `11451467`（仅此一个账号）。
+密钥不得写在 Blueprint、仓库或网页中；Base64 不提供保密性。请在 DeepSeek 账户侧设置独立消费上限并监测余额。
 
 > 比赛最终作品链接的稳定方案：Render 免费 Web Service（Docker）。
 > 说明：Render 免费实例 **15 分钟无请求会休眠**，下次访问冷启动约 30–60 秒；链接域名固定。
 
-## 当前已部署实例（2026-11-06）
+## 当前已部署实例（2026-11-07）
 
 | 项 | 值 |
 |---|---|
 | Service ID | `srv-dbm9qh08v5cc73e0b1lg` |
 | 名称 | `spacefl-research-agent` |
 | 链接 | **https://spacefl-research-agent.onrender.com** |
+| 访问账号 | `spaceTS` / `11451467`（单账号，登录后可用） |
 | 仓库 / 分支 | `https://github.com/Bilze-python/fl_space` / `deploy-demo` |
 | 计划 / 区域 | Free / oregon |
-| 健康检查 | `/api/health` |
-| 环境变量 | `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_OFFLINE_ONLY=0`、`SPACEFL_PUBLIC_LLM=1`、服务端私密 `DEEPSEEK_API_KEY` |
-| 当前状态 | **live**；研究助手问答已在公网返回 `mode=llm`，访客无需提供密钥 |
+| 健康检查 | `/api/health`（公开） |
+| 环境变量 | `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_OFFLINE_ONLY=0`、`SPACEFL_PUBLIC_LLM=1`、`SPACEFL_AUTH_ENABLED=1`、`SPACEFL_AUTH_USER=spaceTS`、`SPACEFL_AUTH_PASSWORD=<比赛口令>`、服务端私密 `DEEPSEEK_API_KEY` |
+| 当前状态 | **live**；未登录返回 401/跳转登录页，登录后 LLM 可用且无限额 |
 
 
 ## 0. 前置条件
@@ -75,7 +79,7 @@ curl https://<service-name>.onrender.com/api/research/overview
 ## 4. 免费实例注意事项
 
 - 休眠：15 分钟无请求后休眠，冷启动会导致首次打开较慢；提交材料中可注明“首次打开约需 1 分钟”。
-- 资源：0.1 CPU / 512 MB RAM，演示模式（离线规则引擎 + 预置数据）足够；不要启用训练任务。
+- 资源：0.1 CPU / 512 MB RAM，登录 + 只读演示（服务端 DeepSeek 失败时回退离线规则引擎）足够；不要启用训练任务。
 - 磁盘：临时文件可写但不持久；每次冷启动会重新构建演示文献索引（秒级）。
 - 构建缓存：首次构建含 Cesium 前端依赖，约 5–10 分钟；后续提交代码自动重新部署。
 

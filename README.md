@@ -13,11 +13,12 @@
 ## 在线演示（公网作品链接）
 
 - **主链接（Render 免费 Web Service）**：**https://spacefl-research-agent.onrender.com**
-  （只读演示模式，无需登录；免费实例首次打开约 30–60 秒冷启动）
+  （访问账号 `spaceTS` / `11451467`；只读演示模式；首次打开约 30–60 秒冷启动）
 - **备用入口（Hugging Face 免费静态 Space）**：**https://bilzepython-spacefl-agent-demo.static.hf.space**
-  （自动嵌入当前在线演示；无 PRO 账号时使用静态包装）
+  （固定域名跳转页，引导到 Render 主站）
 - 可体验：文献检索 / AI 精读 / 知识库问答、前沿情报、自然语言实验计划与实验档案结果解读
-- 说明：公网实例的研究助手已接入服务端 DeepSeek，调用失败会回退离线规则引擎；访客无需填写密钥。演示数据和配置保持只读。真实训练可按 [`docs/LOCAL_COMPUTE.md`](docs/LOCAL_COMPUTE.md) 使用个人电脑；服务器端上传、训练与配置写入仍未开放。
+- 说明：未登录访问会跳转登录页，API 返回 401；登录后研究助手使用服务端 DeepSeek（失败回退离线规则引擎），
+  公网调用无限额；演示数据和配置保持只读，真实训练可在本地完整版执行。
 - 部署方式与保活说明：[`deploy/README.md`](deploy/README.md)；
   链接与稳定性说明：[`docs/COMPETITION_LINK.md`](docs/COMPETITION_LINK.md)；
   Render/HF 部署步骤：[`docs/RENDER_DEPLOY.md`](docs/RENDER_DEPLOY.md)；

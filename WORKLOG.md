@@ -789,6 +789,44 @@ web: `server.py`
 
 ---
 
+## 2026-11-07 — 公网部署最新代码：单账号登录 + AI 启用并解除调用限制
+
+### 需求
+把本地最新代码部署到 Render 公网；解除 AI 调用限制；增加单账号登录
+（账号 `spaceTS` / 密码 `11451467`，仅此一个账号，无需注册），未登录不得使用平台功能。
+
+### 实现
+1. **单账号访问控制**（`web/server.py`、`web/login.html`）
+   - 新增 `/login` 登录页（SpaceX 风格）、`POST /login`、`/logout`；
+   - 未登录：HTML 页面 302 到 `/login`，`/api/*` 返回 401；`/api/health` 与静态资源保持公开（供 Render 健康检查/登录页使用）；
+   - 登录成功写入 `spacefl_account` HttpOnly + SameSite=Lax 会话 cookie（默认 7 天，内存会话，重启后需重新登录）；
+   - 登录失败 10 次/15 分钟限流，支持安全 `next` 回跳；
+   - 前端右上角新增“退出登录”，全局 fetch 遇 401 自动回登录页。
+2. **AI 调用解除限制**（`web/server.py`、`fl_space/research/service.py`、provider env）
+   - 删除公网 LLM 的 20 次/分钟、每来源 8 次/小时、全站 100 次/天额度，以及跨站/输入长度限制；
+   - `SPACEFL_PUBLIC_LLM=1` + `SPACEFL_OFFLINE_ONLY=0` + `DEEPSEEK_API_KEY` 即启用服务端 DeepSeek；
+   - `SPACEFL_PUBLIC_LLM_FAST=0`：计划与评审均走大模型（实测一次计划约 14 秒）；
+   - Dockerfile 移除强制离线、增加 `--proxy-headers`，保证 Render HTTPS 下 Secure cookie 正确。
+3. **Render 环境变量**
+   - 新增 `SPACEFL_AUTH_ENABLED/USER/PASSWORD`、`SPACEFL_PUBLIC_LLM_FAST=0`；
+   - 保留 `SPACEFL_PUBLIC_DEMO=1`、`SPACEFL_PUBLIC_LLM=1`、`SPACEFL_OFFLINE_ONLY=0`、私密 `DEEPSEEK_API_KEY`；
+   - 通过 Render API 更新并手动触发部署到最新提交 `4e41d17`。
+
+### 验收（Render 公网）
+- 未登录 `/` → 302 `/login?next=/`；未登录 `/api/research/config` → 401；
+- 错误密码 → `/login?error=1`；`spaceTS/11451467` 登录 → 302 `/`，会话生效；
+- 登录后 `/api/research/config` 200，`ai.configured=true`（DeepSeek，`deepseek-chat`）；
+- 自然语言计划：**`plan.mode=llm`、评审 `review.mode=llm`**，耗时约 14 秒，引用 4 条；
+- `/api/health` 200（公开）；`POST /api/research/agent/run` 仍 403（只读保护）；
+- 退出登录后 API 恢复 401。
+
+### 备注
+- HF 免费静态入口改为“固定域名跳转页”，避免 iframe 第三方 cookie 影响登录；因本机代理暂不可用，
+  新静态页尚未重新上传（Render 主链接不受影响）。
+- 账号口令属于演示用途；DeepSeek Key 仅保存在 Render 环境变量，不写入仓库/文档。
+
+---
+
 ## 2026-11-07 — 修复“电脑周期性弹 cmd 窗口”
 
 ### 原因

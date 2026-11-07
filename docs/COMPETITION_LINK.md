@@ -11,31 +11,39 @@
 
 **https://spacefl-research-agent.onrender.com**
 
+**访问账号：`spaceTS`　密码：`11451467`**（仅此一个账号，登录后可使用平台功能）
+
 - 部署：Render 免费 Web Service（Docker），代码来自公开仓库分支 `deploy-demo`；
-- 演示模式：只读 + 服务端 DeepSeek（失败时离线回退）+ `deploy/demo_data` 演示数据；
+- 访问控制：未登录访问页面会跳转 `/login`，API 返回 401；登录会话 7 天有效，可点右上角“退出登录”；
+- AI：服务端 **DeepSeek**（失败时离线回退）；已解除公网 LLM 的每分钟/每日调用额度限制；
+- 演示模式：只读 + `deploy/demo_data` 演示数据（训练/导入/配置写入仍禁用，防止误操作）；
 - 免费实例 **15 分钟无请求会休眠**，首次打开约 30–60 秒冷启动，之后由评审访问自动唤醒；
 - 服务状态与日志：Render Dashboard → `spacefl-research-agent`（Service ID `srv-dbm9qh08v5cc73e0b1lg`）。
 
-### 上线验收（2026-11-06）
+### 上线验收（2026-11-07，含登录与 AI）
 
 | 检查项 | 结果 |
 |---|---|
-| `/api/health` | 200，version 0.3.1 |
-| `/api/research/config` | `demo_mode=true`、DeepSeek `configured=true`，不返回密钥字段 |
+| 未登录访问 `/` | 302 → `/login?next=/` |
+| 未登录访问 `/api/research/config` | 401 `请先登录 SpaceFL 演示账号` |
+| 错误账号登录 | 302 → `/login?error=1` |
+| 正确账号 `spaceTS` 登录 | 302 → `/`，会话 cookie 生效 |
+| `/api/health` | 200（公开，供 Render 健康检查） |
+| `/api/research/config` | 登录后 200；`demo_mode=true`、DeepSeek `configured=true` |
 | `/api/research/overview` | 文献 6 / 实验档案 3 / 情报 48 |
-| `/` 首页 | 200，SpaceX 风格 Hero 正常 |
-| `POST /api/research/agent/run` | 403（公网只读拦截生效） |
-| 研究助手问答 | 公网实际请求返回 `mode=llm`，无须访客输入 API Key |
+| 自然语言实验计划 | **LLM 实际调用成功**（`mode=llm`），公网响应约 5 秒 |
 | 实验档案解读 | 返回指标、证据链与 4 条文献引用 |
-| 文献检索 | 中文“卸载”返回 3 条结果 |
+| 退出登录 | 302 → `/login`，之后 API 恢复 401 |
+| `POST /api/research/agent/run` | 403（公网只读拦截仍生效） |
+
 
 
 ### 备用入口（Hugging Face 免费静态 Space）
 
 **https://bilzepython-spacefl-agent-demo.static.hf.space**
 
-- 固定域名的静态外壳，读取 `live.json` 并嵌入当前在线演示；保活脚本在隧道地址变化时自动更新；
-- 用于 Render 审核/冷启动期间或比赛材料中的备用链接。
+- 固定域名的静态跳转页，读取 `live.json` 后引导到 Render 主站（顶层跳转，避免 iframe 内第三方
+  cookie 导致登录失败）；主站需要 `spaceTS` 账号登录。
 
 ### 实时隧道（仅调试/备用）
 
@@ -117,7 +125,7 @@ deploy\stop_public_demo.bat      # 停止备用隧道（不影响 Render 和本�
 
 ## 5. 提交前检查清单
 
-- [x] 公网链接可打开（HTTPS，无需登录）
+- [x] 公网链接可打开（HTTPS，需比赛账号 `spaceTS` 登录）
 - [x] Agent 主流程可用：文献检索/精读/问答、情报、自然语言实验规划、实验档案解读
 - [x] 公网演示模式只读（训练/导入/配置写入返回 403）
 - [x] 演示数据已脱敏（仅 `deploy/demo_data` 的演示文献与演示实验）
