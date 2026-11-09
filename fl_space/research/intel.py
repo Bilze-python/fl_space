@@ -69,6 +69,7 @@ DEFAULT_ARXIV_QUERIES: list[str] = [
 
 # 默认 RSS 源：(标签, 地址)
 DEFAULT_RSS_FEEDS: list[tuple[str, str]] = [
+    ("太空日报", "https://spacedaily.com.cn/feed/"),
     ("SpaceNews", "https://spacenews.com/feed/"),
     ("NASA", "https://www.nasa.gov/rss/dyn/breaking_news.rss"),
     ("arXiv cs.NI", "https://rss.arxiv.org/rss/cs.NI"),

@@ -62,6 +62,18 @@ RSS2_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 </rss>
 """
 
+SPACEDAILY_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>太空日报</title>
+  <item>
+    <title>低轨卫星星座开展星间通信测试</title>
+    <link>https://spacedaily.com.cn/2026/11/08/leo-link-test/</link>
+    <description><![CDATA[<p>测试覆盖星间链路与数据传输。</p>]]></description>
+    <pubDate>Sun, 08 Nov 2026 15:42:54 +0000</pubDate>
+    <category>卫星通信</category>
+  </item>
+</channel></rss>
+"""
+
 RDF_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
          xmlns="http://purl.org/rss/1.0/"
@@ -190,6 +202,26 @@ def test_parse_rss_variants() -> None:
     assert rdf_item["authors"] == ["NASA Newsroom"]
     assert rdf_item["published"] == "2026-10-30T15:00:00+00:00"
     assert rdf_item["url"] == "https://www.nasa.gov/press-release/leo-demo"
+
+
+def test_spacedaily_default_feed_collects_chinese_news(tmp_path: Path) -> None:
+    assert ("太空日报", "https://spacedaily.com.cn/feed/") in intel.DEFAULT_RSS_FEEDS
+    feed = intel.IntelFeed(tmp_path / "intel.json", arxiv_queries=[], rss_feeds=[
+        ("太空日报", "https://spacedaily.com.cn/feed/"),
+    ])
+    feed._fetch_url = lambda url: SPACEDAILY_SAMPLE
+
+    payload = feed.fetch(topics=["卫星"])
+
+    assert payload["sources"] == [{"name": "太空日报", "status": "ok", "count": 1, "error": ""}]
+    item = payload["items"][0]
+    assert item["source"] == "太空日报"
+    assert item["kind"] == "news"
+    assert item["title"] == "低轨卫星星座开展星间通信测试"
+    assert item["url"] == "https://spacedaily.com.cn/2026/11/08/leo-link-test/"
+    assert item["published"] == "2026-11-08T15:42:54+00:00"
+    assert item["summary"] == "测试覆盖星间链路与数据传输。"
+    assert item["tags"] == ["卫星通信"]
 
 
 def test_parse_feed_sniffing_and_invalid_xml() -> None:
