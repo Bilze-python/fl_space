@@ -1,5 +1,8 @@
 # SpaceFL · PPT + 在线项目 6 分钟讲解视频方案
 
+> **精简拍摄版（只讲关键技术 + 应用创新）见 [`PPT精讲_6分钟讲稿.md`](PPT精讲_6分钟讲稿.md)**；
+> 本文件是完整版（含数据来源、逐轮分析、商业定位），两者按需选用。
+>
 > 素材：`C:\Users\Lucker\Downloads\SpaceFL_.pptx`（24 页，正文 19 页，20–24 页为隐藏状态页，**录制时跳过**）
 > 实机：https://spacefl-research-agent.onrender.com（账号 `spaceTS` / `11451467`）
 > 成片：1920×1080、30fps、6:00±10s；PPT 讲"为什么/怎么验证"，实机讲"怎么用"。
