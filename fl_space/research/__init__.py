@@ -17,10 +17,31 @@
 from __future__ import annotations
 
 __all__ = [
+    "DecisionAdvice",
+    "DecisionProvider",
+    "DecisionState",
+    "EvidenceItem",
+    "EvidenceWorkflow",
+    "JevDecisionProvider",
+    "OfflineDecisionProvider",
+    "ResearchBudget",
     "ResearchService",
+    "ResearchTools",
+    "ToolSpec",
     "build_default_plan",
     "default_research_goal",
+    "run_commanded_research",
 ]
 
+from fl_space.research.commander import ResearchBudget, run_commanded_research
+from fl_space.research.decision import (
+    DecisionAdvice,
+    DecisionProvider,
+    DecisionState,
+    JevDecisionProvider,
+    OfflineDecisionProvider,
+)
+from fl_space.research.evidence_workflow import EvidenceItem, EvidenceWorkflow
 from fl_space.research.planner import build_default_plan, default_research_goal
 from fl_space.research.service import ResearchService
+from fl_space.research.tools import ResearchTools, ToolSpec

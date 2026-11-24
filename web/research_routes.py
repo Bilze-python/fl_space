@@ -79,7 +79,15 @@ def register_research_routes(app: FastAPI, service: ResearchService) -> None:
     @app.post("/api/research/library/ask")
     async def research_library_ask(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         question = str(payload.get("question") or "").strip()
+        if "evidence_workflow" in payload:
+            if type(payload["evidence_workflow"]) is not bool:
+                raise HTTPException(status_code=422, detail="evidence_workflow 必须为布尔值")
+            return await _call(service.library_ask, question, evidence_workflow=payload["evidence_workflow"])
         return await _call(service.library_ask, question)
+
+    @app.get("/api/research/agent/tools")
+    async def research_tool_catalog() -> dict[str, Any]:
+        return {"tools": service.research_tools().catalog()}
 
     # ── 前沿情报 ──────────────────────────────────────────────
 
@@ -149,6 +157,10 @@ def register_research_routes(app: FastAPI, service: ResearchService) -> None:
 
     @app.post("/api/research/agent/chat")
     async def research_agent_chat(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        if "tool_mode" in payload and type(payload["tool_mode"]) is not bool:
+            raise HTTPException(status_code=422, detail="tool_mode 必须是布尔值")
+        if payload.get("tool_mode") is True:
+            return await _call(service.tool_research, str(payload.get("message") or "").strip())
         return await _call(
             service.chat,
             str(payload.get("message") or "").strip(),

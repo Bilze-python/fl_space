@@ -86,6 +86,7 @@ class ResearchService:
         get_experiment: Callable[[str], dict[str, Any]] | None = None,
         cc_switch_reader: Callable[[], dict[str, Any] | None] | None = None,
         public_demo: bool | None = None,
+        decision_provider: Any = None,
     ) -> None:
         self.project_dir = Path(project_dir)
         if public_demo is None:
@@ -96,6 +97,7 @@ class ResearchService:
                 "on",
             }
         self.public_demo = bool(public_demo)
+        self._decision_provider = decision_provider
         self._last_intel_force = 0.0
         self.config = ResearchConfigStore(self.project_dir)
         self._list_experiments = list_experiments
@@ -261,8 +263,10 @@ class ResearchService:
         _write_json(self.project_dir / DIGEST_CACHE_FILE, self._digests)
         return {**result, "cached": False}
 
-    def library_ask(self, question: str) -> dict[str, Any]:
+    def library_ask(self, question: str, *, evidence_workflow: bool = False) -> dict[str, Any]:
         """基于文献库的 RAG 问答。"""
+        if evidence_workflow:
+            return self.research_evidence(question)
         question = str(question or "").strip()
         if not question:
             raise ValueError("问题不能为空")
@@ -288,6 +292,83 @@ class ResearchService:
         }
 
     # ── 前沿情报 ──────────────────────────────────────────────
+
+    def research_evidence(self, question: str, *, use_llm: bool = True) -> dict[str, Any]:
+        """显式选择的只读证据工作流；决策供应商只从服务端配置，不接受网页指定。"""
+        from dataclasses import replace
+
+        from .decision import JevDecisionProvider, OfflineDecisionProvider
+        from .evidence_workflow import EvidenceWorkflow, make_evidence_writer
+
+        index = self._ensure_index()
+
+        def retrieve(query, limit):
+            with self._library_lock:
+                citations = index.context(bilingual.expand_query(query), max_chars=6000, limit=limit)[1]
+                # context 的搜索摘要带 UI 省略号，不是原文的一部分；仍由工作流逐页核验。
+                return [{**item, "quote": str(item.get("quote") or "").strip().strip("…").strip()}
+                        for item in citations]
+
+        def read_page(doc_id, page):
+            with self._library_lock:
+                return next((str(item.get("text") or "") for item in index.pages(doc_id)
+                             if item.get("page") == page), "")
+
+        offline = os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+        decision = OfflineDecisionProvider()
+        if not offline and not self.public_demo:
+            if self._decision_provider is not None:
+                decision = self._decision_provider
+            elif os.environ.get("SPACEFL_RESEARCH_DECISION", "").strip().lower() == "jev":
+                decision = JevDecisionProvider()
+        provider = self._provider()
+        writer = None
+        if use_llm and provider.configured:
+            writer = make_evidence_writer(replace(provider, timeout=min(provider.timeout, 15)))
+        result = EvidenceWorkflow(retrieve, read_page, decision=decision, writer=writer).run(question)
+        result["steps"] = [_step("证据协作", item["action"]) for item in result["decision"]["trace"]]
+        return result
+
+    def research_tools(self):
+        """创建每任务独立工具注册表；公网仅允许已隔离的演示文献工具。"""
+        from .tools import ResearchTools
+
+        index = self._ensure_index()
+
+        def search(query, limit):
+            with self._library_lock:
+                return index.context(bilingual.expand_query(query), max_chars=6000, limit=limit)[1]
+
+        def read_page(doc_id, page):
+            with self._library_lock:
+                return next((str(item.get("text") or "") for item in index.pages(doc_id)
+                             if item.get("page") == page), "")
+
+        return ResearchTools(self.project_dir, code_enabled=not self.public_demo,
+                             search_literature=search, read_literature=read_page)
+
+    def tool_research(self, question: str, *, use_llm: bool = True) -> dict[str, Any]:
+        """显式只读代码/文献研究；LLM提议工具，代码校验权限与次数。"""
+        from dataclasses import replace
+
+        from .commander import make_command_writer, make_research_advisor, run_commanded_research
+        from .decision import JevDecisionProvider, OfflineDecisionProvider
+
+        provider = self._provider()
+        advisor = writer = None
+        if use_llm and provider.configured:
+            bounded_provider = replace(provider, timeout=min(provider.timeout, 10))
+            advisor = make_research_advisor(bounded_provider)
+            writer = make_command_writer(bounded_provider)
+        decision = OfflineDecisionProvider()
+        offline = os.environ.get("SPACEFL_OFFLINE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+        if not offline and not self.public_demo:
+            if self._decision_provider is not None:
+                decision = self._decision_provider
+            elif os.environ.get("SPACEFL_RESEARCH_DECISION", "").strip().lower() == "jev":
+                decision = JevDecisionProvider()
+        return run_commanded_research(question, self.research_tools(), advisor=advisor,
+                                      writer=writer, decision=decision)
 
     def intel(self, *, refresh: bool = False) -> dict[str, Any]:
         """返回情报流（缓存优先），并按研究目标相关度重排。"""

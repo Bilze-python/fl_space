@@ -366,6 +366,20 @@
       </li>`).join("")}</ol>`;
   }
 
+  function toolResultsHtml(result) {
+    if (!Array.isArray(result.tool_trace)) return "";
+    const excerpts = (result.excerpts || []).map(item => {
+      const source = item.path || `${item.doc_id} p.${item.page}`;
+      const text = item.lines
+        ? item.lines.map(line => `${line.line}: ${line.text}${line.truncated ? " …" : ""}`).join("\n")
+        : item.text || "";
+      return `<details open><summary>${esc(source)}</summary><pre><code>${esc(text)}</code></pre></details>`;
+    }).join("");
+    const calls = result.tool_trace.map(call => `<details><summary>${esc(call.tool)} · ${call.result.ok ? "成功" : "失败"} · ${esc(call.latency_ms)} ms</summary><pre>${esc(JSON.stringify({ arguments: call.arguments, result: call.result }, null, 2))}</pre></details>`).join("");
+    const commands = result.command_trace ? `<details><summary>参谋候选 / 指挥选择 / 审计与预算</summary><pre>${esc(JSON.stringify({ status: result.status, budget: result.budget, trace: result.command_trace }, null, 2))}</pre></details>` : "";
+    return `<section class="analysis-card"><p>只读调查 · 未执行或修改代码 · 结论支持度尚未评估</p>${excerpts}<h4>工具调用记录</h4>${calls}${commands}<p>停止原因：${esc(result.stop_reason)}</p></section>`;
+  }
+
   function cleanQuote(text) {
     return String(text || "")
       .replace(/\r/g, " ")
@@ -634,9 +648,10 @@
     }
     input.value = "";
     appendMessage("user", `<p>${esc(text)}</p>`);
-    const loading = appendMessage("assistant", `<p class="agent-loading">研究智能体工作中：检索文献 → 规划 / 分析 …</p>`);
+    const loading = appendMessage("assistant", `<p class="agent-loading">${rstate.agentMode === "tools" ? "正在搜索代码与原文，并记录工具调用…" : "研究智能体工作中：检索文献 → 规划 / 分析 …"}</p>`);
     try {
       const payload = { message: text, experiment_id: $("#agent-experiment-select")?.value || "" };
+      if (rstate.agentMode === "tools") payload.tool_mode = true;
       const result = await request("/api/research/agent/chat", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -645,6 +660,7 @@
       const hasAnalysis = Boolean(result.analysis && result.analysis.content);
       const html = [
         stepsHtml(result.steps),
+        toolResultsHtml(result),
         hasAnalysis ? "" : `<article class="markdown-body">${md(result.reply || "")}</article>`,
         result.plan ? planCardHtml(result.plan, result.review) : "",
         result.job ? jobCardHtml(result.job) : "",

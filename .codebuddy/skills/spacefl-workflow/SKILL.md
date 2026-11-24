@@ -17,11 +17,15 @@ description: 在 SpaceFL 仓库中修改或构建训练、数据集、卫星仿�
 - 本机连接和课题组口令是独立权限。不得让网页指定任意本机路径或命令；平台和本机都校验 Session，用本地数据集逻辑 ID 映射路径。原始数据、完整输出保留本机，平台只接收元数据和指标。中转记录只在单进程内存中，重启后需重新配对；不可宣称跨重启恢复或已上线。
 - 局部星簇解析实验：`fl_space/local_cluster/`；网页接口在 `web/server.py`，可视化在 `web/assets/app.js`。
 - 轨道、接触与链路：`fl_space/orbit/`、`fl_space/simulator/`、`fl_space/isl/`。
+- 独立 RF 通信层：`fl_space/communication/`，运行 `python -m fl_space.communication` 做固定/动态速率对照；`--scenario contention` 做 TDMA-RR/DRR 分组与 ARQ 对照；`--scenario anti-jamming` 做同频 SINR 与固定/随机/延迟观测换频对照。说明：`docs/DYNAMIC_COMMUNICATION.md`、`docs/PACKET_COMMUNICATION.md`、`docs/ANTI_JAMMING.md`。当前单数据 grant、独立 ACK 信道，尚无 ALOHA、多波束并发或训练器联动。
 - 学习任务与航天任务：`fl_space/study/`、`fl_space/mission/`。
 - 公网 Render 部署：免费演示使用 `render.yaml`、`Dockerfile`；课题组训练使用 `render-training.yaml`、`Dockerfile.training` 和 `web/training_runtime.py`。详见 `docs/RENDER_TRAINING.md`。
 - 公网训练必须同时保留 `SPACEFL_PUBLIC_DEMO=1` 和 `SPACEFL_PUBLIC_TRAINING=1`：访客只读，口令登录成员可上传并训练；其他配置、文件与任意执行接口继续受只读限制。
 - 公网研究助手默认仍是离线规则引擎。只有明确配置 `SPACEFL_PUBLIC_LLM=1`、`SPACEFL_OFFLINE_ONLY=0` 和服务端 `DEEPSEEK_API_KEY` 时才开放在线模型；密钥只放 Render 私密环境变量，不进仓库/前端/日志。公网调用有进程内限流，供应商账户还需单独设置费用上限；免费服务重启会重置进程内计数。
+- 科研决策协作：`research/decision.py` 与 `research/evidence_workflow.py`，通过文献问答 `evidence_workflow=true` 显式启用。说明：`docs/RESEARCH_DECISION_INTERFACE.md`；本地 CLI `scripts/run_evidence_research.py` 默认离线。Jev 接口尊重全局关闭、仅传计数，不覆盖证据核验；尚未接入实验执行或全面事实验证。
 - “平台内置 skill”指本仓库的 `spacefl-workflow`。维护此文件中的入口、能力边界与验证命令；代码由具备本地工作区权限的编码工具修改。
+- Agent 只读工具：`research/tools.py` 提供源码搜索/按行读/AST/语法和文献搜索/读页；研究助手“代码与原文”模式或 chat API `tool_mode=true` 调用，最多5次。说明 `docs/RESEARCH_TOOLS.md`；CLI `scripts/run_evidence_research.py --tools` 默认离线。公网移除源码工具，不执行/修改代码。
+- 三角色编排：`research/commander.py` 接入 tool_mode；LLM 提候选和摘录，DecisionProvider 选动作/停/问/拒，`research/verifier.py` 审计，代码持有硬预算。说明 `docs/RESEARCH_ROLES.md`；不等于旧聊天与实验执行已全面迁移。
 
 ## 直接编码与构建
 

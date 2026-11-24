@@ -1,0 +1,351 @@
+{
+  "review_date": "2026-11-11",
+  "scope": "SpaceFL design evidence, not implementation or deployment",
+  "method": "Targeted online scholarly-index discovery followed by original PDF reading; not an exhaustive systematic review. PDF pages are one-based file order. No gains estimated from plots.",
+  "units_note": "Jy = 1e-26 W m^-2 Hz^-1; dB quantities require reference definitions. Values are source-specific, not default engineering constants.",
+  "reproducibility_note": "PDFs were downloaded to local temporary storage; URLs and SHA256 identify reviewed files. Archive independently before formal replication. Text excerpts are pypdf extraction, not corrected typesetting.",
+  "sources": [
+    {
+      "citation_id": 1,
+      "authors": "F. Di Vruno et al.",
+      "title": "Unintended electromagnetic radiation from Starlink satellites detected with LOFAR between 110 and 188 MHz",
+      "publication_year": 2023,
+      "reviewed_version": "2307.02316v1",
+      "doi_url": "https://doi.org/10.1051/0004-6361/202346374",
+      "pdf_url": "https://arxiv.org/pdf/2307.02316v1",
+      "pdf_sha256": "8f36c06b8e02ea4e3c7a4f04d8ea097a65f4f581779c98761602072844d0ad84",
+      "pdf_page_count": 20,
+      "reviewed_pdf_pages": [
+        1
+      ],
+      "evidence_type": "observational_measurement",
+      "reported_values": {
+        "observed_satellites": 68,
+        "detected_satellites": 47,
+        "frequency_MHz": [
+          110,
+          188
+        ],
+        "broadband_Jy": [
+          0.1,
+          10
+        ],
+        "some_narrowband_Jy": [
+          10,
+          500
+        ]
+      },
+      "conditions_and_metric_definitions": "LOFAR observations; 143.05 MHz attributed to reflected terrestrial radar.",
+      "limitations": "Jy is spectral flux density, not received power; cannot infer Ku/Ka packet loss.",
+      "source_excerpts": [
+        {
+          "pdf_page": 1,
+          "text": "ation is intrinsic to the Starlink satellites and it is seen for 47 out of the 68 Starlink satellites that were observed. We observed spectral power flux densities vary from 0.1 to ",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 1,
+          "text": "re observed. We observed spectral power flux densities vary from 0.1 to 10 Jy for broad-band radiation, to 10 to 500 Jy for some of the narrow-band radiation, equivalent to elec",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 2,
+      "authors": "C. G. Bassa et al.",
+      "title": "Bright unintended electromagnetic radiation from second-generation Starlink satellites",
+      "publication_year": 2024,
+      "reviewed_version": "2409.11767v1",
+      "doi_url": "https://doi.org/10.1051/0004-6361/202451856",
+      "pdf_url": "https://arxiv.org/pdf/2409.11767v1",
+      "pdf_sha256": "4fa0a2b2f4c085510c184b7a370a5af4f8ea8e2e02fa82dced0fbdeca92a75c4",
+      "pdf_page_count": 12,
+      "reviewed_pdf_pages": [
+        1
+      ],
+      "evidence_type": "observational_measurement",
+      "reported_values": {
+        "band_56_66_MHz_Jy": [
+          15,
+          1300
+        ],
+        "bands_center_MHz": [
+          120,
+          161
+        ],
+        "band_width_MHz": 8,
+        "bands_120_161_MHz_Jy": [
+          2,
+          100
+        ],
+        "distance_corrected_max_factor": 32
+      },
+      "conditions_and_metric_definitions": "v2 Mini / Direct-to-Cell versus first generation; distance correction.",
+      "limitations": "32 is an upper observed factor, not mean interference or throughput degradation.",
+      "source_excerpts": [
+        {
+          "pdf_page": 1,
+          "text": "s from satellite to satellite, with values ranging from 15 Jy to 1300 Jy, between 56 and 66 MHz, and from 2 to 100 Jy over two distinct 8 MHz frequency ranges centered at 1",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 1,
+          "text": " that the second-generation satellites emit UEMR that is up to a factor of 32 stronger compared to the first generation. The calculated electric field strengths of the detected ",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 3,
+      "authors": "Wenting Cao; Feihuang Chu; Luliang Jia; Hongyu Zhou; Yunfan Zhang",
+      "title": "A Multi-Agent Deep Reinforcement Learning Anti-Jamming Spectrum-Access Method in LEO Satellites",
+      "publication_year": 2025,
+      "reviewed_version": "publisher PDF",
+      "doi_url": "https://doi.org/10.3390/electronics14163307",
+      "pdf_url": "https://mdpi-res.com/d_attachment/electronics/electronics-14-03307/article_deploy/electronics-14-03307.pdf",
+      "pdf_sha256": "e5b22f4b09a68b81ec2890fad4a0e6cbc52b5684e9710866f7c6d86ef328d61f",
+      "pdf_page_count": 16,
+      "reviewed_pdf_pages": [
+        11,
+        12
+      ],
+      "evidence_type": "simulation_result_and_configuration",
+      "reported_values": {
+        "relative_CTE_convergence_percent": 97,
+        "reward_stabilization_episodes_approx": 200,
+        "users": 10,
+        "channels": 4,
+        "LEO_altitude_km": 550,
+        "jammer_altitude_km": 35786,
+        "beam_bandwidth_MHz": 200,
+        "frequency_GHz": [
+          10.7,
+          12.7
+        ]
+      },
+      "conditions_and_metric_definitions": "VDN centralized training/decentralized execution; CTE, NIL and RAS baselines; Markov jammer switching.",
+      "limitations": "97% is relative convergence performance, not packet success; beam bandwidth is not asserted per channel.",
+      "source_excerpts": [
+        {
+          "pdf_page": 12,
+          "text": "putational resources. The proposed method achieves approximately 97% of CTE’s convergence performance without excessive link overhead. It validates the effectiveness of the pr",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 11,
+          "text": "values in Figure 5a increase during training and stabilize after 200 episodes, while the loss values in Figure 5b exhibit progressive reduction. These observations validate the ",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 4,
+      "authors": "Inkyu Kim; Sangkeum Lee; Haechan Jeong; Sarvar Hussain Nengroo; Dongsoo Har",
+      "title": "Frequency Hopping Synchronization by Reinforcement Learning for Satellite Communication System",
+      "publication_year": 2025,
+      "reviewed_version": "2503.04266v1",
+      "doi_url": null,
+      "pdf_url": "https://arxiv.org/pdf/2503.04266v1",
+      "pdf_sha256": "8836cb7732b5fef60287730fdb61e791311c0f3560f5a430f0ac4c41653503ef",
+      "pdf_page_count": 18,
+      "reviewed_pdf_pages": [
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "evidence_type": "simulation_result_and_configuration",
+      "reported_values": {
+        "SNR_dB": [
+          0,
+          20
+        ],
+        "MAT_reduction_vs_ELG_percent": 58.17,
+        "MSE_reduction_vs_ELG_percent": 76.95,
+        "MAT_reduction_vs_Lee_percent": 12.24,
+        "MSE_reduction_vs_Lee_percent": 18.5,
+        "hop_duration_ms": 1
+      },
+      "conditions_and_metric_definitions": "RL frequency hopping synchronization; comparisons to ELG and Lee/LSTM across 0-20 dB.",
+      "limitations": "Synchronization metrics are not throughput gains. GEO height 35786 km versus reported approximately 59-61 ms one-way delay is physically unexplained; altitude/c lower bound is 119.37 ms. Do not reuse delay calibration.",
+      "source_excerpts": [
+        {
+          "pdf_page": 16,
+          "text": "e RL method exhibits an average reduction of 29.60%, 52.34%, and 58.17%, respectively, over the 0-20dB SNR range. Moreover, when compared with “Lee ”, the average number o",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 16,
+          "text": "over the 0-20dB range of SNR is decreased by 49.45%, 71.71%, and 76.95%, respectively, as compared to “ELG”. This improvement can be attributed to the ability of ground -t",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 16,
+          "text": "”, the average number of hops of the proposed RL is decreased by 12.24%. A lower MSE value indicates a more accurate estimation of the uplink hop timing. Fig. 5(b) shows t",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 16,
+          "text": "of uplink hop timing estimation of the RL method is decreased by 18.50%. V. CONCLUSION This paper introduces a novel synchronization method that combines serial search for",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 5,
+      "authors": "Eunsun Kim; Ian P. Roberts; Taekyun Lee; Jeffrey G. Andrews",
+      "title": "Satellite Selection for In-Band Coexistence of Dense LEO Networks",
+      "publication_year": 2025,
+      "reviewed_version": "2503.15262v1",
+      "doi_url": null,
+      "pdf_url": "https://arxiv.org/pdf/2503.15262v1",
+      "pdf_sha256": "3907a6b5f0f9833b0db5208dc8cd7d7d5a819b9831355e1037d5471bed824a7d",
+      "pdf_page_count": 13,
+      "reviewed_pdf_pages": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "evidence_type": "simulation_result_and_configuration",
+      "reported_values": {
+        "carrier_GHz": 20,
+        "primary_satellites": 6900,
+        "secondary_satellites": 3236,
+        "unprotected_exceedance_approx_percent_at_8_32_beams": [
+          20,
+          50
+        ],
+        "unprotected_INR_threshold_dB": -12.2,
+        "Table_IV_mean_INR_dB": -6,
+        "Table_IV_absolute_cap_dB": [
+          -6,
+          0,
+          3
+        ],
+        "Table_IV_utilization_percent": [
+          22.16,
+          73.75,
+          93.92
+        ],
+        "Table_IV_violation_percent": [
+          0,
+          0.63,
+          1.79
+        ],
+        "handover_s": 15,
+        "average_window_s": 10
+      },
+      "conditions_and_metric_definitions": "Table IV, 16 beams; compare same average threshold. Utilization is fraction of secondary ground users actively served; violation is primary instantaneous INR above average threshold.",
+      "limitations": "Parameterized Starlink/Kuiper simulations, not live constellation measurement; utilization is not bandwidth efficiency. The 1.79% does not mean absolute 3 dB cap violations.",
+      "source_excerpts": [
+        {
+          "pdf_page": 10,
+          "text": "on Violation Utilization Violation −12.2 dB 3.47 0 N/A N/A −6 dB 22.16 1.34 22.16 0 −3 dB 53.44 3.70 56.45 0.47 0 dB 66.05 4.55 73.75 0.63 3 dB 84.76 10.09 93.92 1.79 ∞ 8",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 9,
+          "text": "istence under our proposed satellite selection mechanism: i. the violation rate, defined as the fraction of primary users whose instantaneous INR exceeds the time-average threshold INRth, ",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 9,
+          "text": "age threshold INRth, i.e., 1|U |Pu∈U 1 \u0002INRt(u, p) > INRth\u0003; ii. secondary system utilization, defined as the fraction of secondary ground users actively served by the secondary system, i.e., 1NG PNSm=1",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 6,
+      "authors": "Alessio Meloni; Maurizio Murroni",
+      "title": "CRDSA, CRDSA++ and IRSA: Stability and Performance Evaluation",
+      "publication_year": 2012,
+      "reviewed_version": "1501.05809v1",
+      "doi_url": "https://doi.org/10.1109/ASMS-SPSC.2012.6333080",
+      "pdf_url": "https://arxiv.org/pdf/1501.05809v1",
+      "pdf_sha256": "18deab978cd9d41257da0da76c532d7ddb455d644ff63d52b04e1710fe5bf035",
+      "pdf_page_count": 6,
+      "reviewed_pdf_pages": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "evidence_type": "simulation_result_and_configuration",
+      "reported_values": {
+        "slots_per_frame": 100,
+        "SIC_iterations_max": 20,
+        "users": 350,
+        "new_packet_probability": 0.143,
+        "retransmit_probability": 0.5,
+        "average_input_packets_per_slot": 0.53,
+        "average_output_packets_per_slot": 0.486,
+        "packet_loss_ratio": 0.075,
+        "mean_backlogged_users": 8.4,
+        "Fig5_retransmit_probabilities": [
+          1,
+          0.5,
+          0.15
+        ],
+        "Fig5_mean_delay_frames": [
+          1.075,
+          1.143,
+          1.388
+        ]
+      },
+      "conditions_and_metric_definitions": "Fig 6 stable example; Fig 7 with retransmit probability 1 is non-globally-stable and can collapse. Fig 5 is a separate delay comparison.",
+      "limitations": "Ideal SIC/channel estimation, no FEC or unequal powers; 2012 publication, 2015 preprint upload. Not a universal capacity limit.",
+      "source_excerpts": [
+        {
+          "pdf_page": 5,
+          "text": "rame sequence number [j] Throughput [GOUT] Av[GIN]=0.53 Av[GOUT]=0.486 Av[PLR]=0.075 Av[NB]=8.4 Fig. 6: Simulated throughput for CRDSA with Nf = 100 slots, Imax = 20, p0 ",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        },
+        {
+          "pdf_page": 5,
+          "text": "=0.5 , PLR=0.067 , Av[Dpkt]=1.143 pr=0.15 , PLR=0.055 , Av[Dpkt]=1.388 Fig. 5: Delay distribution for CRDSA with Nf = 100 slots, Imax = 20, M = 350 and p0 = 0.143 V. N UM",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    },
+    {
+      "citation_id": 7,
+      "authors": "Saurav Sthapit; Subhash Lakshminarayana; Ligang He; Gregory Epiphaniou; Carsten Maple",
+      "title": "Reinforcement Learning for Security-Aware Computation Offloading in Satellite Networks",
+      "publication_year": 2021,
+      "reviewed_version": "2111.05259v1",
+      "doi_url": "https://doi.org/10.1109/JIOT.2021.3135632",
+      "pdf_url": "https://arxiv.org/pdf/2111.05259v1",
+      "pdf_sha256": "fcd53d22715e72132abb2c41d68be7c81cb16559cef7b473bb44b14d539e8b33",
+      "pdf_page_count": 12,
+      "reviewed_pdf_pages": [
+        8,
+        9
+      ],
+      "evidence_type": "configuration_and_analytic_condition",
+      "reported_values": {
+        "local_cores": 4,
+        "processing_jobs_per_second_per_core": 1,
+        "local_stability_lambda_less_than_jobs_per_second": 4,
+        "job_size_MB": 0.2,
+        "expiry_s": 5,
+        "Monte_Carlo_runs_per_setting": 10,
+        "arrival_rate_jobs_per_second": [
+          3,
+          7
+        ]
+      },
+      "conditions_and_metric_definitions": "Finite-buffer satellite computation offloading; poor network is randomized rather than explicit RF propagation.",
+      "limitations": "These are configuration/stability numbers, not measured anti-jamming gains; no plot-digitized gain claimed.",
+      "source_excerpts": [
+        {
+          "pdf_page": 8,
+          "text": "he satellite (i.e. Nm < N s = 16 ). The job size is chosen to be 0.2 MB, and it takes one second to process on the satellite without the waiting times. For stability , the",
+          "normalization": "whitespace collapsed; excerpt may begin/end mid-sentence"
+        }
+      ]
+    }
+  ]
+}
